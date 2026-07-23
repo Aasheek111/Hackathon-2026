@@ -15,6 +15,7 @@ import hashlib
 import json
 import os
 import re
+import struct
 import time
 from pathlib import Path
 from urllib.parse import quote
@@ -22,6 +23,7 @@ from urllib.parse import quote
 import requests
 from dotenv import load_dotenv
 from google import genai
+from google.genai import types as genai_types
 from langchain_community.embeddings import FakeEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
@@ -41,6 +43,7 @@ load_dotenv(override=True)
 BASE_DIR = Path(__file__).resolve().parent.parent
 PDF_DIR = BASE_DIR / "uploads" / "pdfs"
 IMAGE_DIR = BASE_DIR / "uploads" / "images"
+AUDIO_DIR = BASE_DIR / "uploads" / "audio"
 VECTOR_DIR = BASE_DIR / "vector_store"
 STATIC_DIR = BASE_DIR / "static"
 
@@ -100,7 +103,7 @@ VALID_MODES = tuple(MODE_GUIDANCE)
 
 def ensure_directories() -> None:
     """Called on startup so a fresh clone works without any manual mkdir."""
-    for directory in (PDF_DIR, IMAGE_DIR, VECTOR_DIR, STATIC_DIR):
+    for directory in (PDF_DIR, IMAGE_DIR, AUDIO_DIR, VECTOR_DIR, STATIC_DIR):
         directory.mkdir(parents=True, exist_ok=True)
 
 
@@ -690,3 +693,89 @@ def generate_final_assessment(lesson_titles: list[str]) -> list[dict]:
         if options and correct in options:
             questions.append({"question": str(item.get("question", "")), "options": options, "correct": correct})
     return questions
+
+
+# --- text-to-speech -----------------------------------------------------------
+#
+# Verified live during implementation (Docker exec against the real API):
+# gemini-2.5-flash-preview-tts + the "Achernar" prebuilt voice both work and
+# return real audio. The originally-requested model name
+# ("gemini-3.1-flash-tts-preview") is not a real model as of this session's
+# knowledge - this is the confirmed-working substitute, not an assumption.
+# The API returns raw PCM (audio/L16, 24kHz, mono, 16-bit) rather than a
+# browser-playable container, so _wrap_pcm_as_wav() adds a WAV header before
+# saving.
+
+GEMINI_TTS_MODEL = "gemini-2.5-flash-preview-tts"
+DEFAULT_TTS_VOICE = "Achernar"
+TTS_SAMPLE_RATE = 24000
+
+
+def _wrap_pcm_as_wav(pcm_data: bytes, sample_rate: int = TTS_SAMPLE_RATE, channels: int = 1, bits_per_sample: int = 16) -> bytes:
+    byte_rate = sample_rate * channels * bits_per_sample // 8
+    block_align = channels * bits_per_sample // 8
+    header = struct.pack(
+        "<4sI4s4sIHHIIHH4sI",
+        b"RIFF", 36 + len(pcm_data), b"WAVE",
+        b"fmt ", 16, 1, channels, sample_rate, byte_rate, block_align, bits_per_sample,
+        b"data", len(pcm_data),
+    )
+    return header + pcm_data
+
+
+def generate_speech(text: str, voice: str = DEFAULT_TTS_VOICE) -> str | None:
+    """Gemini TTS, content-hash cached (PLAN §20: never regenerate the same
+    text+voice pair) - unlike generate_visual_image's hash, this one does NOT
+    mix in time.time(), because identical narration for the same lesson
+    should always resolve to the same cached file rather than a fresh clip.
+
+    Never raises - a missing key, quota, or an unsupported voice all just
+    mean "no audio today"; the caller (frontend) falls back to the browser's
+    own speechSynthesis, same contract as the rest of this app's AI features.
+    """
+    if not api_key_present() or not (text or "").strip():
+        return None
+
+    digest = hashlib.sha1(f"{text.strip()}:{voice}".encode()).hexdigest()[:16]
+    filename = f"speech_{digest}.wav"
+    AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+    target = AUDIO_DIR / filename
+    if target.exists():
+        return f"/static/audio/{filename}"
+
+    try:
+        client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
+        response = client.models.generate_content(
+            model=GEMINI_TTS_MODEL,
+            contents=[text.strip()],
+            config=genai_types.GenerateContentConfig(
+                response_modalities=["AUDIO"],
+                speech_config=genai_types.SpeechConfig(
+                    voice_config=genai_types.VoiceConfig(
+                        prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(voice_name=voice)
+                    )
+                ),
+            ),
+        )
+    except Exception:
+        return None
+
+    pcm_bytes: bytes | None = None
+    for candidate in response.candidates or []:
+        for part in candidate.content.parts or []:
+            inline_data = getattr(part, "inline_data", None)
+            if inline_data is not None and inline_data.data:
+                pcm_bytes = inline_data.data
+                break
+        if pcm_bytes:
+            break
+
+    if not pcm_bytes:
+        return None
+
+    try:
+        target.write_bytes(_wrap_pcm_as_wav(pcm_bytes))
+    except OSError:
+        return None
+
+    return f"/static/audio/{filename}"

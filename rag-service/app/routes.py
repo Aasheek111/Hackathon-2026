@@ -22,6 +22,8 @@ from .models import (
     ExtractYoutubeIdRequest,
     ExtractYoutubeIdResponse,
     GenerateCurriculumRequest,
+    GenerateSpeechRequest,
+    GenerateSpeechResponse,
     GenerateVisualRequest,
     GenerateYoutubeQuizRequest,
     HealthResponse,
@@ -174,6 +176,17 @@ def generate_youtube_quiz_endpoint(request: GenerateYoutubeQuizRequest) -> dict:
     """
     task = generate_youtube_quiz.delay(request.quiz_id, request.video_id)
     return {"status": "queued", "celery_task_id": task.id}
+
+
+@router.post("/generate-speech", response_model=GenerateSpeechResponse, tags=["generate"])
+def generate_speech_endpoint(request: GenerateSpeechRequest) -> GenerateSpeechResponse:
+    """Synchronous - a single TTS call is fast enough not to need the queue,
+    unlike the multi-call curriculum/YouTube-quiz pipelines.
+    """
+    audio_url = engine.generate_speech(request.text, request.voice)
+    if not audio_url:
+        raise HTTPException(status_code=502, detail="Could not generate speech right now")
+    return GenerateSpeechResponse(status="success", audio_url=audio_url)
 
 
 @router.post("/generate-tutorial", response_model=TutorialResponse, tags=["generate"])

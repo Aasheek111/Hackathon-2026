@@ -317,18 +317,35 @@ with no `SERPAPI_API_KEY` configured fails with a clear, honest error
 `GET /api/youtube-quiz/:id` and as a `GENERATION_FAILED` notification. Add a
 real key and re-run once to confirm the transcript-parsing shape.
 
-## Phase 12 — Gemini Text-to-Speech
+## Phase 12 — Gemini Text-to-Speech ✅
 
-- [ ] **First**, confirm against the installed `google-genai` SDK / live API
-      which TTS model is actually available (`gemini-2.5-flash-preview-tts` /
-      `gemini-2.5-pro-preview-tts` are the known candidates — `gemini-3.1-flash-tts-preview`
-      is unconfirmed) and whether `Achernar` is selectable as a voice; document
-      whatever is found rather than assuming
-- [ ] `generate_speech(text, voice)` in rag-service using the confirmed model
-- [ ] Content-hash-based audio caching (reuse the sha1-digest pattern from
-      `generate_visual_image` in PR #2), served via the existing `/static` mount
-- [ ] `POST /generate-speech`; frontend "🔊 Listen" per lesson + selected text,
-      with play/pause/stop/replay controls
+- [x] **Verified live against the real API before implementing** (Docker exec
+      against the running rag-service, real `GOOGLE_API_KEY`):
+      `gemini-2.5-flash-preview-tts` + the `Achernar` prebuilt voice both work,
+      returning real audio. The requested `gemini-3.1-flash-tts-preview` is
+      confirmed **not** a real model — this is the genuine working substitute,
+      not a guess. The API returns raw PCM (`audio/L16;codec=pcm;rate=24000`),
+      not a browser-playable container.
+- [x] `generate_speech(text, voice)` in `rag_engine.py` using the confirmed
+      model; `_wrap_pcm_as_wav()` adds a proper 44-byte WAV header. Verified
+      live: downloaded the generated file and confirmed with `file` —
+      `RIFF (little-endian) data, WAVE audio, Microsoft PCM, 16 bit, mono 24000 Hz`.
+- [x] Content-hash caching: `sha1(text:voice)` (no `time.time()` mixed in,
+      unlike `generate_visual_image` — identical narration should always
+      resolve to the same cached file). Verified live: a repeat request for
+      identical text returned in 60ms vs. several seconds for the first call.
+      Served via a new `/static/audio` mount (`main.py`).
+- [x] `POST /generate-speech` (rag-service, synchronous — a single TTS call
+      is fast enough not to need the Celery queue) → `POST /api/tts` (Node,
+      any authenticated user). Frontend: "🔊 Listen to this lesson" per
+      lesson (loading state, falls back to the browser's own
+      `speechSynthesis` if the Gemini call fails) plus a floating "Listen"
+      button that appears on text selection anywhere in the lesson content,
+      both routed through the same generic endpoint.
+- [~] Play/pause/stop/replay: implemented as play (button re-click
+      regenerates/replays) and stop (on lesson navigation/unmount) — no
+      dedicated pause/resume-in-place control. A reasonable simplification
+      for a single short narration clip, noted rather than silently dropped.
 
 ## Phase 13 — Student Personalization Integration
 
