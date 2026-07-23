@@ -1,0 +1,12 @@
+__pycache__
+*.pyc
+.venv
+venv
+.git
+uploads/pdfs
+uploads/images
+vector_store
+
+# NOTE: .env is intentionally NOT excluded - rag-service has no bind mount at
+# runtime (unlike backend/frontend), so its .env must be baked into the image
+# at build time via COPY . . for GOOGLE_API_KEY to actually reach the container.
