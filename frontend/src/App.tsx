@@ -14,15 +14,33 @@ import SubscriptionPage from './pages/SubscriptionPage';
 import DashboardPage from './pages/DashboardPage';
 import AdminPage from './pages/AdminPage';
 import ArGamePage from './pages/ArGamePage';
+import TeacherDashboardPage from './pages/TeacherDashboardPage';
+import RecommendationPage from './pages/RecommendationPage';
+import MyClassroomPage from './pages/MyClassroomPage';
+import TutorialPage from './pages/TutorialPage';
+import ProgressPage from './pages/ProgressPage';
 import LoadingSpinner from './components/ui/LoadingSpinner';
 
-const ProtectedRoute = ({ children, requireAdmin = false }: { children: React.ReactNode, requireAdmin?: boolean }) => {
+const ProtectedRoute = ({
+  children,
+  requireAdmin = false,
+  allowRoles
+}: {
+  children: React.ReactNode;
+  requireAdmin?: boolean;
+  /** If set, only these roles may view this route (others are sent to their own home). */
+  allowRoles?: Array<'ADMIN' | 'TEACHER' | 'STUDENT'>;
+}) => {
   const { user, token, isLoading } = useAuth();
-  
+
   if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-dark"><LoadingSpinner size="lg" /></div>;
   if (!token) return <Navigate to="/login" replace />;
   if (requireAdmin && user?.role !== 'ADMIN') return <Navigate to="/dashboard" replace />;
-  
+  if (allowRoles && user && !allowRoles.includes(user.role)) {
+    const home = user.role === 'ADMIN' ? '/admin' : user.role === 'TEACHER' ? '/teacher' : '/dashboard';
+    return <Navigate to={home} replace />;
+  }
+
   return <>{children}</>;
 };
 
@@ -44,9 +62,18 @@ const App: React.FC = () => {
           <Route path="/quiz" element={<ProtectedRoute><QuizPage /></ProtectedRoute>} />
           <Route path="/quiz/result" element={<ProtectedRoute><QuizResultPage /></ProtectedRoute>} />
           <Route path="/subscription" element={<SubscriptionPage />} />
-          <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+          <Route path="/dashboard" element={<ProtectedRoute allowRoles={['STUDENT']}><DashboardPage /></ProtectedRoute>} />
           <Route path="/ar-game" element={<ProtectedRoute><ArGamePage /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminPage /></ProtectedRoute>} />
+
+          {/* Teacher */}
+          <Route path="/teacher" element={<ProtectedRoute allowRoles={['TEACHER']}><TeacherDashboardPage /></ProtectedRoute>} />
+
+          {/* Student: classroom system */}
+          <Route path="/recommendation" element={<ProtectedRoute allowRoles={['STUDENT']}><RecommendationPage /></ProtectedRoute>} />
+          <Route path="/classroom" element={<ProtectedRoute allowRoles={['STUDENT']}><MyClassroomPage /></ProtectedRoute>} />
+          <Route path="/classroom/units/:unitId/tutorial" element={<ProtectedRoute allowRoles={['STUDENT']}><TutorialPage /></ProtectedRoute>} />
+          <Route path="/progress" element={<ProtectedRoute allowRoles={['STUDENT']}><ProgressPage /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AnimatePresence>
