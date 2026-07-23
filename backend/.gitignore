@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Uploaded teacher PDFs proxied to rag-service - runtime content, not source
+uploads/syllabus/*
+!uploads/syllabus/.gitkeep
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

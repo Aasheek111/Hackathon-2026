@@ -14,7 +14,7 @@ const generateToken = (userId: string, expiresIn: string) => {
 
 router.post('/register', async (req: Request, res: Response) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, intendedRole } = req.body;
 
     if (!name || !email || !password || password.length < 8) {
       return res.status(400).json({ error: 'Invalid input data. Password must be at least 8 characters.' });
@@ -27,8 +27,20 @@ router.post('/register', async (req: Request, res: Response) => {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
+    // Self-registration only ever produces STUDENT or TEACHER accounts - ADMIN
+    // is never selectable here (PLAN.md Part 4.3). A self-registered teacher
+    // starts PENDING and cannot use teacher-only routes until an admin
+    // approves them (see requireApprovedTeacher).
+    const isTeacher = intendedRole === 'TEACHER';
+
     const user = await prisma.user.create({
-      data: { name, email, password: hashedPassword },
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        role: isTeacher ? 'TEACHER' : 'STUDENT',
+        teacherStatus: isTeacher ? 'PENDING' : null
+      },
     });
 
     const token = generateToken(user.id, '7d');
