@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Users, BookOpen, ClipboardCheck, Settings, Clock, Check, X,
-  Plus, Upload, FileText, Loader2, AlertCircle
+  Plus, Upload, FileText, Loader2, AlertCircle, Bell
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import DashboardShell, { NavItem } from '../components/DashboardShell';
@@ -170,6 +170,7 @@ export const TeacherDashboardPage: React.FC = () => {
             <h1 className="text-3xl font-display font-bold">{classroom.name}</h1>
             <p className="text-gray-400">{classroom.description || 'No description yet.'}</p>
           </div>
+          <NotificationBell />
         </div>
 
         {/* Simple hash-nav via local tab state, matching the sidebar buttons above */}
@@ -223,6 +224,92 @@ const OverviewTab: React.FC<{ classroom: Classroom }> = ({ classroom }) => (
     ))}
   </div>
 );
+
+interface NotificationItem {
+  id: string;
+  type: 'GENERATION_COMPLETE' | 'GENERATION_FAILED';
+  title: string;
+  body: string;
+  read: boolean;
+  createdAt: string;
+}
+
+/**
+ * In-app notifications (TODO.md Phase 6) - written automatically when a
+ * background curriculum-generation job finishes or fails. Polled rather
+ * than pushed since there's no websocket/SSE infra in this app.
+ */
+const NotificationBell: React.FC = () => {
+  const [open, setOpen] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const load = useCallback(async () => {
+    try {
+      const { data } = await api.get('/notifications');
+      setNotifications(data.notifications);
+      setUnreadCount(data.unreadCount);
+    } catch {
+      /* silent - the bell just won't update this tick */
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 15000);
+    return () => clearInterval(interval);
+  }, [load]);
+
+  const markRead = async (id: string) => {
+    await api.patch(`/notifications/${id}/read`).catch(() => {});
+    load();
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="relative w-11 h-11 rounded-xl border border-white/10 flex items-center justify-center hover:border-primary transition-colors"
+        aria-label="Notifications"
+      >
+        <Bell className="w-5 h-5" />
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 bg-primary text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto glass-strong rounded-2xl border border-white/10 shadow-2xl z-40"
+          >
+            {notifications.length === 0 ? (
+              <p className="text-sm text-gray-400 p-4">No notifications yet.</p>
+            ) : (
+              notifications.map((n) => (
+                <button
+                  key={n.id}
+                  onClick={() => markRead(n.id)}
+                  className={`w-full text-left px-4 py-3 border-b border-white/5 hover:bg-white/5 ${!n.read ? 'bg-primary/5' : ''}`}
+                >
+                  <p className={`text-sm font-medium ${n.type === 'GENERATION_FAILED' ? 'text-red-400' : 'text-green-400'}`}>
+                    {n.title}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1 line-clamp-2">{n.body}</p>
+                </button>
+              ))
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
 
 const RAG_SERVICE_URL = import.meta.env.VITE_RAG_SERVICE_URL || 'http://localhost:8100';
 
