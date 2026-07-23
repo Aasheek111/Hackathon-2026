@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma';
-import { User } from '@prisma/client';
+import { User, Role } from '@prisma/client';
 
 interface JwtPayload {
   userId: string;
@@ -52,5 +52,44 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
     return res.status(403).json({ error: 'Admin access required' });
   }
 
+  next();
+};
+
+/**
+ * Role gate for the new TEACHER/STUDENT surfaces. Kept separate from
+ * requireAdmin (rather than replacing it) so the already-working admin.ts
+ * routes are untouched.
+ */
+export const requireRole = (...roles: Role[]) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Forbidden for this role' });
+    }
+    next();
+  };
+};
+
+/**
+ * A TEACHER role alone is not enough - a self-registered teacher sits in
+ * teacherStatus=PENDING until an admin approves them (PLAN.md Part 4.3).
+ * Admin-created teachers are approved at creation time, so this only ever
+ * blocks a teacher who registered themselves and hasn't been reviewed yet.
+ */
+export const requireApprovedTeacher = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  if (req.user.role !== 'TEACHER') {
+    return res.status(403).json({ error: 'Teacher access required' });
+  }
+  if (req.user.teacherStatus !== 'APPROVED') {
+    return res.status(403).json({
+      error: 'Teacher account pending approval',
+      teacherStatus: req.user.teacherStatus
+    });
+  }
   next();
 };

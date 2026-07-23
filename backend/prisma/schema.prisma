@@ -8,8 +8,16 @@ datasource db {
 }
 
 enum Role {
-  USER
   ADMIN
+  TEACHER
+  STUDENT
+}
+
+enum TeacherStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
 }
 
 enum LearningMode {
@@ -31,20 +39,48 @@ enum PaymentStatus {
   FAILED
 }
 
+enum JoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum IndexStatus {
+  NOT_INDEXED
+  PROCESSING
+  READY
+  FAILED
+}
+
 model User {
   id             String         @id @default(cuid())
   name           String
   email          String         @unique
   password       String
-  role           Role           @default(USER)
+  role           Role           @default(STUDENT)
+  // teacher-only fields - null for ADMIN/STUDENT
+  teacherStatus  TeacherStatus?
+  teacherNote    String?
   rememberMe     Boolean        @default(false)
   resetToken     String?
   resetTokenExp  DateTime?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
-  demoResult     DemoResult?
-  subscription   Subscription?
-  quizSessions   QuizSession[]
+
+  demoResult      DemoResult?
+  subscription    Subscription?
+  quizSessions    QuizSession[]
+
+  // teacher side
+  classroomTaught Classroom?              @relation("TeacherClassroom")
+  uploadedDocs    SyllabusDocument[]      @relation("UploadedBy")
+
+  // student side
+  enrolments      Enrolment[]             @relation("StudentEnrolments")
+  joinRequests    ClassroomJoinRequest[]  @relation("StudentJoinRequests")
+  attempts        AssessmentAttempt[]
+  tutorials       Tutorial[]
+  progress        StudentProgress?
 }
 
 model DemoResult {
@@ -107,4 +143,185 @@ model QuizSession {
   completed      Boolean      @default(false)
   startedAt      DateTime     @default(now())
   completedAt    DateTime?
+}
+
+// ---------------------------------------------------------------------------
+// Assessment history (PLAN.md Part 6) - AssessmentAttempt is the source of
+// truth. DemoResult above is kept as a cheap "latest snapshot" cache; nothing
+// new reads it as the source of truth.
+// ---------------------------------------------------------------------------
+
+model AssessmentAttempt {
+  id                 String       @id @default(cuid())
+  userId             String
+  user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  textEngagement     Float        @default(0)
+  audioEngagement    Float        @default(0)
+  visualEngagement   Float        @default(0)
+  attentionSpanScore Float        @default(0) // focusedSamples / totalSamples * 100
+  adaptationCount    Int          @default(0) // number of mode-switches during this attempt
+  preferredMode      LearningMode @default(TEXT)
+  arRecommended      Boolean      @default(false)
+
+  scoreCorrect  Int    @default(0)
+  scoreTotal    Int    @default(0)
+  scorePercent  Float  @default(0)
+
+  engagementLog Json      @default("[]")
+  answerLog     Json      @default("[]")
+  startedAt     DateTime  @default(now())
+  completedAt   DateTime?
+  durationSeconds Int?
+
+  @@index([userId, completedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Classroom system (PLAN.md Part 5)
+// ---------------------------------------------------------------------------
+
+model Classroom {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  teacherId   String   @unique // one teacher -> one classroom for now; drop @unique to allow many
+  teacher     User     @relation("TeacherClassroom", fields: [teacherId], references: [id], onDelete: Cascade)
+
+  admissionCriteria AdmissionCriteria?
+  subjects          Subject[]
+  enrolments        Enrolment[]
+  joinRequests      ClassroomJoinRequest[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AdmissionCriteria {
+  id          String    @id @default(cuid())
+  classroomId String    @unique
+  classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+
+  minTextEngagement     Float?
+  maxTextEngagement     Float?
+  minAudioEngagement    Float?
+  maxAudioEngagement    Float?
+  minVisualEngagement   Float?
+  maxVisualEngagement   Float?
+  preferredModes        Json?   // e.g. ["VISUAL", "AUDIO"]
+  minAttentionSpanScore Float?
+  maxAttentionSpanScore Float?
+  minScorePercent       Float?
+  maxScorePercent       Float?
+  arRecommendedOnly     Boolean?
+
+  updatedAt DateTime @updatedAt
+}
+
+model Enrolment {
+  id          String    @id @default(cuid())
+  classroomId String
+  classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  studentId   String
+  student     User      @relation("StudentEnrolments", fields: [studentId], references: [id], onDelete: Cascade)
+  joinedAt    DateTime  @default(now())
+
+  @@unique([classroomId, studentId])
+}
+
+model ClassroomJoinRequest {
+  id           String            @id @default(cuid())
+  classroomId  String
+  classroom    Classroom         @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  studentId    String
+  student      User              @relation("StudentJoinRequests", fields: [studentId], references: [id], onDelete: Cascade)
+  matchScore   Float
+  matchReasons Json
+  status       JoinRequestStatus @default(PENDING)
+  teacherNote  String?
+  requestedAt  DateTime          @default(now())
+  decidedAt    DateTime?
+
+  @@unique([classroomId, studentId])
+}
+
+// ---------------------------------------------------------------------------
+// RAG / syllabus (PLAN.md Part 7)
+// ---------------------------------------------------------------------------
+
+model Subject {
+  id          String    @id @default(cuid())
+  classroomId String
+  classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  name        String
+  units       Unit[]
+  createdAt   DateTime  @default(now())
+}
+
+model Unit {
+  id          String   @id @default(cuid())
+  subjectId   String
+  subject     Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  title       String
+  order       Int      @default(0)
+
+  documents   SyllabusDocument[]
+  tutorials   Tutorial[]
+
+  ragUnitId   Int?         @unique // the integer id rag-service indexes under
+  indexStatus IndexStatus  @default(NOT_INDEXED)
+  createdAt   DateTime     @default(now())
+}
+
+model SyllabusDocument {
+  id           String      @id @default(cuid())
+  unitId       String
+  unit         Unit        @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  uploadedById String
+  uploadedBy   User        @relation("UploadedBy", fields: [uploadedById], references: [id])
+  filename     String
+  fileType     String
+  storagePath  String
+  pageCount    Int?
+  chunkCount   Int?
+  status       IndexStatus @default(NOT_INDEXED)
+  errorMessage String?
+  uploadedAt   DateTime    @default(now())
+}
+
+model Tutorial {
+  id               String       @id @default(cuid())
+  unitId           String
+  unit             Unit         @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  studentId        String
+  student          User         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  learningMode     LearningMode
+  level            Int
+  tutorialText     String
+  audioScript      String
+  visualSuggestion String
+  steps            Json    @default("[]")
+  quiz             Json
+  teacherNote      String
+  sourceChunks     Int     @default(0)
+  offline          Boolean @default(false)
+  createdAt        DateTime @default(now())
+
+  @@unique([studentId, unitId, learningMode, level])
+  @@index([studentId, unitId])
+}
+
+// ---------------------------------------------------------------------------
+// Gamification (PLAN.md Part 9)
+// ---------------------------------------------------------------------------
+
+model StudentProgress {
+  id             String    @id @default(cuid())
+  studentId      String    @unique
+  student        User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  xp             Int       @default(0)
+  streakDays     Int       @default(0)
+  lastActiveDate DateTime?
+  badges         Json      @default("[]") // [{id, name, earnedAt}]
+  updatedAt      DateTime  @updatedAt
 }

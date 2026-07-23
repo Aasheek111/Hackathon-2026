@@ -1,11 +1,21 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Camera, Shield, Eye, Lock } from 'lucide-react';
 import Button from '../components/ui/Button';
 
+const CONSENT_STORAGE_KEY = 'neurolearn_camera_consent';
+
 export const CameraConsentPage: React.FC = () => {
   const navigate = useNavigate();
+
+  // Only ask the first time this browser takes a quiz - a retake shouldn't
+  // re-prompt for something already decided.
+  useEffect(() => {
+    if (localStorage.getItem(CONSENT_STORAGE_KEY)) {
+      navigate('/quiz', { replace: true });
+    }
+  }, [navigate]);
 
   const handleAccept = async () => {
     try {
@@ -15,11 +25,13 @@ export const CameraConsentPage: React.FC = () => {
     } catch (err) {
       console.warn('Camera permission prompt closed or denied', err);
     } finally {
+      localStorage.setItem(CONSENT_STORAGE_KEY, 'granted');
       navigate('/quiz');
     }
   };
 
   const handleDecline = () => {
+    localStorage.setItem(CONSENT_STORAGE_KEY, 'declined');
     navigate('/quiz');
   };
 

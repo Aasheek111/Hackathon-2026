@@ -1,20 +1,30 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Link, useLocation } from 'react-router-dom';
-import { Trophy, ArrowRight, Sparkles, BookOpen, Volume2, Image as ImageIcon } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Trophy, ArrowRight, Sparkles, BookOpen, Volume2, Image as ImageIcon, AlertTriangle } from 'lucide-react';
 import Button from '../components/ui/Button';
+
+interface AssessmentAttempt {
+  textEngagement: number;
+  audioEngagement: number;
+  visualEngagement: number;
+  preferredMode: 'TEXT' | 'AUDIO' | 'VISUAL' | 'AR';
+}
 
 export const QuizResultPage: React.FC = () => {
   const location = useLocation();
-  const quizScore = location.state?.score ?? 18;
-  const totalQuestions = location.state?.total ?? 20;
+  const navigate = useNavigate();
+  const quizScore = location.state?.score ?? 0;
+  const totalQuestions = location.state?.total ?? 0;
+  // Real data from POST /assessments/:id/complete (PLAN.md Part 6.4) - this
+  // used to be a hardcoded constant regardless of how the quiz actually went.
+  const attempt: AssessmentAttempt | null = location.state?.attempt ?? null;
 
-  // Mock data representing analysis
   const profile = {
-    text: 68,
-    audio: 82,
-    visual: 95,
-    recommended: 'VISUAL'
+    text: Math.round(attempt?.textEngagement ?? 0),
+    audio: Math.round(attempt?.audioEngagement ?? 0),
+    visual: Math.round(attempt?.visualEngagement ?? 0),
+    recommended: attempt?.preferredMode ?? 'TEXT'
   };
 
   const getModeDetails = (mode: string) => {
@@ -46,11 +56,16 @@ export const QuizResultPage: React.FC = () => {
           </motion.div>
           <h1 className="text-4xl md:text-5xl font-display font-bold mb-4">Assessment Complete!</h1>
           <div className="inline-flex items-center px-4 py-2 rounded-full bg-primary/20 border border-primary/40 text-primary-light font-bold mb-4">
-            Quiz Score: {quizScore} / {totalQuestions} Correct ({Math.round((quizScore / totalQuestions) * 100)}%)
+            Quiz Score: {quizScore} / {totalQuestions} Correct ({totalQuestions > 0 ? Math.round((quizScore / totalQuestions) * 100) : 0}%)
           </div>
           <p className="text-xl text-gray-400 max-w-2xl mx-auto">
             We've analyzed your eye tracking engagement patterns across all {totalQuestions} questions.
           </p>
+          {!attempt && (
+            <div className="mt-4 inline-flex items-center gap-2 text-amber-400 text-sm bg-amber-500/10 border border-amber-500/30 px-4 py-2 rounded-full">
+              <AlertTriangle className="w-4 h-4" /> Could not save this attempt to your profile - check your connection and retake if needed.
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -115,10 +130,15 @@ export const QuizResultPage: React.FC = () => {
               We've configured your dashboard to prioritize this modality, while still adapting dynamically when needed.
             </p>
 
-            <Link to="/subscription">
-              <Button size="lg" className="w-full gap-2 shadow-[0_0_20px_rgba(108,61,231,0.3)]">
-                Unlock Full Access <ArrowRight className="w-5 h-5" />
-              </Button>
+            <Button
+              size="lg"
+              onClick={() => navigate('/recommendation')}
+              className="w-full gap-2 shadow-[0_0_20px_rgba(108,61,231,0.3)]"
+            >
+              See recommended classrooms <ArrowRight className="w-5 h-5" />
+            </Button>
+            <Link to="/dashboard" className="text-center text-sm text-gray-400 hover:text-white mt-3 block">
+              Skip for now
             </Link>
           </motion.div>
         </div>

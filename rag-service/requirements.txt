@@ -1,0 +1,17 @@
+# Web
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9        # required for form-data uploads
+python-dotenv>=1.0
+
+# RAG
+numpy<2,>=1.26.2               # pinned - langchain-community and faiss-cpu disagree otherwise
+langchain>=0.3,<0.4
+langchain-community>=0.3,<0.4  # FAISS vector store lives here
+langchain-openai>=0.2,<0.4
+langchain-text-splitters>=0.3,<0.4
+faiss-cpu>=1.8                 # no wheels for Python 3.13+ yet - use 3.11 or 3.12
+
+# Files
+pypdf>=4.2
+pillow>=10.3

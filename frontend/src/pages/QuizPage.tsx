@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Clock, LogOut, Volume2, Image as ImageIcon, BookOpen, Camera, Eye, Sparkles } from 'lucide-react';
 import Button from '../components/ui/Button';
+import api from '../lib/api';
 
 type LearningMode = 'TEXT' | 'AUDIO' | 'VISUAL';
 
@@ -88,6 +89,44 @@ export const QuizPage: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const analysisCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const synth = window.speechSynthesis;
+
+  // --- backend persistence (PLAN.md Part 6) ---------------------------------
+  // Everything above this line is the pre-existing adaptive quiz UI, kept as
+  // it is. These refs/functions are the additive wiring that closes the gap
+  // where a full quiz session was computed and then discarded.
+  const attemptIdRef = useRef<string | null>(null);
+  const adaptationCountRef = useRef(0);
+  const completedRef = useRef(false); // guards against double-submitting /complete
+  const startedAtMsRef = useRef(Date.now());
+  const engagementSyncCounterRef = useRef(0);
+
+  useEffect(() => {
+    api
+      .post('/assessments/start')
+      .then(({ data }) => {
+        attemptIdRef.current = data.attemptId;
+      })
+      .catch(() => {
+        // If the backend is unreachable the quiz still runs - it just will
+        // not persist. Better than blocking the child on a network error.
+      });
+  }, []);
+
+  const completeAssessment = useCallback((finalScore: number, finalTotal: number): Promise<any | null> => {
+    if (completedRef.current || !attemptIdRef.current) return Promise.resolve(null);
+    completedRef.current = true;
+    const durationSeconds = Math.round((Date.now() - startedAtMsRef.current) / 1000);
+    return api
+      .post(`/assessments/${attemptIdRef.current}/complete`, {
+        modeEngagement: modeEngagementRef.current,
+        adaptationCount: adaptationCountRef.current,
+        scoreCorrect: finalScore,
+        scoreTotal: finalTotal,
+        durationSeconds
+      })
+      .then(({ data }) => data.attempt)
+      .catch(() => null);
+  }, []);
 
   useEffect(() => {
     currentIndexRef.current = currentIndex;
@@ -227,11 +266,14 @@ export const QuizPage: React.FC = () => {
     const bestMode = pickBestMode();
     const nextIndex = findNextQuestionIndex(bestMode);
     if (nextIndex === null) {
-      navigate('/quiz/result', { state: { score, total: visitedQuestionIdsRef.current.size } });
+      completeAssessment(score, visitedQuestionIdsRef.current.size).then((attempt) => {
+        navigate('/quiz/result', { state: { score, total: visitedQuestionIdsRef.current.size, attempt } });
+      });
       return;
     }
 
     const nextTopic = questions[nextIndex]?.subject ?? 'next topic';
+    const isRealSwitch = bestMode !== currentModeRef.current;
 
     setAdaptationToast(`Eye contact dropped. Moving to ${nextTopic} in ${bestMode} mode.`);
     setTimeout(() => setAdaptationToast(null), 4000);
@@ -240,6 +282,7 @@ export const QuizPage: React.FC = () => {
     synth.cancel();
 
     window.setTimeout(() => {
+      if (isRealSwitch) adaptationCountRef.current += 1;
       setCurrentMode(bestMode);
       setCurrentIndex(nextIndex);
       currentIndexRef.current = nextIndex;
@@ -252,7 +295,7 @@ export const QuizPage: React.FC = () => {
         adaptationLockedRef.current = false;
       }, 1800);
     }, 900);
-  }, [findNextQuestionIndex, navigate, pickBestMode, questions, score, selectedAnswer, synth]);
+  }, [completeAssessment, findNextQuestionIndex, navigate, pickBestMode, questions, score, selectedAnswer, synth]);
 
   // 1. Clean Camera Initialization & Lifecycle Release
   useEffect(() => {
@@ -348,6 +391,20 @@ export const QuizPage: React.FC = () => {
               return updated;
             });
 
+            // Throttled sync to the backend - roughly every 2s, not every
+            // 250ms sample, so a 15-minute session doesn't hammer the API.
+            engagementSyncCounterRef.current += 1;
+            if (attemptIdRef.current && engagementSyncCounterRef.current % 8 === 0) {
+              api
+                .post(`/assessments/${attemptIdRef.current}/engagement`, {
+                  score: calculatedScore,
+                  faceDetected: isFaceInFrame,
+                  gaze: result.gaze,
+                  mode
+                })
+                .catch(() => undefined);
+            }
+
             if (!isFaceInFrame || calculatedScore < LOW_EYE_CONTACT_THRESHOLD || result.gaze === 'away') {
               lowEyeContactCounter.current += 1;
               if (lowEyeContactCounter.current >= LOW_EYE_CONTACT_SAMPLES) {
@@ -386,12 +443,14 @@ export const QuizPage: React.FC = () => {
   // Timer effect
   useEffect(() => {
     if (timeLeft <= 0) {
-      navigate('/quiz/result', { state: { score, total: visitedQuestionIdsRef.current.size } });
+      completeAssessment(score, visitedQuestionIdsRef.current.size).then((attempt) => {
+        navigate('/quiz/result', { state: { score, total: visitedQuestionIdsRef.current.size, attempt } });
+      });
       return;
     }
     const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
     return () => clearInterval(timer);
-  }, [timeLeft, navigate, score, questions.length]);
+  }, [timeLeft, navigate, score, questions.length, completeAssessment]);
 
   // Handle TTS for Audio Mode
   useEffect(() => {
@@ -413,11 +472,22 @@ export const QuizPage: React.FC = () => {
 
   const handleAnswer = (option: string) => {
     if (selectedAnswer !== null) return;
-    
+
     setSelectedAnswer(option);
     const correct = option === questions[currentIndex].answer;
     setIsCorrect(correct);
     if (correct) setScore(prev => prev + 1);
+
+    if (attemptIdRef.current) {
+      api
+        .post(`/assessments/${attemptIdRef.current}/answer`, {
+          questionId: questions[currentIndex].id,
+          answer: option,
+          correct,
+          mode: currentModeRef.current
+        })
+        .catch(() => undefined);
+    }
 
     setTimeout(() => {
       const nextIndex = findNextQuestionIndex(currentModeRef.current);
@@ -426,7 +496,10 @@ export const QuizPage: React.FC = () => {
         setSelectedAnswer(null);
         setIsCorrect(null);
       } else {
-        navigate('/quiz/result', { state: { score: score + (correct ? 1 : 0), total: visitedQuestionIdsRef.current.size } });
+        const finalScore = score + (correct ? 1 : 0);
+        completeAssessment(finalScore, visitedQuestionIdsRef.current.size).then((attempt) => {
+          navigate('/quiz/result', { state: { score: finalScore, total: visitedQuestionIdsRef.current.size, attempt } });
+        });
       }
     }, 1200);
   };

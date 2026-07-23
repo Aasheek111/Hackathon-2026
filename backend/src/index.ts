@@ -7,6 +7,15 @@ import quizRouter from './routes/quiz';
 import subscriptionRouter from './routes/subscription';
 import dashboardRouter from './routes/dashboard';
 import adminRouter from './routes/admin';
+import teachersRouter from './routes/teachers';
+import classroomsRouter from './routes/classrooms';
+import joinRequestsRouter from './routes/joinRequests';
+import assessmentsRouter from './routes/assessments';
+import recommendationsRouter from './routes/recommendations';
+import subjectsRouter from './routes/subjects';
+import documentsRouter from './routes/documents';
+import tutorialsRouter from './routes/tutorials';
+import progressRouter from './routes/progress';
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -32,6 +41,15 @@ app.use('/api/quiz', quizRouter);
 app.use('/api/subscription', subscriptionRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/admin/teachers', teachersRouter);
+app.use('/api/classrooms', classroomsRouter);
+app.use('/api/classrooms', joinRequestsRouter); // nested under /:id/requests
+app.use('/api/assessments', assessmentsRouter);
+app.use('/api/recommendations', recommendationsRouter);
+app.use('/api', subjectsRouter); // defines /classrooms/:id/subjects and /subjects/:id/units itself
+app.use('/api/units', documentsRouter); // nested under /:id/documents
+app.use('/api/units', tutorialsRouter); // nested under /:id/tutorial
+app.use('/api/progress', progressRouter);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {
