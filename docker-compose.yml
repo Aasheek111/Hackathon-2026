@@ -1,0 +1,78 @@
+version: '3.9'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: neurolearn_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: neurolearn
+      POSTGRES_PASSWORD: neurolearn_secret
+      POSTGRES_DB: autism_learning
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U neurolearn -d autism_learning']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Node.js Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: neurolearn_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://neurolearn:neurolearn_secret@db:5432/autism_learning
+      JWT_SECRET: super_secret_jwt_key_change_in_production
+      JWT_EXPIRES_IN: 7d
+      PORT: 5000
+      FRONTEND_URL: http://localhost:5173
+      CV_SERVICE_URL: http://cv-service:8000
+    ports:
+      - '5000:5000'
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  # Python CV Microservice
+  cv-service:
+    build:
+      context: ./cv-service
+      dockerfile: Dockerfile
+    container_name: neurolearn_cv
+    restart: unless-stopped
+    ports:
+      - '8000:8000'
+    environment:
+      PORT: 8000
+      HOST: 0.0.0.0
+
+  # React Frontend (dev mode)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: neurolearn_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: http://localhost:5000/api
+      VITE_CV_SERVICE_URL: http://localhost:8000
+    ports:
+      - '5173:5173'
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  postgres_data:

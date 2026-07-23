@@ -1,0 +1,110 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum LearningMode {
+  TEXT
+  AUDIO
+  VISUAL
+  AR
+}
+
+enum SubscriptionPlan {
+  MONTH_1
+  MONTH_3
+  MONTH_6
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+model User {
+  id             String         @id @default(cuid())
+  name           String
+  email          String         @unique
+  password       String
+  role           Role           @default(USER)
+  rememberMe     Boolean        @default(false)
+  resetToken     String?
+  resetTokenExp  DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  demoResult     DemoResult?
+  subscription   Subscription?
+  quizSessions   QuizSession[]
+}
+
+model DemoResult {
+  id               String       @id @default(cuid())
+  userId           String       @unique
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  textEngagement   Float        @default(0)
+  audioEngagement  Float        @default(0)
+  visualEngagement Float        @default(0)
+  arRecommended    Boolean      @default(false)
+  preferredMode    LearningMode @default(TEXT)
+  completedAt      DateTime     @default(now())
+}
+
+model Subscription {
+  id            String           @id @default(cuid())
+  userId        String           @unique
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan          SubscriptionPlan
+  paymentStatus PaymentStatus    @default(PENDING)
+  paymentMethod String           @default("eSewa")
+  transactionId String?
+  startDate     DateTime?
+  expiryDate    DateTime?
+  createdAt     DateTime         @default(now())
+}
+
+model QuizQuestion {
+  id           String       @id @default(cuid())
+  subject      String
+  question     String
+  options      Json
+  answer       String
+  imageUrl     String?
+  audioText    String?
+  learningMode LearningMode
+  difficulty   Int          @default(1)
+  ageGroup     String       @default("all")
+  createdAt    DateTime     @default(now())
+}
+
+model LearningMaterial {
+  id           String       @id @default(cuid())
+  title        String
+  subject      String
+  type         String
+  content      Json
+  learningMode LearningMode
+  createdAt    DateTime     @default(now())
+}
+
+model QuizSession {
+  id             String       @id @default(cuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentMode    LearningMode @default(TEXT)
+  questionIndex  Int          @default(0)
+  score          Int          @default(0)
+  engagementLog  Json         @default("[]")
+  completed      Boolean      @default(false)
+  startedAt      DateTime     @default(now())
+  completedAt    DateTime?
+}
