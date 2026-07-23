@@ -43,8 +43,13 @@ DEFAULT_QUERY = "Explain the key concepts of this unit simply"
 SYSTEM_PROMPT = (
     "You are a special education tutor. You receive textbook chunks and a student diagnosis.\n"
     "Generate a response in JSON format with keys: tutorial_text, audio_script, "
-    "visual_suggestion, quiz, teacher_note.\n"
-    "If the diagnosis says 'Struggling', use grade-1 vocabulary and only 2 MCQ options. "
+    "visual_suggestion, steps, quiz, teacher_note.\n"
+    "'steps' is a list of 2-4 objects, each with 'concept' (a short heading), 'explanation' "
+    "(1-2 plain-language sentences), and 'example' (one concrete example) - break the unit's "
+    "content into that many bite-sized lessons, each grounded in the textbook chunks provided.\n"
+    "'quiz' should have 2-3 questions, each with 4 options, grounded in different parts of the "
+    "textbook chunks - not all testing the same fact.\n"
+    "If the diagnosis says 'Struggling', use grade-1 vocabulary and only 2 MCQ options per question. "
     "Keep tutorial_text under 100 words."
 )
 
@@ -228,8 +233,8 @@ def _coerce_json(raw: str) -> dict:
 def _normalise(payload: dict) -> dict:
     """Guarantee the exact response shape, whatever the model returned.
 
-    The frontend and any marking script depend on these five keys existing, so
-    a missing one becomes an empty value rather than a KeyError downstream.
+    The frontend and any marking script depend on these keys existing, so a
+    missing one becomes an empty value rather than a KeyError downstream.
     """
     quiz = []
     for item in payload.get("quiz") or []:
@@ -244,10 +249,23 @@ def _normalise(payload: dict) -> dict:
             }
         )
 
+    steps = []
+    for item in payload.get("steps") or []:
+        if not isinstance(item, dict):
+            continue
+        steps.append(
+            {
+                "concept": str(item.get("concept", "")),
+                "explanation": str(item.get("explanation", "")),
+                "example": str(item.get("example", "")),
+            }
+        )
+
     return {
         "tutorial_text": str(payload.get("tutorial_text", "")),
         "audio_script": str(payload.get("audio_script", "")),
         "visual_suggestion": str(payload.get("visual_suggestion", "")),
+        "steps": steps,
         "quiz": quiz,
         "teacher_note": str(payload.get("teacher_note", "")),
     }
@@ -270,6 +288,40 @@ def offline_tutorial(unit_id: int, chunks: list[str], learning_mode: str) -> dic
     summary = _first_sentences(body, 3) or "No text was found for this unit."
     headline = _first_sentences(body, 1) or summary
 
+    usable_chunks = [c for c in chunks if c.strip()] or ([body] if body else [])
+    steps = []
+    for i, chunk in enumerate(usable_chunks[:4]):
+        sentences = [s for s in re.split(r"(?<=[.!?])\s+", chunk.strip()) if s]
+        steps.append(
+            {
+                "concept": f"Part {i + 1}",
+                "explanation": " ".join(sentences[:2]) or chunk[:200],
+                "example": sentences[2] if len(sentences) > 2 else "",
+            }
+        )
+    if not steps:
+        steps = [{"concept": "Overview", "explanation": summary, "example": ""}]
+
+    # Build each question from a different chunk when there are enough of
+    # them, using OTHER chunks' headlines as distractors - every option is
+    # real extracted text, nothing invented.
+    headlines = [
+        (_first_sentences(c, 1) or c)[:80] for c in usable_chunks if c.strip()
+    ] or [headline[:80]]
+    quiz = []
+    for i, correct in enumerate(headlines[:3]):
+        distractors = [h for j, h in enumerate(headlines) if j != i][:3]
+        options = [correct] + distractors
+        if len(options) < 2:
+            options.append("Something not covered in this unit")
+        quiz.append(
+            {
+                "question": f"Which of these is discussed in this unit (part {i + 1})?",
+                "options": options,
+                "correct": correct,
+            }
+        )
+
     return {
         "tutorial_text": f"Key points from this unit:\n• {summary}",
         "audio_script": (
@@ -280,13 +332,8 @@ def offline_tutorial(unit_id: int, chunks: list[str], learning_mode: str) -> dic
             "A simple labelled diagram of the main idea above - one box per key term, "
             "connected left to right."
         ),
-        "quiz": [
-            {
-                "question": "Which of these does this unit talk about?",
-                "options": [headline[:80] or "The topic above", "Something not in this unit"],
-                "correct": headline[:80] or "The topic above",
-            }
-        ],
+        "steps": steps,
+        "quiz": quiz,
         "teacher_note": (
             "Offline mode: built by extracting sentences, not by the model. "
             "Set OPENAI_API_KEY for an adapted tutorial."

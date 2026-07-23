@@ -31,10 +31,17 @@ class QuizItem(BaseModel):
     correct: str
 
 
+class TutorialStep(BaseModel):
+    concept: str
+    explanation: str
+    example: str = ""
+
+
 class TutorialResponse(BaseModel):
     tutorial_text: str
     audio_script: str
     visual_suggestion: str
+    steps: list[TutorialStep] = []
     quiz: list[QuizItem]
     teacher_note: str
     source_chunks: int = 0
