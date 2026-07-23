@@ -124,6 +124,10 @@ interface Progress {
   currentLessonOrder: number;
   completed: boolean;
 }
+interface Personalization {
+  preferredMode: 'TEXT' | 'AUDIO' | 'VISUAL' | 'AR';
+  attentionSpanScore: number;
+}
 
 type View = 'lesson' | 'final-assessment' | 'complete';
 
@@ -273,6 +277,7 @@ export const CurriculumPlayerPage: React.FC = () => {
   const [view, setView] = useState<View>('lesson');
   const [finalScore, setFinalScore] = useState<{ scoreCorrect: number; scoreTotal: number } | null>(null);
   const [newBadges, setNewBadges] = useState<Array<{ name: string }>>([]);
+  const [personalization, setPersonalization] = useState<Personalization | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -282,6 +287,7 @@ export const CurriculumPlayerPage: React.FC = () => {
         if (cancelled) return;
         setCurriculum(data.curriculum);
         setProgress(data.progress);
+        setPersonalization(data.personalization || null);
         const resumeIndex = Math.min(
           Math.max(data.progress?.currentLessonOrder ?? 0, 0),
           Math.max(data.curriculum.lessons.length - 1, 0)
@@ -329,6 +335,16 @@ export const CurriculumPlayerPage: React.FC = () => {
       setView('complete');
     }
   };
+
+  // Adaptive presentation (PLAN §23) - same canonical content, read aloud
+  // automatically for a student whose own assessment says they prefer AUDIO,
+  // mirroring the legacy TutorialPage's AUDIO-mode auto-narration.
+  useEffect(() => {
+    if (!curriculum || view !== 'lesson' || personalization?.preferredMode !== 'AUDIO') return;
+    const activeLesson = curriculum.lessons[lessonIndex];
+    if (!activeLesson) return;
+    speak(`${activeLesson.title}. ${activeLesson.explanation} ${activeLesson.example || ''}`);
+  }, [curriculum, lessonIndex, view, personalization]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
@@ -404,6 +420,9 @@ export const CurriculumPlayerPage: React.FC = () => {
   const onFirstLesson = lessonIndex === 0;
   const onLastLesson = lessonIndex >= curriculum.lessons.length - 1;
   const progressPercent = Math.round(((lessonIndex + 1) / curriculum.lessons.length) * 100);
+  // Adaptive presentation (PLAN §23): a low attention-span score gets larger,
+  // less dense text - same canonical lesson, not a different one.
+  const isSimplified = (personalization?.attentionSpanScore ?? 100) < 50;
 
   return (
     <div className="min-h-screen bg-dark pb-20">
@@ -454,7 +473,7 @@ export const CurriculumPlayerPage: React.FC = () => {
             )}
 
             <div ref={lessonContentRef}>
-              <p className="text-gray-200 leading-relaxed text-lg mb-4">{lesson.explanation}</p>
+              <p className={`text-gray-200 leading-relaxed mb-4 ${isSimplified ? 'text-xl' : 'text-lg'}`}>{lesson.explanation}</p>
 
               {lesson.example && (
                 <div className="bg-dark/50 rounded-xl p-4 text-sm text-gray-400 mb-4">

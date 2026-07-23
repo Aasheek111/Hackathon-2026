@@ -347,11 +347,19 @@ real key and re-run once to confirm the transcript-parsing shape.
       dedicated pause/resume-in-place control. A reasonable simplification
       for a single short narration clip, noted rather than silently dropped.
 
-## Phase 13 — Student Personalization Integration
+## Phase 13 — Student Personalization Integration ✅
 
-- [ ] Use existing `AssessmentAttempt.preferredMode` / `attentionSpanScore` to
-      choose **presentation emphasis** on top of the canonical curriculum
-      (text/audio/visual density) — not a separate generated copy per student
+- [x] `GET /:id/curriculum` now also returns `personalization` (the
+      student's own latest completed `AssessmentAttempt.preferredMode` /
+      `attentionSpanScore`) alongside the canonical curriculum + progress
+      pointer — verified live via a seeded attempt
+      (`{preferredMode: "AUDIO", attentionSpanScore: 30}` round-tripped
+      correctly).
+- [x] `CurriculumPlayerPage`: `preferredMode === 'AUDIO'` auto-narrates each
+      lesson via Gemini TTS on load (mirrors the legacy `TutorialPage`'s
+      AUDIO-mode auto-play); `attentionSpanScore < 50` renders the
+      explanation at a larger `text-xl` instead of `text-lg`. Same canonical
+      lesson content either way — presentation only, no regeneration.
 
 ## Phase 14 — Selenium End-to-End Testing
 
