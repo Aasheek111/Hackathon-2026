@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Volume2, Loader2, AlertCircle, ChevronRight, ChevronLeft, Sparkles } from 'lucide-react';
+import {
+  ArrowLeft, Volume2, Loader2, AlertCircle, ChevronRight, ChevronLeft, Sparkles, Trophy, Check, X
+} from 'lucide-react';
 import Button from '../components/ui/Button';
 import api from '../lib/api';
 
@@ -42,10 +44,138 @@ interface Progress {
   completed: boolean;
 }
 
+type View = 'lesson' | 'final-assessment' | 'complete';
+
+/** One lesson's inline check-for-understanding question. Resets whenever the lesson changes. */
+const KnowledgeCheckCard: React.FC<{ unitId: string; lesson: Lesson }> = ({ unitId, lesson }) => {
+  const [selected, setSelected] = useState<string | null>(null);
+  const [result, setResult] = useState<{ correct: boolean; correctAnswer: string } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    setSelected(null);
+    setResult(null);
+  }, [lesson.id]);
+
+  if (!lesson.knowledgeCheck) return null;
+  const check = lesson.knowledgeCheck;
+
+  const submit = async () => {
+    if (!selected) return;
+    setSubmitting(true);
+    try {
+      const { data } = await api.post(`/units/${unitId}/curriculum/lessons/${lesson.id}/knowledge-check`, {
+        answer: selected
+      });
+      setResult(data);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="glass p-6 rounded-2xl mb-6">
+      <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">Quick check</p>
+      <p className="font-medium mb-4">{check.question}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
+        {check.options.map((opt) => {
+          const chosen = selected === opt;
+          let cls = 'border-white/10 hover:border-white/30';
+          if (result) {
+            if (opt === result.correctAnswer) cls = 'border-green-500 bg-green-500/10 text-green-300';
+            else if (chosen) cls = 'border-red-500 bg-red-500/10 text-red-300';
+          } else if (chosen) {
+            cls = 'border-primary bg-primary/10';
+          }
+          return (
+            <button
+              key={opt}
+              disabled={!!result}
+              onClick={() => setSelected(opt)}
+              className={`text-left px-4 py-3 rounded-xl border text-sm transition-all ${cls}`}
+            >
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+      {result ? (
+        <div className={`flex items-center gap-2 text-sm ${result.correct ? 'text-green-400' : 'text-amber-400'}`}>
+          {result.correct ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+          {result.correct ? 'Correct!' : `Not quite - the answer was "${result.correctAnswer}"`}
+        </div>
+      ) : (
+        <Button size="sm" onClick={submit} disabled={!selected} loading={submitting}>
+          Check answer
+        </Button>
+      )}
+    </div>
+  );
+};
+
+const FinalAssessmentView: React.FC<{
+  unitId: string;
+  questions: FinalAssessmentQuestion[];
+  onSubmitted: (score: { scoreCorrect: number; scoreTotal: number }, newBadges: Array<{ name: string }>) => void;
+}> = ({ unitId, questions, onSubmitted }) => {
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async () => {
+    setSubmitting(true);
+    try {
+      const payload = questions.map((q) => ({ questionId: q.id, answer: answers[q.id] || '' }));
+      const { data } = await api.post(`/units/${unitId}/curriculum/final-assessment`, { answers: payload });
+      onSubmitted(
+        { scoreCorrect: data.attempt.scoreCorrect, scoreTotal: data.attempt.scoreTotal },
+        data.newBadges || []
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const allAnswered = questions.every((q) => answers[q.id]);
+
+  return (
+    <main className="max-w-3xl mx-auto px-4 sm:px-6 pt-8 pb-20">
+      <div className="glass-strong p-6 sm:p-8 rounded-3xl">
+        <div className="flex items-center gap-2 mb-6">
+          <Sparkles className="w-5 h-5 text-accent" />
+          <h2 className="text-xl font-bold">Final assessment</h2>
+        </div>
+        <div className="space-y-6">
+          {questions.map((q, qi) => (
+            <div key={q.id}>
+              <p className="font-medium mb-3">{qi + 1}. {q.question}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {q.options.map((opt) => (
+                  <button
+                    key={opt}
+                    onClick={() => setAnswers({ ...answers, [q.id]: opt })}
+                    className={`text-left px-4 py-3 rounded-xl border text-sm transition-all ${
+                      answers[q.id] === opt ? 'border-primary bg-primary/10' : 'border-white/10 hover:border-white/30'
+                    }`}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <Button className="mt-6" onClick={submit} disabled={!allAnswered} loading={submitting}>
+          Submit assessment
+        </Button>
+      </div>
+    </main>
+  );
+};
+
 /**
- * The full-curriculum player (TODO.md Phases 5/7) - a unit only reaches this
- * page once a TutorialCurriculum exists for it (see TutorialRouter). Unlike
- * the legacy TutorialPage, the whole curriculum is fetched once and
+ * The full-curriculum player (TODO.md Phases 5/7-10) - a unit only reaches
+ * this page once a TutorialCurriculum exists for it (see TutorialRouter).
+ * Unlike the legacy TutorialPage, the whole curriculum is fetched once and
  * navigated client-side: no regeneration, no re-fetch, on Next/Previous.
  */
 export const CurriculumPlayerPage: React.FC = () => {
@@ -58,6 +188,9 @@ export const CurriculumPlayerPage: React.FC = () => {
   const [lessonIndex, setLessonIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [view, setView] = useState<View>('lesson');
+  const [finalScore, setFinalScore] = useState<{ scoreCorrect: number; scoreTotal: number } | null>(null);
+  const [newBadges, setNewBadges] = useState<Array<{ name: string }>>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,12 +200,12 @@ export const CurriculumPlayerPage: React.FC = () => {
         if (cancelled) return;
         setCurriculum(data.curriculum);
         setProgress(data.progress);
-        // Resume where the student left off, clamped to a valid lesson index.
         const resumeIndex = Math.min(
           Math.max(data.progress?.currentLessonOrder ?? 0, 0),
           Math.max(data.curriculum.lessons.length - 1, 0)
         );
         setLessonIndex(resumeIndex);
+        if (data.progress?.completed) setView('complete');
       })
       .catch((err) => setError(err.response?.data?.error || 'Could not load this curriculum'))
       .finally(() => setLoading(false));
@@ -86,6 +219,9 @@ export const CurriculumPlayerPage: React.FC = () => {
     (nextIndex: number, completed?: boolean) => {
       api
         .patch(`/units/${unitId}/curriculum/progress`, { currentLessonOrder: nextIndex, completed })
+        .then(({ data }) => {
+          if (data.newBadges?.length) setNewBadges(data.newBadges);
+        })
         .catch(() => {
           /* progress is a convenience pointer - a failed save just means the
              student re-reads this lesson next visit, never blocks navigation */
@@ -107,6 +243,16 @@ export const CurriculumPlayerPage: React.FC = () => {
     synth.speak(new SpeechSynthesisUtterance(text));
   };
 
+  const finishCurriculum = () => {
+    if (!curriculum) return;
+    if (curriculum.finalAssessmentQuestions.length > 0) {
+      setView('final-assessment');
+    } else {
+      saveProgress(lessonIndex, true);
+      setView('complete');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-dark flex items-center justify-center">
@@ -124,6 +270,55 @@ export const CurriculumPlayerPage: React.FC = () => {
           <p className="text-gray-400 mb-6">{error || 'This curriculum has no lessons yet'}</p>
           <Button variant="ghost" onClick={() => navigate('/classroom')}>Back to classroom</Button>
         </div>
+      </div>
+    );
+  }
+
+  if (view === 'complete') {
+    return (
+      <div className="min-h-screen bg-dark flex items-center justify-center p-6">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-strong max-w-md w-full p-10 rounded-3xl text-center"
+        >
+          <Trophy className="w-12 h-12 text-accent mx-auto mb-4" />
+          <h1 className="text-2xl font-display font-bold mb-2">Coursework complete!</h1>
+          <p className="text-gray-400 mb-2">{curriculum.title}</p>
+          {finalScore && (
+            <p className="text-lg font-bold mb-4">
+              Score: {finalScore.scoreCorrect} / {finalScore.scoreTotal}
+            </p>
+          )}
+          {newBadges.length > 0 && (
+            <p className="text-sm text-accent mb-4">New badge: {newBadges.map((b) => b.name).join(', ')}</p>
+          )}
+          <div className="w-full h-2 bg-dark-card rounded-full overflow-hidden mb-6">
+            <div className="h-full bg-gradient-to-r from-primary to-primary-light" style={{ width: '100%' }} />
+          </div>
+          <Button onClick={() => navigate('/classroom')} className="w-full">Back to classroom</Button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (view === 'final-assessment') {
+    return (
+      <div className="min-h-screen bg-dark">
+        <header className="glass px-6 py-4 sticky top-0 z-30 border-b border-white/10">
+          <button onClick={() => setView('lesson')} className="flex items-center gap-2 text-gray-400 hover:text-white">
+            <ArrowLeft className="w-5 h-5" /> Back to lessons
+          </button>
+        </header>
+        <FinalAssessmentView
+          unitId={unitId as string}
+          questions={curriculum.finalAssessmentQuestions}
+          onSubmitted={(score, badges) => {
+            setFinalScore(score);
+            setNewBadges(badges);
+            setView('complete');
+          }}
+        />
       </div>
     );
   }
@@ -198,12 +393,14 @@ export const CurriculumPlayerPage: React.FC = () => {
           </motion.div>
         </AnimatePresence>
 
+        <KnowledgeCheckCard unitId={unitId as string} lesson={lesson} />
+
         <div className="flex items-center justify-between gap-3">
           <Button variant="ghost" onClick={() => goTo(lessonIndex - 1)} disabled={onFirstLesson} className="gap-2">
             <ChevronLeft className="w-4 h-4" /> Previous
           </Button>
           {onLastLesson ? (
-            <Button onClick={() => saveProgress(lessonIndex, true)} className="gap-2">
+            <Button onClick={finishCurriculum} className="gap-2">
               <Sparkles className="w-4 h-4" /> Finish curriculum
             </Button>
           ) : (
