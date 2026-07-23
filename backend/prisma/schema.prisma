@@ -267,10 +267,27 @@ model Unit {
 
   documents   SyllabusDocument[]
   tutorials   Tutorial[]
+  preview     UnitPreview?
 
   ragUnitId   Int?         @unique // the integer id rag-service indexes under
   indexStatus IndexStatus  @default(NOT_INDEXED)
   createdAt   DateTime     @default(now())
+}
+
+// The "set up immediately on upload" artifact: one generic (no student
+// diagnosis) tutorial text + generated image per unit, kicked off the moment
+// indexing finishes so there's an instant placeholder before any specific
+// student's personalized Tutorial exists.
+model UnitPreview {
+  id               String      @id @default(cuid())
+  unitId           String      @unique
+  unit             Unit        @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  tutorialText     String?
+  visualSuggestion String?
+  imageUrl         String?
+  status           IndexStatus @default(NOT_INDEXED)
+  errorMessage     String?
+  updatedAt        DateTime    @updatedAt
 }
 
 model SyllabusDocument {
@@ -300,6 +317,7 @@ model Tutorial {
   tutorialText     String
   audioScript      String
   visualSuggestion String
+  imageUrl         String? // populated once Gemini image-gen finishes; null while pending/unavailable
   steps            Json    @default("[]")
   quiz             Json
   teacherNote      String
