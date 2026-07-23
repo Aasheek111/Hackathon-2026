@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 from PIL import Image, UnidentifiedImageError
 
 from . import rag_engine as engine
+from .celery_app import celery_app
 from .models import (
     GenerateVisualRequest,
     HealthResponse,
@@ -24,6 +25,7 @@ from .models import (
     TutorialRequest,
     TutorialResponse,
 )
+from .tasks import ping
 
 router = APIRouter()
 
@@ -105,6 +107,26 @@ async def upload_image(unit_id: int = Form(...), file: UploadFile = File(...)) -
         await file.close()
 
     return ImageUploadResponse(status="success", image_url=f"/static/images/{filename}")
+
+
+@router.post("/internal/celery-ping", tags=["system"])
+def celery_ping() -> dict:
+    """Proof-of-life for the Celery+Redis wiring: enqueues a trivial task onto
+    redis and returns its id immediately (this endpoint must not block on the
+    result - that would defeat the point of a background queue).
+    """
+    task = ping.delay()
+    return {"task_id": task.id}
+
+
+@router.get("/internal/celery-ping/{task_id}", tags=["system"])
+def celery_ping_status(task_id: str) -> dict:
+    """Poll for the ping task's result - proves a separate celery-worker
+    container actually received and executed the task, not just that it sat
+    in the queue.
+    """
+    result = celery_app.AsyncResult(task_id)
+    return {"task_id": task_id, "status": result.status, "result": result.result if result.ready() else None}
 
 
 @router.post("/generate-visual", response_model=ImageUploadResponse, tags=["generate"])
