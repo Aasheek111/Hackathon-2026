@@ -32,10 +32,18 @@ export const MyClassroomPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api
-      .get('/classrooms/mine/enrolment')
-      .then(({ data }) => setEnrolment(data.enrolment))
-      .finally(() => setLoading(false));
+    const load = () => {
+      api
+        .get('/classrooms/mine/enrolment')
+        .then(({ data }) => setEnrolment(data.enrolment))
+        .finally(() => setLoading(false));
+    };
+    load();
+    // Enrolment happens from the teacher's session, with no way to push here -
+    // pick it up when the student returns to this tab instead of requiring a
+    // manual reload.
+    window.addEventListener('focus', load);
+    return () => window.removeEventListener('focus', load);
   }, []);
 
   const navItems: NavItem[] = [

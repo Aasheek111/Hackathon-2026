@@ -36,19 +36,30 @@ export const DashboardPage: React.FC = () => {
   const [progress, setProgress] = useState<Progress | null>(null);
   const [enrolment, setEnrolment] = useState<Enrolment | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      api.get('/assessments/history'),
-      api.get('/progress'),
-      api.get('/classrooms/mine/enrolment')
-    ])
-      .then(([hist, prog, enr]) => {
-        setHistory(hist.data.attempts);
-        setProgress(prog.data);
-        setEnrolment(enr.data.enrolment);
-      })
-      .finally(() => setLoading(false));
+    const load = () => {
+      setLoadError(false);
+      Promise.all([
+        api.get('/assessments/history'),
+        api.get('/progress'),
+        api.get('/classrooms/mine/enrolment')
+      ])
+        .then(([hist, prog, enr]) => {
+          setHistory(hist.data.attempts);
+          setProgress(prog.data);
+          setEnrolment(enr.data.enrolment);
+        })
+        .catch(() => setLoadError(true))
+        .finally(() => setLoading(false));
+    };
+    load();
+    // A teacher approving a join request, or any other change made from
+    // elsewhere, has no way to push to this tab - refresh when the student
+    // comes back to it instead of leaving stale/empty state on screen.
+    window.addEventListener('focus', load);
+    return () => window.removeEventListener('focus', load);
   }, []);
 
   const handleLogout = () => {
@@ -81,6 +92,12 @@ export const DashboardPage: React.FC = () => {
   return (
     <DashboardShell navItems={navItems}>
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-6xl mx-auto space-y-8">
+
+        {loadError && (
+          <div className="bg-red-500/10 border border-red-500/40 text-red-400 p-4 rounded-xl text-sm">
+            Couldn't load your latest data - check your connection and reload the page.
+          </div>
+        )}
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>

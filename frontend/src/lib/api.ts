@@ -15,9 +15,17 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401) {
+    const hadToken = !!localStorage.getItem('token');
+    // Only treat this as "your session expired" if we actually had a token -
+    // a 401 with no token just means an unauthenticated request, which
+    // ProtectedRoute already handles via normal SPA routing. Forcing a hard
+    // reload here on every 401 was yanking users off pages they were
+    // legitimately allowed to be on (e.g. a transient request racing app init).
+    if (error.response && error.response.status === 401 && hadToken) {
       localStorage.removeItem('token');
-      window.location.href = '/login';
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

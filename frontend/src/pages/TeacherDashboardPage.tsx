@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard, Users, BookOpen, ClipboardCheck, Settings, Clock, Check, X,
@@ -229,21 +229,34 @@ const ContentTab: React.FC<{ classroom: Classroom; onChanged: () => Promise<void
     onChanged();
   };
 
+  const abortControllersRef = useRef<Record<string, AbortController>>({});
+
   const uploadDocument = async (unitId: string, file: File) => {
     setUploadError('');
     setUploadingUnit(unitId);
+    const controller = new AbortController();
+    abortControllersRef.current[unitId] = controller;
     try {
       const form = new FormData();
       form.append('file', file);
       await api.post(`/units/${unitId}/documents`, form, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 'Content-Type': 'multipart/form-data' },
+        signal: controller.signal
       });
       await onChanged();
     } catch (err: any) {
-      setUploadError(err.response?.data?.error || 'Upload failed');
+      // A user-triggered cancel isn't a failure worth alarming them about.
+      if (err.code !== 'ERR_CANCELED' && err.name !== 'CanceledError') {
+        setUploadError(err.response?.data?.error || 'Upload failed');
+      }
     } finally {
+      delete abortControllersRef.current[unitId];
       setUploadingUnit(null);
     }
+  };
+
+  const cancelUpload = (unitId: string) => {
+    abortControllersRef.current[unitId]?.abort();
   };
 
   const statusBadge = (status: Unit['indexStatus']) => {
@@ -284,20 +297,33 @@ const ContentTab: React.FC<{ classroom: Classroom; onChanged: () => Promise<void
                   {statusBadge(unit.indexStatus)}
                   <span className="text-xs text-gray-500">{unit._count?.documents || 0} document(s)</span>
                 </div>
-                <label className={`cursor-pointer text-xs px-3 py-2 rounded-lg border border-white/10 flex items-center gap-2 hover:border-primary ${uploadingUnit === unit.id ? 'opacity-50 pointer-events-none' : ''}`}>
-                  {uploadingUnit === unit.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                  {uploadingUnit === unit.id ? 'Processing…' : 'Upload PDF'}
-                  <input
-                    type="file"
-                    accept="application/pdf"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) uploadDocument(unit.id, file);
-                      e.target.value = '';
-                    }}
-                  />
-                </label>
+                {uploadingUnit === unit.id ? (
+                  <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg border border-white/10">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Processing…
+                    <button
+                      type="button"
+                      onClick={() => cancelUpload(unit.id)}
+                      className="text-red-400 hover:text-red-300 font-medium ml-1"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <label className="cursor-pointer text-xs px-3 py-2 rounded-lg border border-white/10 flex items-center gap-2 hover:border-primary">
+                    <Upload className="w-4 h-4" />
+                    Upload PDF
+                    <input
+                      type="file"
+                      accept="application/pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) uploadDocument(unit.id, file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                )}
               </div>
             ))}
           </div>
