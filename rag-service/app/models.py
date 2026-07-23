@@ -66,6 +66,11 @@ class GenerateVisualRequest(BaseModel):
     prompt: str = Field(..., min_length=1, description="Description of the picture to generate")
 
 
+class GenerateCurriculumRequest(BaseModel):
+    job_id: str = Field(..., min_length=1, description="The TutorialGenerationJob id to report progress against")
+    unit_id: int = Field(..., ge=1, description="Which unit's indexed document to build a curriculum from")
+
+
 class HealthResponse(BaseModel):
     status: str
     service: str = "neurolearn-rag"

@@ -104,6 +104,36 @@ async function queueUnitPreview(unitId: string, ragUnitId: number): Promise<void
   }
 }
 
+/**
+ * Creates the durable job row and hands it to rag-service, which enqueues
+ * the real Celery task (full-document segmentation, per-lesson generation,
+ * visuals, final assessment) and returns immediately - this call itself must
+ * stay fast, the actual generation runs in the celery-worker container.
+ */
+async function queueCurriculumGeneration(
+  unitId: string,
+  documentId: string,
+  teacherId: string,
+  ragUnitId: number
+): Promise<void> {
+  const job = await prisma.tutorialGenerationJob.create({
+    data: { unitId, sourceDocumentId: documentId, teacherId, stage: 'QUEUED' }
+  });
+
+  try {
+    await axios.post(
+      `${RAG_SERVICE_URL}/generate-curriculum`,
+      { job_id: job.id, unit_id: ragUnitId },
+      { timeout: 15000 }
+    );
+  } catch (error: any) {
+    const message = error.response?.data?.detail || error.message || 'Could not queue curriculum generation';
+    await prisma.tutorialGenerationJob
+      .update({ where: { id: job.id }, data: { stage: 'FAILED', errorMessage: String(message) } })
+      .catch(() => {});
+  }
+}
+
 router.post(
   '/:id/documents',
   requireApprovedTeacher,
@@ -161,6 +191,7 @@ router.post(
         // Not awaited - the upload request already returned. Runs after the
         // response is sent so a slow LLM/image call never delays the upload.
         queueUnitPreview(unit.id, ragUnitId).catch(() => {});
+        queueCurriculumGeneration(unit.id, document.id, req.user!.id, ragUnitId).catch(() => {});
       } catch (ragError: any) {
         const message =
           ragError.response?.data?.detail || ragError.message || 'rag-service is unreachable';
