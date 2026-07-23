@@ -12,6 +12,7 @@ import time
 import requests
 
 from . import rag_engine as engine
+from . import youtube_quiz
 from .celery_app import celery_app
 
 # The Node backend is the sole writer to the SQLite DB (see TODO.md Phase 1) -
@@ -134,3 +135,44 @@ def generate_curriculum(self, job_id: str, unit_id: int) -> None:
         response.raise_for_status()
     except Exception as exc:
         _update_job(job_id, stage="FAILED", errorMessage=str(exc)[:500])
+
+
+def _update_youtube_quiz(quiz_id: str, **fields) -> None:
+    try:
+        requests.patch(
+            f"{BACKEND_INTERNAL_URL}/internal/youtube-quiz/{quiz_id}",
+            json=fields,
+            headers=_callback_headers(),
+            timeout=15,
+        )
+    except Exception:
+        pass
+
+
+@celery_app.task(name="app.tasks.generate_youtube_quiz", bind=True)
+def generate_youtube_quiz(self, quiz_id: str, video_id: str) -> None:
+    """Fetch a transcript (SerpApi) and generate a quiz from it (Gemini) -
+    slow enough (two sequential external API calls) to belong on this same
+    queue rather than blocking the request that kicks it off.
+    """
+    try:
+        _update_youtube_quiz(quiz_id, status="FETCHING_TRANSCRIPT")
+        transcript = youtube_quiz.fetch_transcript(video_id)
+        cleaned = youtube_quiz.clean_transcript(transcript)
+
+        _update_youtube_quiz(quiz_id, status="GENERATING_QUESTIONS")
+        result = youtube_quiz.generate_quiz_from_transcript(cleaned)
+
+        if not result["questions"]:
+            _update_youtube_quiz(quiz_id, status="FAILED", errorMessage="No questions could be generated from this video's transcript")
+            return
+
+        response = requests.post(
+            f"{BACKEND_INTERNAL_URL}/internal/youtube-quiz/{quiz_id}/questions",
+            json=result,
+            headers=_callback_headers(),
+            timeout=30,
+        )
+        response.raise_for_status()
+    except Exception as exc:
+        _update_youtube_quiz(quiz_id, status="FAILED", errorMessage=str(exc)[:500])

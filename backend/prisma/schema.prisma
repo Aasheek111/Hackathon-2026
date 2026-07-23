@@ -74,6 +74,14 @@ enum NotificationType {
   GENERATION_FAILED
 }
 
+enum YoutubeQuizStatus {
+  QUEUED
+  FETCHING_TRANSCRIPT
+  GENERATING_QUESTIONS
+  READY
+  FAILED
+}
+
 model User {
   id             String         @id @default(cuid())
   name           String
@@ -112,6 +120,7 @@ model User {
   // Full-curriculum pipeline (teacher side)
   generationJobs  TutorialGenerationJob[]
   notifications   Notification[]
+  youtubeQuizzes  YoutubeQuiz[]
 }
 
 model DemoResult {
@@ -547,4 +556,34 @@ model Notification {
   createdAt DateTime         @default(now())
 
   @@index([teacherId, read])
+}
+
+// ---------------------------------------------------------------------------
+// YouTube transcript -> quiz generation (TODO.md Phase 11)
+// ---------------------------------------------------------------------------
+
+model YoutubeQuiz {
+  id           String            @id @default(cuid())
+  teacherId    String
+  teacher      User              @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  sourceUrl    String
+  videoId      String
+  status       YoutubeQuizStatus @default(QUEUED)
+  errorMessage String?
+  title        String?
+  questions    YoutubeQuizQuestion[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+}
+
+model YoutubeQuizQuestion {
+  id       String      @id @default(cuid())
+  quizId   String
+  quiz     YoutubeQuiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  order    Int
+  question String
+  options  Json // string[]
+  correct  String
+
+  @@unique([quizId, order])
 }

@@ -66,6 +66,7 @@ services:
       - "8100:8100"
     environment:
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      SERPAPI_API_KEY: ${SERPAPI_API_KEY:-}
       REDIS_URL: redis://redis:6379/0
       BACKEND_INTERNAL_URL: http://backend:5000
       INTERNAL_API_SECRET: neurolearn_internal_dev_secret_change_in_production
@@ -89,6 +90,7 @@ services:
       - redis
     environment:
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      SERPAPI_API_KEY: ${SERPAPI_API_KEY:-}
       REDIS_URL: redis://redis:6379/0
       BACKEND_INTERNAL_URL: http://backend:5000
       INTERNAL_API_SECRET: neurolearn_internal_dev_secret_change_in_production

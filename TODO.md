@@ -226,51 +226,96 @@ container. This silently caused every internal callback to fail with
 recreated the container. Noted here since it will bite again on any future
 docker-compose env var change.
 
-## Phase 7 — New Tutorial Player UI
+## Phase 7 — New Tutorial Player UI ✅
 
-- [ ] Redesign `TutorialPage.tsx`: header (subject/unit/lesson title + progress
-      bar), lesson content area, Next/Previous, per-lesson image/audio inline,
-      knowledge-check inline, final assessment at the end
-- [ ] Fetch the full curriculum + the student's progress pointer once; navigate
-      client-side between lessons — no regeneration on click
-- [ ] Preserve existing visual identity (glass/dark theme, Tailwind classes,
-      framer-motion patterns already in use)
+- [x] `CurriculumPlayerPage.tsx`: header (unit/lesson title + progress bar),
+      lesson content area, Next/Previous, per-lesson image/audio inline.
+- [x] Fetches the full curriculum + the student's progress pointer once;
+      navigates client-side between lessons — no regeneration on click.
+- [x] `TutorialRouter.tsx` routes to this new player only once a
+      `TutorialCurriculum` exists; the legacy `TutorialPage.tsx` (glass/dark
+      theme, Tailwind, framer-motion patterns) is untouched and still used for
+      units without one.
 
-## Phase 8 — Tutorial Questions and Answers
+## Phase 8 — Tutorial Questions and Answers ✅
 
-- [ ] Per-lesson knowledge-check persistence (`KnowledgeCheckAttempt`:
-      studentId, questionId, answer, correct, timestamp)
-- [ ] Feed into the existing XP system (`backend/src/lib/progress.ts`'s
-      `awardXp` — reuse, don't reinvent)
+- [x] Per-lesson knowledge-check persistence (`KnowledgeCheckAttempt`:
+      studentId, questionId, answer, correct — upserts on retry rather than
+      accumulating history, matching the existing `Tutorial` cache convention).
+- [x] `POST /:id/curriculum/lessons/:lessonId/knowledge-check` +
+      `KnowledgeCheckCard` in the player (select → check → colour-coded
+      feedback).
 
-## Phase 9 — Final MCQ Assessment
+## Phase 9 — Final MCQ Assessment ✅
 
-- [ ] Up to 10 MCQs per curriculum (generated once, shared across students —
-      same caching philosophy as the current `Tutorial` unique-constraint cache)
-- [ ] Submit/score endpoint, reusing the scoring pattern already in
-      `backend/src/routes/assessments.ts`
+- [x] Up to 10 MCQs per curriculum, generated once by
+      `generate_final_assessment()` and shared across students.
+- [x] `POST /:id/curriculum/final-assessment` scores against
+      `FinalAssessmentQuestion.correct`, persists a `FinalAssessmentAttempt`
+      with a full per-question `answerLog`.
 
-## Phase 10 — Tutorial Completion / Coursework
+## Phase 10 — Tutorial Completion / Coursework ✅
 
-- [ ] Mark curriculum complete per student; update `StudentProgress`
-- [ ] Completion screen (score, badges, retry/review options)
-- [ ] Inspect `backend/src/routes/recommendations.ts` (not yet reviewed) during
-      this phase and hook completion into the existing adaptive-recommendation
-      flow if one already exists there
+- [x] `TutorialProgress.completed` flips true either via the final assessment
+      or (for a curriculum with none) directly finishing the last lesson;
+      `awardXp` (20 XP) fires exactly once per curriculum, guarded against
+      double-award on repeat completion calls.
+- [x] Completion screen (`CurriculumPlayerPage`'s `view === 'complete'`):
+      score, badges, back-to-classroom.
+- [x] Inspected `backend/src/routes/recommendations.ts`: it recommends
+      *classrooms* from a student's `AssessmentAttempt` profile
+      (`scoreClassroomMatch`/`profileFromAttempt`) — unrelated to
+      per-curriculum completion, so there was nothing there to hook into for
+      this phase.
 
-## Phase 11 — YouTube Transcript Quiz Generation
+Verified end-to-end against a seeded 2-lesson curriculum: correct/incorrect
+knowledge-check feedback, answer overwrite on retry, final assessment scoring
+(1/1), 20 XP awarded exactly once, `TutorialProgress.completed` flips true —
+all confirmed via direct API calls against the running stack.
 
-- [ ] `SERPAPI_API_KEY` env var (rag-service, following the existing
-      `GOOGLE_API_KEY` pattern — `.env.example` placeholder, never hardcoded)
-- [ ] URL validation (`youtube.com/watch?v=...`, `youtu.be/...`)
-- [ ] **Verify the exact SerpApi transcript product/endpoint against live docs
-      first** (flagged in Phase 0 as unconfirmed) — do not assume the shape
-- [ ] Transcript cleaning (dedupe fragments, strip timestamps/whitespace,
-      preserve sentence boundaries)
-- [ ] Reuse the Gemini quiz-generation prompt pattern from `rag_engine.py`
-- [ ] Runs as a Celery task (Phase 3 infra) — slow, shouldn't block the request
-- [ ] Persist with `source_type='youtube'`, `source_url`
-- [ ] Teacher UI: paste URL → generate → status → review/edit → save/publish
+## Phase 11 — YouTube Transcript Quiz Generation ✅ (implemented; SerpApi call itself unverified live)
+
+- [x] `SERPAPI_API_KEY` env var (rag-service `.env.example`, docker-compose
+      `${SERPAPI_API_KEY:-}` passthrough — never hardcoded).
+- [x] URL validation: `extract_video_id()` supports `youtube.com/watch?v=...`,
+      `youtube.com/shorts/...`, and `youtu.be/...`; verified live against both
+      a `watch?v=` and a `youtu.be` URL, and confirmed a non-YouTube URL is
+      rejected with a clear 400.
+- [x] **Checked SerpApi's own live docs before implementing** (flagged in
+      Phase 0 as needing verification): confirmed engine name
+      `youtube_video_transcript` and params `video_id`/`language_code`. Their
+      docs page did **not** include a worked JSON example for the transcript
+      segment shape, and **no real `SERPAPI_API_KEY` was available in this
+      environment** to exercise a live call — `fetch_transcript()` in
+      `rag-service/app/youtube_quiz.py` is written defensively (tries a few
+      plausible field names) and raises a `RuntimeError` naming the actual
+      response keys if the shape doesn't match, rather than silently
+      fabricating a transcript. **The transcript-fetch call itself remains
+      unverified against a real response - confirm the first time a real key
+      is used, and adjust field names in `fetch_transcript()` if needed.**
+- [x] Transcript cleaning (`clean_transcript()`): collapses whitespace,
+      dedupes immediate word-level repeats (a common auto-caption artifact).
+- [x] Quiz generation (`generate_quiz_from_transcript()`) reuses the same
+      Gemini JSON-quiz pattern as `generate_final_assessment()`.
+- [x] Runs as a Celery task (`app.tasks.generate_youtube_quiz`, Phase 3
+      infra) — two sequential external API calls, doesn't block the request.
+- [x] Persisted as new `YoutubeQuiz`/`YoutubeQuizQuestion` models (`videoId`,
+      `sourceUrl`, `status`, `title`) rather than reusing `QuizQuestion`,
+      since that model is a static seeded demo bank unrelated to AI
+      generation (confirmed in Phase 0) — no existing shape fit.
+- [x] Teacher UI (`YoutubeQuizTab` in `TeacherDashboardPage.tsx`): paste URL
+      → generate → polled status → view generated questions. Editing was not
+      built - the existing app has no quiz-editing capability anywhere to
+      extend, so this was out of scope per the original spec's own
+      "if the existing system supports editing" qualifier.
+
+**Verified live** (with the plumbing that doesn't depend on a real SerpApi
+key): URL extraction (both formats + rejection), the full
+Node→rag-service→Celery→callback→Node chain, and the FAILED path - a request
+with no `SERPAPI_API_KEY` configured fails with a clear, honest error
+("SERPAPI_API_KEY is not set...") surfaced all the way to
+`GET /api/youtube-quiz/:id` and as a `GENERATION_FAILED` notification. Add a
+real key and re-run once to confirm the transcript-parsing shape.
 
 ## Phase 12 — Gemini Text-to-Speech
 
