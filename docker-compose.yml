@@ -39,6 +39,16 @@ services:
       PORT: 8000
       HOST: 0.0.0.0
 
+  # Redis - message broker + result backend for the Celery background job
+  # queue that runs full-curriculum tutorial generation, YouTube quiz
+  # generation, and TTS (see rag-service/app/celery_app.py).
+  redis:
+    image: redis:7-alpine
+    container_name: neurolearn_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
   # Python RAG Microservice (syllabus ingestion + tutorial generation)
   rag-service:
     build:
@@ -46,10 +56,34 @@ services:
       dockerfile: Dockerfile
     container_name: neurolearn_rag
     restart: unless-stopped
+    depends_on:
+      - redis
     ports:
       - "8100:8100"
     environment:
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - rag_uploads:/app/uploads
+      - rag_vector_store:/app/vector_store
+
+  # Celery worker - executes the background jobs rag-service enqueues. Same
+  # image/code as rag-service (see rag-service/Dockerfile), just a different
+  # command and no exposed HTTP port. Shares the same volumes so it can read
+  # uploaded PDFs and write generated images/vector indexes that rag-service
+  # serves back out over HTTP.
+  celery-worker:
+    build:
+      context: ./rag-service
+      dockerfile: Dockerfile
+    container_name: neurolearn_celery_worker
+    restart: unless-stopped
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=2
+    depends_on:
+      - redis
+    environment:
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      REDIS_URL: redis://redis:6379/0
     volumes:
       - rag_uploads:/app/uploads
       - rag_vector_store:/app/vector_store

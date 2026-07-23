@@ -17,3 +17,7 @@ requests>=2.31,<3.0             # pollinations.ai fallback when Gemini's image m
 # Files
 pypdf>=4.2
 pillow>=10.3
+
+# Background job queue (full-curriculum generation, YouTube quiz, TTS)
+celery>=5.3,<6.0
+redis>=5.0,<6.0
