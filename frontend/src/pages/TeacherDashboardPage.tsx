@@ -30,10 +30,27 @@ interface JoinRequest {
   requestedAt: string;
   student: { id: string; name: string; email: string };
 }
+interface StudentAttempt {
+  scorePercent: number;
+  attentionSpanScore: number;
+  preferredMode: string;
+  completedAt: string;
+}
+interface StudentProgress {
+  xp: number;
+  streakDays: number;
+  badges: Array<{ name: string }>;
+}
 interface Enrolment {
   id: string;
   joinedAt: string;
-  student: { id: string; name: string; email: string };
+  student: {
+    id: string;
+    name: string;
+    email: string;
+    attempts: StudentAttempt[];
+    progress: StudentProgress | null;
+  };
 }
 interface Classroom {
   id: string;
@@ -402,20 +419,45 @@ const RosterTab: React.FC<{ classroom: Classroom }> = ({ classroom }) => (
       <thead>
         <tr className="bg-white/5 border-b border-white/10 text-sm">
           <th className="p-4 font-medium text-gray-300">Name</th>
-          <th className="p-4 font-medium text-gray-300">Email</th>
+          <th className="p-4 font-medium text-gray-300">Latest score</th>
+          <th className="p-4 font-medium text-gray-300">Attention span</th>
+          <th className="p-4 font-medium text-gray-300">Preferred mode</th>
+          <th className="p-4 font-medium text-gray-300">XP</th>
+          <th className="p-4 font-medium text-gray-300">Streak</th>
+          <th className="p-4 font-medium text-gray-300">Badges</th>
           <th className="p-4 font-medium text-gray-300">Joined</th>
         </tr>
       </thead>
       <tbody>
-        {classroom.enrolments.map((e) => (
-          <tr key={e.id} className="border-b border-white/5">
-            <td className="p-4">{e.student.name}</td>
-            <td className="p-4 text-gray-400">{e.student.email}</td>
-            <td className="p-4 text-gray-400 text-sm">{new Date(e.joinedAt).toLocaleDateString()}</td>
-          </tr>
-        ))}
+        {classroom.enrolments.map((e) => {
+          const attempt = e.student.attempts[0];
+          const progress = e.student.progress;
+          return (
+            <tr key={e.id} className="border-b border-white/5">
+              <td className="p-4">
+                <div className="font-medium">{e.student.name}</div>
+                <div className="text-xs text-gray-500">{e.student.email}</div>
+              </td>
+              <td className="p-4">
+                {attempt ? (
+                  <span className={attempt.scorePercent >= 70 ? 'text-green-400' : attempt.scorePercent >= 40 ? 'text-amber-400' : 'text-red-400'}>
+                    {Math.round(attempt.scorePercent)}%
+                  </span>
+                ) : (
+                  <span className="text-gray-500">No attempt yet</span>
+                )}
+              </td>
+              <td className="p-4 text-gray-300">{attempt ? `${Math.round(attempt.attentionSpanScore)}%` : '—'}</td>
+              <td className="p-4 text-gray-300">{attempt?.preferredMode || '—'}</td>
+              <td className="p-4 text-gray-300">{progress?.xp ?? 0}</td>
+              <td className="p-4 text-gray-300">{progress?.streakDays ?? 0}d</td>
+              <td className="p-4 text-gray-300">{progress?.badges.length ?? 0}</td>
+              <td className="p-4 text-gray-400 text-sm">{new Date(e.joinedAt).toLocaleDateString()}</td>
+            </tr>
+          );
+        })}
         {classroom.enrolments.length === 0 && (
-          <tr><td colSpan={3} className="p-8 text-center text-gray-500">No students enrolled yet.</td></tr>
+          <tr><td colSpan={8} className="p-8 text-center text-gray-500">No students enrolled yet.</td></tr>
         )}
       </tbody>
     </table>

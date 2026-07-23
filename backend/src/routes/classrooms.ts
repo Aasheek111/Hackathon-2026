@@ -14,7 +14,29 @@ router.get('/mine', requireApprovedTeacher, async (req: Request, res: Response) 
       include: {
         admissionCriteria: true,
         subjects: { include: { units: { include: { _count: { select: { documents: true } } } } } },
-        enrolments: { include: { student: { select: { id: true, name: true, email: true } } } },
+        enrolments: {
+          include: {
+            student: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                progress: true,
+                attempts: {
+                  where: { completedAt: { not: null } },
+                  orderBy: { completedAt: 'desc' },
+                  take: 1,
+                  select: {
+                    scorePercent: true,
+                    attentionSpanScore: true,
+                    preferredMode: true,
+                    completedAt: true
+                  }
+                }
+              }
+            }
+          }
+        },
         joinRequests: {
           where: { status: 'PENDING' },
           include: { student: { select: { id: true, name: true, email: true } } },
