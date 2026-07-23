@@ -16,17 +16,21 @@ from fastapi.responses import JSONResponse
 from PIL import Image, UnidentifiedImageError
 
 from . import rag_engine as engine
+from . import youtube_quiz as yt
 from .celery_app import celery_app
 from .models import (
+    ExtractYoutubeIdRequest,
+    ExtractYoutubeIdResponse,
     GenerateCurriculumRequest,
     GenerateVisualRequest,
+    GenerateYoutubeQuizRequest,
     HealthResponse,
     ImageUploadResponse,
     PdfUploadResponse,
     TutorialRequest,
     TutorialResponse,
 )
-from .tasks import generate_curriculum, ping
+from .tasks import generate_curriculum, generate_youtube_quiz, ping
 
 router = APIRouter()
 
@@ -152,6 +156,23 @@ def generate_curriculum_endpoint(request: GenerateCurriculumRequest) -> dict:
         raise HTTPException(status_code=404, detail="Unit not processed yet")
 
     task = generate_curriculum.delay(request.job_id, request.unit_id)
+    return {"status": "queued", "celery_task_id": task.id}
+
+
+@router.post("/extract-youtube-id", response_model=ExtractYoutubeIdResponse, tags=["youtube"])
+def extract_youtube_id(request: ExtractYoutubeIdRequest) -> ExtractYoutubeIdResponse:
+    video_id = yt.extract_video_id(request.url)
+    if not video_id:
+        raise HTTPException(status_code=400, detail="That doesn't look like a valid YouTube URL")
+    return ExtractYoutubeIdResponse(video_id=video_id)
+
+
+@router.post("/generate-youtube-quiz", tags=["generate"])
+def generate_youtube_quiz_endpoint(request: GenerateYoutubeQuizRequest) -> dict:
+    """Enqueues transcript fetch + quiz generation and returns immediately -
+    both steps are external API calls, slow enough to belong on the queue.
+    """
+    task = generate_youtube_quiz.delay(request.quiz_id, request.video_id)
     return {"status": "queued", "celery_task_id": task.id}
 
 

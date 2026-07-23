@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Users, BookOpen, ClipboardCheck, Settings, Clock, Check, X,
-  Plus, Upload, FileText, Loader2, AlertCircle, Bell
+  Plus, Upload, FileText, Loader2, AlertCircle, Bell, Video, Sparkles
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import DashboardShell, { NavItem } from '../components/DashboardShell';
@@ -86,7 +86,7 @@ export const TeacherDashboardPage: React.FC = () => {
   const { user } = useAuth();
   const [classroom, setClassroom] = useState<Classroom | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'content' | 'requests' | 'roster' | 'criteria'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'content' | 'requests' | 'roster' | 'criteria' | 'youtube'>('overview');
 
   const [newClassroom, setNewClassroom] = useState({ name: '', description: '' });
   const [creating, setCreating] = useState(false);
@@ -113,7 +113,8 @@ export const TeacherDashboardPage: React.FC = () => {
     { icon: BookOpen, label: 'Subjects & Content', path: '', active: activeTab === 'content', onClick: () => setActiveTab('content') },
     { icon: ClipboardCheck, label: 'Join Requests', path: '', active: activeTab === 'requests', badge: classroom?.joinRequests.length, onClick: () => setActiveTab('requests') },
     { icon: Users, label: 'Roster', path: '', active: activeTab === 'roster', onClick: () => setActiveTab('roster') },
-    { icon: Settings, label: 'Admission Criteria', path: '', active: activeTab === 'criteria', onClick: () => setActiveTab('criteria') }
+    { icon: Settings, label: 'Admission Criteria', path: '', active: activeTab === 'criteria', onClick: () => setActiveTab('criteria') },
+    { icon: Video, label: 'YouTube Quiz', path: '', active: activeTab === 'youtube', onClick: () => setActiveTab('youtube') }
   ];
 
   const createClassroom = async (e: React.FormEvent) => {
@@ -181,6 +182,7 @@ export const TeacherDashboardPage: React.FC = () => {
         {activeTab === 'requests' && <RequestsTab classroom={classroom} onChanged={load} />}
         {activeTab === 'roster' && <RosterTab classroom={classroom} />}
         {activeTab === 'criteria' && <CriteriaTab classroom={classroom} onChanged={load} />}
+        {activeTab === 'youtube' && <YoutubeQuizTab />}
       </motion.div>
     </DashboardShell>
   );
@@ -197,7 +199,8 @@ const TeacherTabButtons: React.FC<{
       ['content', 'Content'],
       ['requests', `Requests${pendingCount ? ` (${pendingCount})` : ''}`],
       ['roster', 'Roster'],
-      ['criteria', 'Criteria']
+      ['criteria', 'Criteria'],
+      ['youtube', 'YouTube Quiz']
     ].map(([id, label]) => (
       <button
         key={id}
@@ -492,6 +495,146 @@ const ContentTab: React.FC<{ classroom: Classroom; onChanged: () => Promise<void
       {classroom.subjects.length === 0 && (
         <p className="text-center text-gray-500 py-8">No subjects yet. Add one above to start uploading syllabus PDFs.</p>
       )}
+    </div>
+  );
+};
+
+interface YoutubeQuizQuestion {
+  id: string;
+  order: number;
+  question: string;
+  options: string[];
+  correct: string;
+}
+interface YoutubeQuiz {
+  id: string;
+  sourceUrl: string;
+  status: 'QUEUED' | 'FETCHING_TRANSCRIPT' | 'GENERATING_QUESTIONS' | 'READY' | 'FAILED';
+  errorMessage: string | null;
+  title: string | null;
+  questions: YoutubeQuizQuestion[];
+  createdAt: string;
+}
+
+const YOUTUBE_QUIZ_STATUS_LABEL: Record<YoutubeQuiz['status'], string> = {
+  QUEUED: 'Queued',
+  FETCHING_TRANSCRIPT: 'Fetching transcript…',
+  GENERATING_QUESTIONS: 'Generating questions…',
+  READY: 'Ready',
+  FAILED: 'Failed'
+};
+
+/**
+ * Paste a YouTube URL -> background job fetches the transcript (SerpApi)
+ * and generates a quiz from it (Gemini) - TODO.md Phase 11. Polls rather
+ * than blocking, same pattern as generation-job status elsewhere.
+ */
+const YoutubeQuizTab: React.FC = () => {
+  const [url, setUrl] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [quizzes, setQuizzes] = useState<YoutubeQuiz[]>([]);
+
+  const load = useCallback(async () => {
+    const { data } = await api.get('/youtube-quiz');
+    setQuizzes(data.quizzes);
+  }, []);
+
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 8000);
+    return () => clearInterval(interval);
+  }, [load]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!url.trim()) return;
+    setError('');
+    setSubmitting(true);
+    try {
+      await api.post('/youtube-quiz', { url: url.trim() });
+      setUrl('');
+      await load();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Could not start quiz generation');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/40 text-red-400 p-4 rounded-xl text-sm flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" /> {error}
+        </div>
+      )}
+
+      <form onSubmit={submit} className="glass p-6 rounded-2xl flex flex-col sm:flex-row gap-3 sm:items-end">
+        <div className="flex-1">
+          <Input
+            label="YouTube video URL"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://www.youtube.com/watch?v=..."
+          />
+        </div>
+        <Button type="submit" loading={submitting} className="gap-2">
+          <Sparkles className="w-4 h-4" /> Generate quiz
+        </Button>
+      </form>
+
+      <div className="space-y-3">
+        {quizzes.map((quiz) => (
+          <div key={quiz.id} className="glass rounded-2xl p-6">
+            <div className="flex items-center justify-between gap-4 flex-wrap mb-2">
+              <div className="flex items-center gap-3">
+                <Video className="w-4 h-4 text-red-400" />
+                <span className="font-medium">{quiz.title || quiz.sourceUrl}</span>
+              </div>
+              <span
+                className={`text-xs px-2 py-0.5 rounded flex items-center gap-1.5 ${
+                  quiz.status === 'READY'
+                    ? 'bg-green-500/20 text-green-400'
+                    : quiz.status === 'FAILED'
+                    ? 'bg-red-500/20 text-red-400'
+                    : 'bg-amber-500/20 text-amber-400'
+                }`}
+              >
+                {(quiz.status === 'QUEUED' || quiz.status === 'FETCHING_TRANSCRIPT' || quiz.status === 'GENERATING_QUESTIONS') && (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                )}
+                {YOUTUBE_QUIZ_STATUS_LABEL[quiz.status]}
+              </span>
+            </div>
+
+            {quiz.status === 'FAILED' && quiz.errorMessage && (
+              <p className="text-xs text-red-400 mt-2">{quiz.errorMessage}</p>
+            )}
+
+            {quiz.status === 'READY' && (
+              <div className="space-y-3 mt-3">
+                {quiz.questions.map((q, i) => (
+                  <div key={q.id} className="bg-dark/50 rounded-xl p-4 text-sm">
+                    <p className="font-medium mb-2">{i + 1}. {q.question}</p>
+                    <ul className="text-gray-400 space-y-1">
+                      {q.options.map((opt) => (
+                        <li key={opt} className={opt === q.correct ? 'text-green-400' : ''}>
+                          {opt === q.correct ? '✓ ' : '• '}{opt}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+
+        {quizzes.length === 0 && (
+          <p className="text-center text-gray-500 py-8">No YouTube quizzes yet - paste a URL above to generate one.</p>
+        )}
+      </div>
     </div>
   );
 };

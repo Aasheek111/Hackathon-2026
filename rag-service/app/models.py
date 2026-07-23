@@ -71,6 +71,19 @@ class GenerateCurriculumRequest(BaseModel):
     unit_id: int = Field(..., ge=1, description="Which unit's indexed document to build a curriculum from")
 
 
+class GenerateYoutubeQuizRequest(BaseModel):
+    quiz_id: str = Field(..., min_length=1, description="The YoutubeQuiz id to report progress against")
+    video_id: str = Field(..., min_length=1, description="The extracted YouTube video id")
+
+
+class ExtractYoutubeIdRequest(BaseModel):
+    url: str = Field(..., min_length=1, description="A youtube.com/watch, youtube.com/shorts, or youtu.be URL")
+
+
+class ExtractYoutubeIdResponse(BaseModel):
+    video_id: str
+
+
 class HealthResponse(BaseModel):
     status: str
     service: str = "neurolearn-rag"

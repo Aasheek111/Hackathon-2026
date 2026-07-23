@@ -19,6 +19,7 @@ import progressRouter from './routes/progress';
 import curriculumRouter from './routes/curriculum';
 import internalJobsRouter from './routes/internalJobs';
 import notificationsRouter from './routes/notifications';
+import youtubeQuizRouter from './routes/youtubeQuiz';
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -55,6 +56,7 @@ app.use('/api/units', tutorialsRouter); // nested under /:id/tutorial
 app.use('/api/units', curriculumRouter); // nested under /:id/generation-job, /:id/curriculum
 app.use('/api/progress', progressRouter);
 app.use('/api/notifications', notificationsRouter);
+app.use('/api/youtube-quiz', youtubeQuizRouter);
 // Service-to-service only (shared-secret header, not user JWT) - the Celery
 // worker calls back into these to report job progress and persist results.
 app.use('/internal', internalJobsRouter);

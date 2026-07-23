@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { requireInternalSecret } from '../middleware/internalAuth';
-import { JobStage } from '@prisma/client';
+import { JobStage, YoutubeQuizStatus } from '@prisma/client';
 
 const router = Router();
 router.use(requireInternalSecret);
@@ -9,6 +9,10 @@ router.use(requireInternalSecret);
 const VALID_STAGES: JobStage[] = [
   'QUEUED', 'EXTRACTING', 'PLANNING', 'GENERATING_TEXT', 'GENERATING_VISUALS',
   'GENERATING_AUDIO', 'GENERATING_QUESTIONS', 'FINALIZING', 'COMPLETED', 'FAILED'
+];
+
+const VALID_YOUTUBE_QUIZ_STATUSES: YoutubeQuizStatus[] = [
+  'QUEUED', 'FETCHING_TRANSCRIPT', 'GENERATING_QUESTIONS', 'READY', 'FAILED'
 ];
 
 /** Celery calls this after every stage transition - real progress, not simulated. */
@@ -145,6 +149,84 @@ router.post('/jobs/:jobId/curriculum', async (req: Request, res: Response) => {
     res.status(201).json({ curriculum });
   } catch (error) {
     res.status(500).json({ error: 'Failed to persist curriculum' });
+  }
+});
+
+/** Celery calls this after fetching the transcript / while generating questions. */
+router.patch('/youtube-quiz/:quizId', async (req: Request, res: Response) => {
+  try {
+    const { status, errorMessage } = req.body;
+    if (status && !VALID_YOUTUBE_QUIZ_STATUSES.includes(status)) {
+      return res.status(400).json({ error: `Invalid status: ${status}` });
+    }
+
+    const quiz = await prisma.youtubeQuiz.update({
+      where: { id: req.params['quizId'] as string },
+      data: {
+        ...(status ? { status } : {}),
+        ...(errorMessage ? { errorMessage } : {})
+      }
+    });
+
+    if (status === 'FAILED') {
+      await prisma.notification.create({
+        data: {
+          teacherId: quiz.teacherId,
+          type: 'GENERATION_FAILED',
+          title: 'YouTube quiz generation failed',
+          body: errorMessage || 'Generation failed for an unknown reason.'
+        }
+      });
+    }
+
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update quiz' });
+  }
+});
+
+/** Celery's final step: persist the generated questions and mark the quiz ready. */
+router.post('/youtube-quiz/:quizId/questions', async (req: Request, res: Response) => {
+  try {
+    const quiz = await prisma.youtubeQuiz.findUnique({ where: { id: req.params['quizId'] as string } });
+    if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
+
+    const { title, questions } = req.body as {
+      title?: string;
+      questions: Array<{ question: string; options: string[]; correct: string }>;
+    };
+
+    if (!Array.isArray(questions) || questions.length === 0) {
+      return res.status(400).json({ error: 'At least one question is required' });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.youtubeQuizQuestion.deleteMany({ where: { quizId: quiz.id } });
+      await tx.youtubeQuiz.update({
+        where: { id: quiz.id },
+        data: {
+          title: title || quiz.title,
+          status: 'READY',
+          errorMessage: null,
+          questions: {
+            create: questions.map((q, i) => ({ order: i, question: q.question, options: q.options, correct: q.correct }))
+          }
+        }
+      });
+    });
+
+    await prisma.notification.create({
+      data: {
+        teacherId: quiz.teacherId,
+        type: 'GENERATION_COMPLETE',
+        title: 'YouTube quiz ready',
+        body: `Generated ${questions.length} question${questions.length === 1 ? '' : 's'} from your video.`
+      }
+    });
+
+    res.status(201).json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to persist quiz questions' });
   }
 });
 
