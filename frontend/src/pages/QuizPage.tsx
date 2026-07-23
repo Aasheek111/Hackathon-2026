@@ -8,6 +8,15 @@ type LearningMode = 'TEXT' | 'AUDIO' | 'VISUAL';
 
 type EngagementTotals = Record<LearningMode, { totalScore: number; samples: number; focusedSamples: number }>;
 
+type QuizSummary = {
+  score: number;
+  total: number;
+  profile: Record<LearningMode, number>;
+  recommended: LearningMode;
+  completedAt: string;
+  sessionMode: LearningMode;
+};
+
 type CvEngagementResponse = {
   engagement_score: number;
   face_detected: boolean;
@@ -17,10 +26,11 @@ type CvEngagementResponse = {
 };
 
 const CV_SERVICE_URL = import.meta.env.VITE_CV_SERVICE_URL || 'http://localhost:8000';
-const TRACKING_INTERVAL_MS = 250;
+const TRACKING_INTERVAL_MS = 700;
 const LOW_EYE_CONTACT_THRESHOLD = 40;
-const LOW_EYE_CONTACT_SAMPLES = 8;
+const LOW_EYE_CONTACT_SAMPLES = 5;
 const MODE_CONFIDENCE_SAMPLES = 3;
+const SUMMARY_STORAGE_KEY = 'neurolearn:lastQuizSummary';
 
 // 20 Complete Questions Categorized by Mode
 const demo20Questions = [
@@ -88,6 +98,37 @@ export const QuizPage: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const analysisCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const synth = window.speechSynthesis;
+
+  const buildQuizSummary = useCallback((finalScore: number, finalTotal: number): QuizSummary => {
+    const totals = modeEngagementRef.current;
+    const modes: LearningMode[] = ['TEXT', 'AUDIO', 'VISUAL'];
+    const profile = modes.reduce((acc, mode) => {
+      acc[mode] = totals[mode].samples > 0
+        ? Math.round(totals[mode].totalScore / totals[mode].samples)
+        : 0;
+      return acc;
+    }, {} as Record<LearningMode, number>);
+
+    const sampledModes = modes.filter(mode => totals[mode].samples > 0);
+    const recommended = (sampledModes.length > 0 ? sampledModes : modes).reduce((best, mode) => {
+      return profile[mode] > profile[best] ? mode : best;
+    }, currentModeRef.current);
+
+    return {
+      score: finalScore,
+      total: Math.max(1, finalTotal),
+      profile,
+      recommended,
+      completedAt: new Date().toISOString(),
+      sessionMode: currentModeRef.current
+    };
+  }, []);
+
+  const finishQuiz = useCallback((finalScore: number, finalTotal = visitedQuestionIdsRef.current.size) => {
+    const summary = buildQuizSummary(finalScore, finalTotal);
+    localStorage.setItem(SUMMARY_STORAGE_KEY, JSON.stringify(summary));
+    navigate('/quiz/result', { state: summary });
+  }, [buildQuizSummary, navigate]);
 
   useEffect(() => {
     currentIndexRef.current = currentIndex;
@@ -227,7 +268,7 @@ export const QuizPage: React.FC = () => {
     const bestMode = pickBestMode();
     const nextIndex = findNextQuestionIndex(bestMode);
     if (nextIndex === null) {
-      navigate('/quiz/result', { state: { score, total: visitedQuestionIdsRef.current.size } });
+      finishQuiz(score);
       return;
     }
 
@@ -252,7 +293,7 @@ export const QuizPage: React.FC = () => {
         adaptationLockedRef.current = false;
       }, 1800);
     }, 900);
-  }, [findNextQuestionIndex, navigate, pickBestMode, questions, score, selectedAnswer, synth]);
+  }, [findNextQuestionIndex, finishQuiz, pickBestMode, questions, score, selectedAnswer, synth]);
 
   // 1. Clean Camera Initialization & Lifecycle Release
   useEffect(() => {
@@ -322,9 +363,12 @@ export const QuizPage: React.FC = () => {
 
             const isFaceInFrame = result.face_detected;
             const rawScore = isFaceInFrame ? Math.max(0, Math.min(100, result.engagement_score)) : 0;
-            scoreSmoothingRef.current = isFaceInFrame
-              ? Math.round(scoreSmoothingRef.current * 0.55 + rawScore * 0.45)
+            const smoothedScore = isFaceInFrame
+              ? Math.round(scoreSmoothingRef.current * 0.82 + rawScore * 0.18)
               : 0;
+            scoreSmoothingRef.current = Math.abs(smoothedScore - scoreSmoothingRef.current) < 3
+              ? scoreSmoothingRef.current
+              : smoothedScore;
             const calculatedScore = scoreSmoothingRef.current;
             const isFocused = isFaceInFrame && result.gaze === 'forward' && calculatedScore >= 60;
             const mode = currentModeRef.current;
@@ -386,12 +430,12 @@ export const QuizPage: React.FC = () => {
   // Timer effect
   useEffect(() => {
     if (timeLeft <= 0) {
-      navigate('/quiz/result', { state: { score, total: visitedQuestionIdsRef.current.size } });
+      finishQuiz(score);
       return;
     }
     const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
     return () => clearInterval(timer);
-  }, [timeLeft, navigate, score, questions.length]);
+  }, [timeLeft, finishQuiz, score]);
 
   // Handle TTS for Audio Mode
   useEffect(() => {
@@ -426,7 +470,7 @@ export const QuizPage: React.FC = () => {
         setSelectedAnswer(null);
         setIsCorrect(null);
       } else {
-        navigate('/quiz/result', { state: { score: score + (correct ? 1 : 0), total: visitedQuestionIdsRef.current.size } });
+        finishQuiz(score + (correct ? 1 : 0));
       }
     }, 1200);
   };

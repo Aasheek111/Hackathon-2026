@@ -4,18 +4,38 @@ import { Link, useLocation } from 'react-router-dom';
 import { Trophy, ArrowRight, Sparkles, BookOpen, Volume2, Image as ImageIcon } from 'lucide-react';
 import Button from '../components/ui/Button';
 
+type LearningMode = 'TEXT' | 'AUDIO' | 'VISUAL';
+
+type QuizSummary = {
+  score: number;
+  total: number;
+  profile: Record<LearningMode, number>;
+  recommended: LearningMode;
+  completedAt: string;
+  sessionMode: LearningMode;
+};
+
+const SUMMARY_STORAGE_KEY = 'neurolearn:lastQuizSummary';
+
 export const QuizResultPage: React.FC = () => {
   const location = useLocation();
-  const quizScore = location.state?.score ?? 18;
-  const totalQuestions = location.state?.total ?? 20;
-
-  // Mock data representing analysis
+  const storedSummary = (() => {
+    try {
+      return JSON.parse(localStorage.getItem(SUMMARY_STORAGE_KEY) || 'null') as QuizSummary | null;
+    } catch {
+      return null;
+    }
+  })();
+  const summary = (location.state as QuizSummary | null) ?? storedSummary;
+  const quizScore = summary?.score ?? 0;
+  const totalQuestions = Math.max(1, summary?.total ?? 1);
+  const rawProfile = summary?.profile as Record<string, number> | undefined;
   const profile = {
-    text: 68,
-    audio: 82,
-    visual: 95,
-    recommended: 'VISUAL'
+    TEXT: rawProfile?.TEXT ?? rawProfile?.text ?? 0,
+    AUDIO: rawProfile?.AUDIO ?? rawProfile?.audio ?? 0,
+    VISUAL: rawProfile?.VISUAL ?? rawProfile?.visual ?? 0
   };
+  const recommendedMode = summary?.recommended ?? 'VISUAL';
 
   const getModeDetails = (mode: string) => {
     switch (mode) {
@@ -25,7 +45,7 @@ export const QuizResultPage: React.FC = () => {
     }
   };
 
-  const recommended = getModeDetails(profile.recommended);
+  const recommended = getModeDetails(recommendedMode);
 
   return (
     <motion.div
@@ -64,9 +84,9 @@ export const QuizResultPage: React.FC = () => {
             <h3 className="text-xl font-bold mb-6">Engagement Breakdown</h3>
             <div className="space-y-6">
               {[
-                { label: 'Visual', value: profile.visual, color: 'bg-green-500', icon: ImageIcon },
-                { label: 'Audio', value: profile.audio, color: 'bg-blue-500', icon: Volume2 },
-                { label: 'Text', value: profile.text, color: 'bg-amber-500', icon: BookOpen }
+                { label: 'Visual', value: profile.VISUAL, color: 'bg-green-500', icon: ImageIcon },
+                { label: 'Audio', value: profile.AUDIO, color: 'bg-blue-500', icon: Volume2 },
+                { label: 'Text', value: profile.TEXT, color: 'bg-amber-500', icon: BookOpen }
               ].map((item, i) => (
                 <div key={i}>
                   <div className="flex justify-between items-center mb-2">

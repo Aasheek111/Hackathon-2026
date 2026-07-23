@@ -53,6 +53,23 @@
       background: #050509;
     }
 
+    #finger-canvas {
+      display: none;
+    }
+
+    #finger-tip {
+      position: fixed;
+      width: 28px;
+      height: 28px;
+      border: 3px solid #fbbf24;
+      border-radius: 999px;
+      box-shadow: 0 0 22px rgba(251, 191, 36, 0.85);
+      transform: translate(-50%, -50%);
+      z-index: 12;
+      display: none;
+      pointer-events: none;
+    }
+
     .btn-glow {
       position: relative;
       overflow: hidden;
@@ -68,6 +85,8 @@
 
   <!-- Real Camera Background for AR mode -->
   <video id="webcam-bg" autoplay playsinline muted></video>
+  <canvas id="finger-canvas" width="180" height="120"></canvas>
+  <div id="finger-tip"></div>
 
   <!-- A-Frame 3D / AR Scene -->
   <a-scene
@@ -165,7 +184,7 @@
         <div id="question-text" class="text-lg md:text-2xl font-bold text-white leading-tight">
           Loading Question...
         </div>
-        <p class="text-xs text-purple-300 mt-1">Tap/click the balloon with the correct answer to pop it!</p>
+        <p class="text-xs text-purple-300 mt-1">Touch a balloon with your fingertip or click it to pop.</p>
       </div>
     </div>
 
@@ -225,6 +244,9 @@
     let answered = false;
     let cameraStream = null;
     let cameraStarting = false;
+    let fingerTrackingFrame = null;
+    let hoveredBalloonIndex = null;
+    let hoverStartedAt = 0;
 
     // Toggle Camera AR Mode
     async function toggleCameraMode() {
@@ -253,11 +275,13 @@
           video.srcObject = cameraStream;
           await video.play();
           video.style.display = 'block';
+          document.getElementById('finger-tip').style.display = 'block';
           sky.setAttribute('visible', 'false');
           if (scene?.renderer) {
             scene.renderer.setClearColor(0x000000, 0);
           }
           btnText.innerText = 'Stop Camera AR';
+          startFingerTracking();
         } catch (e) {
           console.warn('Could not access webcam for AR background mode', e);
           cameraStream = null;
@@ -275,9 +299,148 @@
         cameraStream = null;
         video.srcObject = null;
         video.style.display = 'none';
+        stopFingerTracking();
         sky.setAttribute('visible', 'true');
         btnText.innerText = 'Start Camera AR';
       }
+    }
+
+    function isSkinPixel(r, g, b) {
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      return r > 70 && g > 35 && b > 20 && max - min > 18 && r > g * 1.08 && r > b * 1.18;
+    }
+
+    function detectFingerTip(video, canvas) {
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !video.videoWidth) return null;
+
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = frame.data;
+      let count = 0;
+      let topY = canvas.height;
+      let sumX = 0;
+      let topBandCount = 0;
+
+      for (let y = 0; y < canvas.height; y += 2) {
+        for (let x = 0; x < canvas.width; x += 2) {
+          const i = (y * canvas.width + x) * 4;
+          if (isSkinPixel(data[i], data[i + 1], data[i + 2])) {
+            count++;
+            if (y < topY) topY = y;
+          }
+        }
+      }
+
+      if (count < 28 || topY >= canvas.height) return null;
+
+      const bandBottom = Math.min(canvas.height, topY + 18);
+      for (let y = topY; y < bandBottom; y += 2) {
+        for (let x = 0; x < canvas.width; x += 2) {
+          const i = (y * canvas.width + x) * 4;
+          if (isSkinPixel(data[i], data[i + 1], data[i + 2])) {
+            sumX += x;
+            topBandCount++;
+          }
+        }
+      }
+
+      if (topBandCount < 4) return null;
+      return {
+        x: canvas.width - (sumX / topBandCount),
+        y: topY
+      };
+    }
+
+    function getBalloonScreenCenter(balloon) {
+      const scene = document.getElementById('ar-scene');
+      const cameraEl = document.getElementById('main-camera');
+      if (!scene?.camera || !cameraEl || !window.THREE) return null;
+
+      const position = new THREE.Vector3();
+      balloon.object3D.getWorldPosition(position);
+      position.project(scene.camera);
+
+      return {
+        x: (position.x * 0.5 + 0.5) * window.innerWidth,
+        y: (-position.y * 0.5 + 0.5) * window.innerHeight
+      };
+    }
+
+    function updateFingerTouch(screenX, screenY) {
+      if (answered) return;
+
+      let closestIndex = null;
+      let closestDistance = Infinity;
+      for (let i = 0; i < 4; i++) {
+        const balloon = document.getElementById(`balloon-${i}`);
+        if (!balloon || balloon.getAttribute('visible') === false) continue;
+        const center = getBalloonScreenCenter(balloon);
+        if (!center) continue;
+        const distance = Math.hypot(center.x - screenX, center.y - screenY);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestIndex = i;
+        }
+      }
+
+      const touchRadius = Math.max(70, Math.min(window.innerWidth, window.innerHeight) * 0.09);
+      const now = performance.now();
+      if (closestIndex !== null && closestDistance < touchRadius) {
+        if (hoveredBalloonIndex !== closestIndex) {
+          hoveredBalloonIndex = closestIndex;
+          hoverStartedAt = now;
+        }
+
+        const balloon = document.getElementById(`balloon-${closestIndex}`);
+        balloon?.setAttribute('scale', '1.12 1.12 1.12');
+        if (now - hoverStartedAt > 360) {
+          handleAnswerSelect(closestIndex);
+          hoveredBalloonIndex = null;
+        }
+      } else {
+        if (hoveredBalloonIndex !== null) {
+          document.getElementById(`balloon-${hoveredBalloonIndex}`)?.setAttribute('scale', '1 1 1');
+        }
+        hoveredBalloonIndex = null;
+        hoverStartedAt = 0;
+      }
+    }
+
+    function startFingerTracking() {
+      const video = document.getElementById('webcam-bg');
+      const canvas = document.getElementById('finger-canvas');
+      const marker = document.getElementById('finger-tip');
+
+      const tick = () => {
+        if (!cameraStream) return;
+        const tip = detectFingerTip(video, canvas);
+        if (tip) {
+          const screenX = (tip.x / canvas.width) * window.innerWidth;
+          const screenY = (tip.y / canvas.height) * window.innerHeight;
+          marker.style.display = 'block';
+          marker.style.left = `${screenX}px`;
+          marker.style.top = `${screenY}px`;
+          updateFingerTouch(screenX, screenY);
+        } else {
+          marker.style.display = 'none';
+          hoveredBalloonIndex = null;
+          hoverStartedAt = 0;
+        }
+        fingerTrackingFrame = requestAnimationFrame(tick);
+      };
+
+      cancelAnimationFrame(fingerTrackingFrame);
+      fingerTrackingFrame = requestAnimationFrame(tick);
+    }
+
+    function stopFingerTracking() {
+      cancelAnimationFrame(fingerTrackingFrame);
+      fingerTrackingFrame = null;
+      hoveredBalloonIndex = null;
+      hoverStartedAt = 0;
+      document.getElementById('finger-tip').style.display = 'none';
     }
 
     function createStarfield() {
@@ -312,6 +475,7 @@
           text.setAttribute('value', q.options[i]);
           balloon.setAttribute('scale', '1 1 1');
           balloon.setAttribute('visible', 'true');
+          balloon.removeAttribute('animation__pop');
         }
       }
     }

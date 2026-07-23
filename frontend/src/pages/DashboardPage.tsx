@@ -8,19 +8,65 @@ import {
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-const mockChartData = [
-  { name: 'Mon', engagement: 65 },
-  { name: 'Tue', engagement: 72 },
-  { name: 'Wed', engagement: 68 },
-  { name: 'Thu', engagement: 85 },
-  { name: 'Fri', engagement: 78 },
-  { name: 'Sat', engagement: 92 },
-  { name: 'Sun', engagement: 88 },
-];
+type LearningMode = 'TEXT' | 'AUDIO' | 'VISUAL';
+
+type QuizSummary = {
+  score: number;
+  total: number;
+  profile: Record<LearningMode, number>;
+  recommended: LearningMode;
+  completedAt: string;
+  sessionMode: LearningMode;
+};
+
+const SUMMARY_STORAGE_KEY = 'neurolearn:lastQuizSummary';
+
+const defaultProfile: Record<LearningMode, number> = {
+  TEXT: 0,
+  AUDIO: 0,
+  VISUAL: 0
+};
+
+const modeMeta = {
+  VISUAL: { mode: 'Visual', icon: ImageIcon, color: 'bg-green-500' },
+  AUDIO: { mode: 'Audio', icon: Volume2, color: 'bg-blue-500' },
+  TEXT: { mode: 'Text', icon: BookOpen, color: 'bg-amber-500' }
+};
 
 export const DashboardPage: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const lastQuiz = React.useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem(SUMMARY_STORAGE_KEY) || 'null') as QuizSummary | null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const rawProfile = lastQuiz?.profile as Record<string, number> | undefined;
+  const profile: Record<LearningMode, number> = {
+    TEXT: rawProfile?.TEXT ?? rawProfile?.text ?? defaultProfile.TEXT,
+    AUDIO: rawProfile?.AUDIO ?? rawProfile?.audio ?? defaultProfile.AUDIO,
+    VISUAL: rawProfile?.VISUAL ?? rawProfile?.visual ?? defaultProfile.VISUAL
+  };
+  const recommendedMode = lastQuiz?.recommended ?? 'VISUAL';
+  const averageEngagement = Math.round(
+    (profile.TEXT + profile.AUDIO + profile.VISUAL) /
+    Math.max(1, [profile.TEXT, profile.AUDIO, profile.VISUAL].filter(Boolean).length)
+  );
+  const quizPercent = lastQuiz ? Math.round((lastQuiz.score / Math.max(1, lastQuiz.total)) * 100) : 0;
+  const chartData = [
+    { name: 'Text', engagement: profile.TEXT },
+    { name: 'Audio', engagement: profile.AUDIO },
+    { name: 'Visual', engagement: profile.VISUAL }
+  ];
+  const recentSessions = lastQuiz ? [{
+    subject: 'Adaptive Quiz',
+    score: `${quizPercent}%`,
+    mode: modeMeta[lastQuiz.sessionMode].mode,
+    time: new Date(lastQuiz.completedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  }] : [];
 
   const handleLogout = () => {
     logout();
@@ -103,9 +149,9 @@ export const DashboardPage: React.FC = () => {
             <h2 className="text-lg font-bold mb-6 flex items-center"><Sparkles className="w-5 h-5 mr-2 text-accent" /> Your Learning Profile</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
-                { mode: 'Visual', icon: ImageIcon, score: 92, color: 'bg-green-500', isPref: true },
-                { mode: 'Audio', icon: Volume2, score: 74, color: 'bg-blue-500', isPref: false },
-                { mode: 'Text', icon: BookOpen, score: 68, color: 'bg-amber-500', isPref: false }
+                { ...modeMeta.VISUAL, score: profile.VISUAL, isPref: recommendedMode === 'VISUAL' },
+                { ...modeMeta.AUDIO, score: profile.AUDIO, isPref: recommendedMode === 'AUDIO' },
+                { ...modeMeta.TEXT, score: profile.TEXT, isPref: recommendedMode === 'TEXT' }
               ].map((item, i) => (
                 <div key={i} className={`p-4 rounded-2xl border ${item.isPref ? 'bg-white/5 border-primary/30' : 'bg-dark/50 border-white/5'}`}>
                   <div className="flex justify-between items-center mb-3">
@@ -127,9 +173,9 @@ export const DashboardPage: React.FC = () => {
           {/* Stats Row */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label: 'Total Score', value: '2,450', icon: TrendingUp, color: 'text-green-400' },
-              { label: 'Sessions', value: '42', icon: BookOpen, color: 'text-blue-400' },
-              { label: 'Current Streak', value: '7 Days', icon: Zap, color: 'text-amber-400' },
+              { label: 'Quiz Score', value: lastQuiz ? `${lastQuiz.score}/${lastQuiz.total}` : '0/0', icon: TrendingUp, color: 'text-green-400' },
+              { label: 'Sessions', value: lastQuiz ? '1' : '0', icon: BookOpen, color: 'text-blue-400' },
+              { label: 'Avg Focus', value: `${averageEngagement}%`, icon: Zap, color: 'text-amber-400' },
               { label: 'Days Left', value: '84', icon: Calendar, color: 'text-primary' },
             ].map((stat, i) => (
               <div key={i} className="glass p-5 rounded-2xl flex flex-col items-center justify-center text-center">
@@ -154,7 +200,7 @@ export const DashboardPage: React.FC = () => {
               </div>
               <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={mockChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorEngagement" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#6C3DE7" stopOpacity={0.8}/>
@@ -199,11 +245,9 @@ export const DashboardPage: React.FC = () => {
               <div className="glass p-6 rounded-3xl">
                 <h3 className="font-bold mb-4">Recent Sessions</h3>
                 <div className="space-y-4">
-                  {[
-                    { subject: 'Science Basics', score: '85%', mode: 'Visual', time: '2h ago' },
-                    { subject: 'Math: Addition', score: '92%', mode: 'Audio', time: 'Yesterday' },
-                    { subject: 'Vocabulary', score: '78%', mode: 'Text', time: '2 days ago' }
-                  ].map((session, i) => (
+                  {(recentSessions.length ? recentSessions : [
+                    { subject: 'No quiz completed yet', score: '0%', mode: 'Start a quiz', time: 'Today' }
+                  ]).map((session, i) => (
                     <div key={i} className="flex items-center justify-between p-3 rounded-xl hover:bg-white/5 transition-colors">
                       <div>
                         <p className="font-medium text-sm">{session.subject}</p>
