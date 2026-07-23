@@ -21,7 +21,7 @@ services:
       CV_SERVICE_URL: http://cv-service:8000
       RAG_SERVICE_URL: http://rag-service:8100
     ports:
-      - '5000:5000'
+      - "5001:5000"
     volumes:
       - ./backend:/app
       - /app/node_modules
@@ -34,7 +34,7 @@ services:
     container_name: neurolearn_cv
     restart: unless-stopped
     ports:
-      - '8000:8000'
+      - "8000:8000"
     environment:
       PORT: 8000
       HOST: 0.0.0.0
@@ -47,7 +47,7 @@ services:
     container_name: neurolearn_rag
     restart: unless-stopped
     ports:
-      - '8100:8100'
+      - "8100:8100"
     environment:
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
     volumes:
@@ -68,7 +68,7 @@ services:
       VITE_CV_SERVICE_URL: http://localhost:8000
       CHOKIDAR_USEPOLLING: "true"
     ports:
-      - '5173:5173'
+      - "5173:5173"
     volumes:
       - ./frontend:/app
       - /app/node_modules
