@@ -84,6 +84,16 @@ class ExtractYoutubeIdResponse(BaseModel):
     video_id: str
 
 
+class GenerateSpeechRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=5000, description="Text to synthesize into speech")
+    voice: str = Field(default="Achernar", description="A Gemini TTS prebuilt voice name")
+
+
+class GenerateSpeechResponse(BaseModel):
+    status: str
+    audio_url: str
+
+
 class HealthResponse(BaseModel):
     status: str
     service: str = "neurolearn-rag"

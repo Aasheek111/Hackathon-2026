@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -6,6 +6,87 @@ import {
 } from 'lucide-react';
 import Button from '../components/ui/Button';
 import api from '../lib/api';
+
+/**
+ * Gemini TTS (rag-service `/generate-speech`, cached by content hash) with a
+ * fallback to the browser's own speechSynthesis if the call fails (no key,
+ * quota, network) - never goes silent, matching this app's established
+ * offline-degrades-gracefully contract for its other AI features.
+ */
+function useSpeech() {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [loading, setLoading] = useState(false);
+  const synth = window.speechSynthesis;
+
+  const speak = async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    synth.cancel();
+    audioRef.current?.pause();
+    setLoading(true);
+    try {
+      const { data } = await api.post('/tts', { text: trimmed });
+      if (!audioRef.current) audioRef.current = new Audio();
+      audioRef.current.src = `${RAG_SERVICE_URL}${data.audioUrl}`;
+      await audioRef.current.play();
+    } catch {
+      synth.speak(new SpeechSynthesisUtterance(trimmed));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const stop = () => {
+    audioRef.current?.pause();
+    synth.cancel();
+  };
+
+  return { speak, stop, loading };
+}
+
+/** A small floating "Listen" button that appears over a text selection. */
+const SelectionListenButton: React.FC<{ containerRef: React.RefObject<HTMLElement | null>; onListen: (text: string) => void }> = ({
+  containerRef,
+  onListen
+}) => {
+  const [selection, setSelection] = useState<{ text: string; x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const handleSelectionChange = () => {
+      const sel = window.getSelection();
+      const text = sel?.toString().trim();
+      if (!text || !sel || sel.rangeCount === 0) {
+        setSelection(null);
+        return;
+      }
+      const range = sel.getRangeAt(0);
+      if (!containerRef.current?.contains(range.commonAncestorContainer)) {
+        setSelection(null);
+        return;
+      }
+      const rect = range.getBoundingClientRect();
+      setSelection({ text, x: rect.left + rect.width / 2, y: rect.top + window.scrollY });
+    };
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () => document.removeEventListener('selectionchange', handleSelectionChange);
+  }, [containerRef]);
+
+  if (!selection) return null;
+
+  return (
+    <button
+      style={{ position: 'absolute', left: selection.x, top: selection.y - 44, transform: 'translateX(-50%)' }}
+      onClick={() => {
+        onListen(selection.text);
+        setSelection(null);
+        window.getSelection()?.removeAllRanges();
+      }}
+      className="z-50 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary text-white text-xs shadow-lg hover:opacity-90"
+    >
+      <Volume2 className="w-3.5 h-3.5" /> Listen
+    </button>
+  );
+};
 
 const RAG_SERVICE_URL = import.meta.env.VITE_RAG_SERVICE_URL || 'http://localhost:8100';
 
@@ -181,7 +262,8 @@ const FinalAssessmentView: React.FC<{
 export const CurriculumPlayerPage: React.FC = () => {
   const { unitId } = useParams<{ unitId: string }>();
   const navigate = useNavigate();
-  const synth = window.speechSynthesis;
+  const { speak, stop: stopSpeaking, loading: ttsLoading } = useSpeech();
+  const lessonContentRef = useRef<HTMLDivElement>(null);
 
   const [curriculum, setCurriculum] = useState<Curriculum | null>(null);
   const [progress, setProgress] = useState<Progress | null>(null);
@@ -211,7 +293,7 @@ export const CurriculumPlayerPage: React.FC = () => {
       .finally(() => setLoading(false));
     return () => {
       cancelled = true;
-      synth.cancel();
+      stopSpeaking();
     };
   }, [unitId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -233,14 +315,9 @@ export const CurriculumPlayerPage: React.FC = () => {
   const goTo = (index: number) => {
     if (!curriculum) return;
     const clamped = Math.min(Math.max(index, 0), curriculum.lessons.length - 1);
-    synth.cancel();
+    stopSpeaking();
     setLessonIndex(clamped);
     saveProgress(clamped);
-  };
-
-  const speak = (text: string) => {
-    synth.cancel();
-    synth.speak(new SpeechSynthesisUtterance(text));
   };
 
   const finishCurriculum = () => {
@@ -376,22 +453,28 @@ export const CurriculumPlayerPage: React.FC = () => {
               />
             )}
 
-            <p className="text-gray-200 leading-relaxed text-lg mb-4">{lesson.explanation}</p>
+            <div ref={lessonContentRef}>
+              <p className="text-gray-200 leading-relaxed text-lg mb-4">{lesson.explanation}</p>
 
-            {lesson.example && (
-              <div className="bg-dark/50 rounded-xl p-4 text-sm text-gray-400 mb-4">
-                <span className="text-primary-light font-medium">Example: </span>{lesson.example}
-              </div>
-            )}
+              {lesson.example && (
+                <div className="bg-dark/50 rounded-xl p-4 text-sm text-gray-400 mb-4">
+                  <span className="text-primary-light font-medium">Example: </span>{lesson.example}
+                </div>
+              )}
+            </div>
 
             <button
               onClick={() => speak(`${lesson.title}. ${lesson.explanation} ${lesson.example || ''}`)}
-              className="flex items-center gap-2 text-sm text-blue-300 hover:text-blue-200"
+              disabled={ttsLoading}
+              className="flex items-center gap-2 text-sm text-blue-300 hover:text-blue-200 disabled:opacity-60"
             >
-              <Volume2 className="w-4 h-4" /> Listen to this lesson
+              {ttsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Volume2 className="w-4 h-4" />}
+              {ttsLoading ? 'Generating audio…' : 'Listen to this lesson'}
             </button>
           </motion.div>
         </AnimatePresence>
+
+        <SelectionListenButton containerRef={lessonContentRef} onListen={speak} />
 
         <KnowledgeCheckCard unitId={unitId as string} lesson={lesson} />
 
