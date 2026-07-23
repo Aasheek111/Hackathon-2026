@@ -19,11 +19,16 @@ from pathlib import Path
 from dotenv import load_dotenv
 from langchain_community.embeddings import FakeEmbeddings
 from langchain_community.vectorstores import FAISS
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pypdf import PdfReader
 
-load_dotenv()
+# override=True: docker-compose sets GOOGLE_API_KEY="" in the container when
+# it isn't exported in the host shell (the ${GOOGLE_API_KEY:-} fallback), and
+# python-dotenv otherwise leaves an already-set env var alone - which would
+# silently shadow a real key placed in this file, the documented way to
+# configure it.
+load_dotenv(override=True)
 
 # --- paths ------------------------------------------------------------------
 # Resolved from this file rather than the working directory, so the server
@@ -49,6 +54,10 @@ SYSTEM_PROMPT = (
     "content into that many bite-sized lessons, each grounded in the textbook chunks provided.\n"
     "'quiz' should have 2-3 questions, each with 4 options, grounded in different parts of the "
     "textbook chunks - not all testing the same fact.\n"
+    "Before finalizing, re-read every quiz question against its own options and the textbook "
+    "chunks: the 'correct' value must be the option that actually and specifically answers that "
+    "exact question - not a fact from a different question, and not merely a true statement "
+    "from the text. Double-check each one before including it.\n"
     "If the diagnosis says 'Struggling', use grade-1 vocabulary and only 2 MCQ options per question. "
     "Keep tutorial_text under 100 words."
 )
@@ -110,29 +119,33 @@ def processed_units() -> list[int]:
 
 # the value shipped in .env.example - treating it as "configured" would mean the
 # app looks healthy right up until the first request fails
-PLACEHOLDER_KEYS = {"", "your-key-here", "sk-your-key-here", "changeme"}
+PLACEHOLDER_KEYS = {"", "your-key-here", "changeme"}
 
 
 def api_key_present() -> bool:
-    return os.getenv("OPENAI_API_KEY", "").strip().strip('"') not in PLACEHOLDER_KEYS
+    return os.getenv("GOOGLE_API_KEY", "").strip().strip('"') not in PLACEHOLDER_KEYS
 
 
 # --- embeddings and chat models ---------------------------------------------
 # Built lazily rather than at import time: the app should still start and serve
 # the upload page when no API key is configured yet, and fail with a clear
-# message only when a key is actually needed.
+# message only when a key is actually needed. Uses Gemini (langchain-google-genai)
+# rather than OpenAI - same offline-fallback contract either way.
 
 
-def get_embeddings() -> OpenAIEmbeddings:
+def get_embeddings() -> GoogleGenerativeAIEmbeddings:
     if not api_key_present():
-        raise RuntimeError("OPENAI_API_KEY is not set. Copy .env.example to .env and add your key.")
-    return OpenAIEmbeddings(model="text-embedding-3-small")
+        raise RuntimeError("GOOGLE_API_KEY is not set. Copy .env.example to .env and add your key.")
+    return GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
 
 
-def get_chat_model() -> ChatOpenAI:
+def get_chat_model() -> ChatGoogleGenerativeAI:
     if not api_key_present():
-        raise RuntimeError("OPENAI_API_KEY is not set. Copy .env.example to .env and add your key.")
-    return ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
+        raise RuntimeError("GOOGLE_API_KEY is not set. Copy .env.example to .env and add your key.")
+    # "-latest" alias rather than a pinned version - Google periodically
+    # retires specific model snapshots for new API keys (as gemini-2.5-flash
+    # already has), and the alias stays pointed at whatever is current.
+    return ChatGoogleGenerativeAI(model="gemini-flash-latest", temperature=0.3)
 
 
 # --- ingestion ---------------------------------------------------------------
@@ -241,13 +254,14 @@ def _normalise(payload: dict) -> dict:
         if not isinstance(item, dict):
             continue
         options = [str(option) for option in (item.get("options") or [])]
-        quiz.append(
-            {
-                "question": str(item.get("question", "")),
-                "options": options,
-                "correct": str(item.get("correct", options[0] if options else "")),
-            }
-        )
+        correct = str(item.get("correct", options[0] if options else ""))
+        # A worse failure than a wrong-but-plausible answer: the model naming
+        # a "correct" value that isn't even one of its own options, which
+        # would make the question unanswerable correctly. Drop it rather than
+        # ship a quiz item that can never be marked right.
+        if options and correct not in options:
+            continue
+        quiz.append({"question": str(item.get("question", "")), "options": options, "correct": correct})
 
     steps = []
     for item in payload.get("steps") or []:
@@ -336,7 +350,7 @@ def offline_tutorial(unit_id: int, chunks: list[str], learning_mode: str) -> dic
         "quiz": quiz,
         "teacher_note": (
             "Offline mode: built by extracting sentences, not by the model. "
-            "Set OPENAI_API_KEY for an adapted tutorial."
+            "Set GOOGLE_API_KEY for an adapted tutorial."
         ),
         "source_chunks": len(chunks),
         "learning_mode": learning_mode,
@@ -367,7 +381,7 @@ def generate_tutorial(
         "Return only the JSON object, with no commentary."
     )
 
-    model = get_chat_model().bind(response_format={"type": "json_object"})
+    model = get_chat_model().bind(response_mime_type="application/json")
     reply = model.invoke([("system", SYSTEM_PROMPT), ("human", user_prompt)])
 
     result = _normalise(_coerce_json(reply.content))

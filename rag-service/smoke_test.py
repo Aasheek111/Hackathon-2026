@@ -1,4 +1,4 @@
-"""Smoke test - runs without an OpenAI key.
+"""Smoke test - runs without a Gemini key.
 
 Covers everything that does not need the API: the app boots, static files are
 mounted, uploads land in the right place, the documented error shapes come back,
@@ -35,7 +35,7 @@ def blank_pdf() -> bytes:
 # --- the app itself ---------------------------------------------------------
 response = client.get("/health")
 check("GET /health responds", response.status_code == 200, str(response.status_code))
-check("health reports whether the key is configured", "openai_key_configured" in response.json())
+check("health reports whether the key is configured", "ai_key_configured" in response.json())
 
 response = client.get("/")
 check("the demo page is served at /", response.status_code == 200 and "NeuroLearn" in response.text)

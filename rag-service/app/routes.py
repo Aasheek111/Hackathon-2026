@@ -32,7 +32,7 @@ def health() -> HealthResponse:
     """Is the key configured, and which units are ready to generate from?"""
     return HealthResponse(
         status="ok",
-        openai_key_configured=engine.api_key_present(),
+        ai_key_configured=engine.api_key_present(),
         processed_units=engine.processed_units(),
     )
 

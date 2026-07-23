@@ -8,7 +8,7 @@ python-dotenv>=1.0
 numpy<2,>=1.26.2               # pinned - langchain-community and faiss-cpu disagree otherwise
 langchain>=0.3,<0.4
 langchain-community>=0.3,<0.4  # FAISS vector store lives here
-langchain-openai>=0.2,<0.4
+langchain-google-genai>=2.0,<3.0
 langchain-text-splitters>=0.3,<0.4
 faiss-cpu>=1.8                 # no wheels for Python 3.13+ yet - use 3.11 or 3.12
 

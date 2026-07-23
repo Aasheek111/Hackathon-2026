@@ -49,7 +49,7 @@ services:
     ports:
       - '8100:8100'
     environment:
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
     volumes:
       - rag_uploads:/app/uploads
       - rag_vector_store:/app/vector_store

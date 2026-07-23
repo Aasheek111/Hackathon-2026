@@ -64,5 +64,5 @@ class ImageUploadResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     service: str = "neurolearn-rag"
-    openai_key_configured: bool
+    ai_key_configured: bool
     processed_units: list[int]

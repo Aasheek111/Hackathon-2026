@@ -39,7 +39,7 @@ python -m venv .venv
 
 pip install -r requirements.txt
 
-copy .env.example .env         # then paste your OpenAI key in
+copy .env.example .env         # then paste your Gemini key in
 uvicorn app.main:app --reload --port 8100
 ```
 
@@ -65,7 +65,7 @@ The Dockerfile is ready. To add it to the stack, paste this into the root
     ports:
       - '8100:8100'
     environment:
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
     volumes:
       - rag_uploads:/app/uploads
       - rag_vectors:/app/vector_store
@@ -86,7 +86,7 @@ the same pattern as `CV_SERVICE_URL`.
 
 ## No API key? It still works
 
-Without `OPENAI_API_KEY` the service **does not fail**. It reads the chunks straight
+Without `GOOGLE_API_KEY` the service **does not fail**. It reads the chunks straight
 out of the index and returns an extractive tutorial with `"offline": true` and a
 teacher note saying so. The demo page shows a warning banner.
 

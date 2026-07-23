@@ -148,9 +148,9 @@
           const units = data.processed_units.length
             ? `units ready: ${data.processed_units.join(", ")}`
             : "no units indexed yet";
-          $("health").textContent = data.openai_key_configured
+          $("health").textContent = data.ai_key_configured
             ? units
-            : "OPENAI_API_KEY not set";
+            : "GOOGLE_API_KEY not set";
         } catch {
           $("health").textContent = "backend unreachable";
         }
