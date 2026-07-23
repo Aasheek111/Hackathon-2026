@@ -224,6 +224,50 @@ const OverviewTab: React.FC<{ classroom: Classroom }> = ({ classroom }) => (
   </div>
 );
 
+const RAG_SERVICE_URL = import.meta.env.VITE_RAG_SERVICE_URL || 'http://localhost:8100';
+
+/**
+ * The auto-generated preview (text + picture) that starts building in the
+ * background the moment a unit's PDF finishes indexing - shown here so a
+ * teacher can see it "come alive" without opening the student tutorial view.
+ */
+const UnitPreviewBadge: React.FC<{ unitId: string; ready: boolean }> = ({ unitId, ready }) => {
+  const [preview, setPreview] = useState<{ status: string; imageUrl: string | null } | null>(null);
+
+  useEffect(() => {
+    if (!ready) return;
+    let cancelled = false;
+    api
+      .get(`/units/${unitId}/preview`)
+      .then(({ data }) => {
+        if (!cancelled) setPreview(data.preview);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [unitId, ready]);
+
+  if (!ready || !preview) return null;
+  if (preview.status === 'PROCESSING') {
+    return (
+      <span className="flex items-center gap-1 text-xs text-gray-500">
+        <Loader2 className="w-3 h-3 animate-spin" /> preparing visuals&hellip;
+      </span>
+    );
+  }
+  if (preview.status === 'READY' && preview.imageUrl) {
+    return (
+      <img
+        src={`${RAG_SERVICE_URL}${preview.imageUrl}`}
+        alt="Auto-generated preview"
+        className="w-8 h-8 rounded-lg object-cover border border-white/10"
+      />
+    );
+  }
+  return null;
+};
+
 const ContentTab: React.FC<{ classroom: Classroom; onChanged: () => Promise<void> }> = ({ classroom, onChanged }) => {
   const [subjectName, setSubjectName] = useState('');
   const [unitTitleFor, setUnitTitleFor] = useState<Record<string, string>>({});
@@ -313,6 +357,7 @@ const ContentTab: React.FC<{ classroom: Classroom; onChanged: () => Promise<void
                   <span className="font-medium">{unit.title}</span>
                   {statusBadge(unit.indexStatus)}
                   <span className="text-xs text-gray-500">{unit._count?.documents || 0} document(s)</span>
+                  <UnitPreviewBadge unitId={unit.id} ready={unit.indexStatus === 'READY'} />
                 </div>
                 {uploadingUnit === unit.id ? (
                   <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg border border-white/10">

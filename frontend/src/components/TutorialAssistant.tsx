@@ -12,6 +12,7 @@ interface ChatMessage {
 interface TutorialAssistantProps {
   currentMode: LearningMode;
   onModeChange: (mode: LearningMode) => void;
+  onCustomizeVisual: (instruction: string) => Promise<{ ok: boolean; message: string }>;
 }
 
 const SUGGESTIONS: Array<{ label: string; icon: typeof ImageIcon; mode: LearningMode }> = [
@@ -24,6 +25,9 @@ const SUGGESTIONS: Array<{ label: string; icon: typeof ImageIcon; mode: Learning
  * A small rule-based assistant, not a real LLM - it pattern-matches a few
  * phrases to the mode switch that already exists on TutorialPage (`load`).
  * Framed honestly in its own first message so nobody mistakes it for AI.
+ * The one exception: a descriptive visual request (see
+ * `isDescriptiveVisualRequest`) is forwarded verbatim to Gemini image
+ * generation via `onCustomizeVisual`, rather than pattern-matched.
  */
 function matchMode(input: string): LearningMode | null {
   const text = input.toLowerCase();
@@ -33,6 +37,18 @@ function matchMode(input: string): LearningMode | null {
   return null;
 }
 
+const VISUAL_INTENT = /visual|picture|image|draw|diagram|show me/i;
+
+/**
+ * Distinguishes "make it visual" (a bare mode switch) from "draw a red
+ * rocket with stars" (an actual description of what to draw) so short
+ * requests keep the instant mode-switch behaviour and longer ones become a
+ * real image-customization request.
+ */
+function isDescriptiveVisualRequest(input: string): boolean {
+  return VISUAL_INTENT.test(input) && input.trim().split(/\s+/).length > 4;
+}
+
 const MODE_LABEL: Record<LearningMode, string> = {
   TEXT: 'text',
   AUDIO: 'audio',
@@ -40,15 +56,21 @@ const MODE_LABEL: Record<LearningMode, string> = {
   AR: 'AR'
 };
 
-export const TutorialAssistant: React.FC<TutorialAssistantProps> = ({ currentMode, onModeChange }) => {
+export const TutorialAssistant: React.FC<TutorialAssistantProps> = ({
+  currentMode,
+  onModeChange,
+  onCustomizeVisual
+}) => {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       from: 'bot',
-      text: "Hi! I'm a simple helper (not a full AI) - tell me how you'd like this tutorial, or tap a suggestion below."
+      text:
+        "Hi! I'm a simple helper (not a full AI) - tell me how you'd like this tutorial, describe a picture you want (e.g. \"draw a red rocket with stars\"), or tap a suggestion below."
     }
   ]);
+  const [drawing, setDrawing] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -70,11 +92,25 @@ export const TutorialAssistant: React.FC<TutorialAssistantProps> = ({ currentMod
     if (mode !== currentMode) onModeChange(mode);
   };
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const value = input.trim();
-    if (!value) return;
+    if (!value || drawing) return;
     setInput('');
+
+    if (isDescriptiveVisualRequest(value)) {
+      setMessages((prev) => [
+        ...prev,
+        { from: 'student', text: value },
+        { from: 'bot', text: 'Let me draw that for you...' }
+      ]);
+      setDrawing(true);
+      const result = await onCustomizeVisual(value);
+      setDrawing(false);
+      setMessages((prev) => [...prev, { from: 'bot', text: result.message }]);
+      return;
+    }
+
     const mode = matchMode(value);
     if (mode) {
       requestMode(mode, value);
@@ -143,12 +179,14 @@ export const TutorialAssistant: React.FC<TutorialAssistantProps> = ({ currentMod
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="e.g. make it more visual"
-                className="flex-1 bg-dark-card border border-dark-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                placeholder={drawing ? 'Drawing your picture...' : 'e.g. draw a red rocket with stars'}
+                disabled={drawing}
+                className="flex-1 bg-dark-card border border-dark-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary disabled:opacity-60"
               />
               <button
                 type="submit"
-                className="bg-primary text-white rounded-xl px-3 py-2 hover:opacity-90 transition-opacity"
+                disabled={drawing}
+                className="bg-primary text-white rounded-xl px-3 py-2 hover:opacity-90 transition-opacity disabled:opacity-60"
                 aria-label="Send"
               >
                 <Send className="w-4 h-4" />

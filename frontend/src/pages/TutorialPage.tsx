@@ -9,6 +9,8 @@ import Button from '../components/ui/Button';
 import TutorialAssistant from '../components/TutorialAssistant';
 import api from '../lib/api';
 
+const RAG_SERVICE_URL = import.meta.env.VITE_RAG_SERVICE_URL || 'http://localhost:8100';
+
 type LearningMode = 'TEXT' | 'AUDIO' | 'VISUAL' | 'AR';
 
 interface Step {
@@ -29,6 +31,7 @@ interface Tutorial {
   tutorialText: string;
   audioScript: string;
   visualSuggestion: string;
+  imageUrl: string | null;
   steps: Step[];
   quiz: QuizItem[];
   teacherNote: string;
@@ -47,6 +50,7 @@ export const TutorialPage: React.FC = () => {
   const synth = window.speechSynthesis;
 
   const [tutorial, setTutorial] = useState<Tutorial | null>(null);
+  const [unitPreviewImageUrl, setUnitPreviewImageUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [stepIndex, setStepIndex] = useState(0);
@@ -61,11 +65,14 @@ export const TutorialPage: React.FC = () => {
       try {
         const { data } = await api.get(`/units/${unitId}/tutorial`, { params: mode ? { mode } : {} });
         setTutorial(data.tutorial);
+        setUnitPreviewImageUrl(data.unitPreviewImageUrl ?? null);
         setStepIndex(0);
         setQuizAnswers({});
         setQuizSubmitted(false);
+        return data.tutorial as Tutorial;
       } catch (err: any) {
         setError(err.response?.data?.error || 'Could not load this tutorial');
+        return null;
       } finally {
         setLoading(false);
       }
@@ -77,6 +84,46 @@ export const TutorialPage: React.FC = () => {
     load();
     return () => synth.cancel();
   }, [load]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The picture generates in the background after tutorial creation - poll a
+  // few times for it rather than making the student wait on the first request.
+  useEffect(() => {
+    if (!tutorial || tutorial.learningMode !== 'VISUAL' || tutorial.imageUrl || tutorial.offline) return;
+    let attempts = 0;
+    const interval = setInterval(async () => {
+      attempts += 1;
+      try {
+        const { data } = await api.get(`/units/${unitId}/tutorial`, { params: { mode: 'VISUAL' } });
+        if (data.unitPreviewImageUrl) setUnitPreviewImageUrl(data.unitPreviewImageUrl);
+        if (data.tutorial?.imageUrl) {
+          setTutorial((prev) => (prev ? { ...prev, imageUrl: data.tutorial.imageUrl } : prev));
+        }
+      } catch {
+        // transient - try again next tick, and stop quietly once attempts run out
+      }
+      if (attempts >= 8) clearInterval(interval);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [tutorial?.id, tutorial?.learningMode, tutorial?.imageUrl, tutorial?.offline, unitId]);
+
+  const customizeVisual = useCallback(
+    async (instruction: string): Promise<{ ok: boolean; message: string }> => {
+      let current = tutorial;
+      if (!current || current.learningMode !== 'VISUAL') {
+        current = await load('VISUAL');
+      }
+      if (!current) return { ok: false, message: "I couldn't switch to visual mode right now." };
+
+      try {
+        const { data } = await api.post(`/units/${unitId}/tutorial/${current.id}/visual`, { instruction });
+        setTutorial((prev) => (prev ? { ...prev, imageUrl: data.tutorial.imageUrl } : prev));
+        return { ok: true, message: "Here's your new picture!" };
+      } catch (err: any) {
+        return { ok: false, message: err.response?.data?.error || "I couldn't generate that picture right now." };
+      }
+    },
+    [tutorial, load, unitId]
+  );
 
   useEffect(() => {
     if (tutorial?.learningMode === 'AUDIO' && tutorial.audioScript) {
@@ -171,6 +218,19 @@ export const TutorialPage: React.FC = () => {
           {tutorial.learningMode === 'VISUAL' && (
             <div className="bg-dark/50 border border-white/10 rounded-2xl p-6 mb-6">
               <p className="text-xs text-gray-500 mb-2 uppercase tracking-wide">Picture this</p>
+              {tutorial.imageUrl || unitPreviewImageUrl ? (
+                <img
+                  src={`${RAG_SERVICE_URL}${tutorial.imageUrl || unitPreviewImageUrl}`}
+                  alt={tutorial.visualSuggestion}
+                  className="w-full max-h-96 object-contain rounded-xl mb-3 bg-black/20"
+                />
+              ) : (
+                !tutorial.offline && (
+                  <div className="flex items-center gap-2 text-gray-400 text-sm mb-3">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Generating your picture&hellip;
+                  </div>
+                )
+              )}
               <p className="text-lg">{tutorial.visualSuggestion}</p>
             </div>
           )}
@@ -284,7 +344,11 @@ export const TutorialPage: React.FC = () => {
       </main>
 
       {tutorial.learningMode !== 'AR' && (
-        <TutorialAssistant currentMode={tutorial.learningMode} onModeChange={load} />
+        <TutorialAssistant
+          currentMode={tutorial.learningMode}
+          onModeChange={load}
+          onCustomizeVisual={customizeVisual}
+        />
       )}
     </div>
   );
