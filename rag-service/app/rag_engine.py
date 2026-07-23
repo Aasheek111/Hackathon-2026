@@ -496,3 +496,197 @@ def generate_visual_image(prompt: str, unit_id: int) -> str | None:
         return None
 
     return f"/static/images/{filename}"
+
+
+# --- full-document curriculum generation --------------------------------------
+#
+# generate_tutorial() above deliberately only sees the top-K similarity-matched
+# chunks (fine for "answer this student's specific gap"). A curriculum needs
+# the OPPOSITE: every chunk, in order, actually represented in the lesson
+# plan - the exact gap TODO.md Phase 2 exists to close.
+
+CURRICULUM_PLAN_PROMPT = (
+    "You are a curriculum designer. Below is a full textbook document, broken into "
+    "numbered chunks. Design a complete lesson plan that covers EVERY educationally "
+    "meaningful part of this document - do not skip sections, do not stop after the "
+    "introduction, and do not artificially limit yourself to a small fixed number of "
+    "lessons. The number of lessons must reflect how much distinct content is "
+    "actually in the document: a short document might need only 2-3 lessons, a long "
+    "one might need 15 or more.\n\n"
+    "Group the chunks into an ordered list of lessons. Each lesson must be a "
+    "self-contained, teachable concept and must reference the exact chunk range "
+    "(start and end chunk numbers, inclusive) it is grounded in. Chunk ranges must "
+    "not overlap, must stay in ascending order, and together should cover as much of "
+    "the document as is educationally meaningful (it is fine to skip a chunk that is "
+    "clearly a table of contents, references list, or similar non-content section).\n\n"
+    "Return JSON: {\"title\": <overall subject/topic title>, "
+    "\"lessons\": [{\"title\": <short lesson heading>, \"chunk_start\": <int>, "
+    "\"chunk_end\": <int>}]}. Return only the JSON object, no commentary."
+)
+
+LESSON_SYSTEM_PROMPT = (
+    "You are a special education tutor writing ONE lesson of a larger curriculum, "
+    "grounded only in the textbook excerpt provided - do not introduce facts that "
+    "are not in the excerpt.\n"
+    "Generate JSON with keys: explanation, example, needs_visual, visual_suggestion, "
+    "knowledge_check.\n"
+    "'explanation': 2-4 plain-language sentences teaching the concept.\n"
+    "'example': one concrete example grounded in the excerpt (empty string if none fits).\n"
+    "'needs_visual': boolean - true only when a picture would genuinely help understand "
+    "THIS specific lesson. Do not default to true for every lesson - most lessons about "
+    "abstract or purely verbal content do not need one.\n"
+    "'visual_suggestion': if needs_visual is true, describe one concrete, simple diagram "
+    "or illustration; empty string otherwise.\n"
+    "'knowledge_check': {\"question\", \"options\" (2-4 strings), \"correct\"} - a single "
+    "check-for-understanding question. Before finalizing, verify 'correct' is exactly one "
+    "of the 'options' values."
+)
+
+FINAL_ASSESSMENT_SYSTEM_PROMPT = (
+    "You write a final assessment for a completed learning curriculum, covering its "
+    "lessons. Write up to 10 multiple-choice questions - fewer if the curriculum is "
+    "short, never pad with repetitive questions testing the same fact. Each question "
+    "needs exactly 4 options and a 'correct' value that is exactly one of them, "
+    "grounded in a different lesson where possible so the assessment covers the whole "
+    "curriculum rather than one section repeatedly.\n"
+    "Return JSON: {\"questions\": [{\"question\", \"options\", \"correct\"}]}. Only the JSON."
+)
+
+
+def all_chunks(unit_id: int) -> list[dict]:
+    """Every chunk this unit's PDF was split into, in original document order,
+    each tagged with its position.
+
+    `retrieve()` intentionally only returns the top-k similarity matches for a
+    single student query - wrong input for a curriculum planner, which needs
+    to see the whole document to guarantee full coverage.
+    """
+    import pickle
+
+    store_file = index_path(unit_id) / "index.pkl"
+    if not store_file.exists():
+        return []
+    try:
+        docstore, _ = pickle.loads(store_file.read_bytes())
+        documents = list(getattr(docstore, "_dict", {}).values())
+    except Exception:
+        return []
+    ordered = sorted(documents, key=lambda d: d.metadata.get("chunk", 0))
+    return [
+        {"position": d.metadata.get("chunk", i), "text": d.page_content}
+        for i, d in enumerate(ordered)
+    ]
+
+
+def plan_curriculum(unit_id: int) -> dict:
+    """One LLM call over the WHOLE document, producing an ordered lesson plan
+    whose lesson count is derived from actual content (TODO.md Phase 2 - never
+    a hardcoded number).
+    """
+    chunks = all_chunks(unit_id)
+    if not chunks:
+        raise ValueError("No content found for this unit")
+
+    if not api_key_present():
+        # Offline fallback: one lesson per chunk, so the document is still
+        # fully represented even without a model to plan groupings.
+        return {
+            "title": "Curriculum",
+            "lessons": [
+                {"title": f"Part {c['position'] + 1}", "chunk_start": c["position"], "chunk_end": c["position"]}
+                for c in chunks
+            ],
+            "total_chunks": len(chunks),
+        }
+
+    numbered = "\n\n".join(f"[chunk {c['position']}] {c['text']}" for c in chunks)
+    model = get_chat_model().bind(response_mime_type="application/json")
+    reply = model.invoke([("system", CURRICULUM_PLAN_PROMPT), ("human", numbered)])
+    plan = _coerce_json(reply.content)
+
+    lessons = []
+    for item in plan.get("lessons") or []:
+        try:
+            start = int(item["chunk_start"])
+            end = int(item["chunk_end"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        lessons.append({"title": str(item.get("title", "")) or f"Chunks {start}-{end}", "chunk_start": start, "chunk_end": end})
+
+    if not lessons:
+        # The model returned nothing usable - fall back to one lesson per
+        # chunk rather than silently producing an empty curriculum.
+        lessons = [
+            {"title": f"Part {c['position'] + 1}", "chunk_start": c["position"], "chunk_end": c["position"]}
+            for c in chunks
+        ]
+
+    return {"title": str(plan.get("title") or "Curriculum"), "lessons": lessons, "total_chunks": len(chunks)}
+
+
+def generate_lesson_content(unit_id: int, lesson_title: str, chunk_start: int, chunk_end: int) -> dict:
+    """Content for ONE lesson, grounded only in its own chunk range - keeps
+    each generation call small and traceable instead of re-processing the
+    whole document per lesson.
+    """
+    chunks = all_chunks(unit_id)
+    scoped = [c["text"] for c in chunks if chunk_start <= c["position"] <= chunk_end]
+    context = "\n\n".join(scoped) or "(no content found for this range)"
+
+    if not api_key_present():
+        sentences = [s for s in re.split(r"(?<=[.!?])\s+", context.strip()) if s]
+        return {
+            "explanation": " ".join(sentences[:3]) or context[:300],
+            "example": sentences[3] if len(sentences) > 3 else "",
+            "needs_visual": False,
+            "visual_suggestion": "",
+            "knowledge_check": None,
+        }
+
+    model = get_chat_model().bind(response_mime_type="application/json")
+    user_prompt = f"Lesson title: {lesson_title}\n\nTextbook excerpt:\n{context}\n\nReturn only the JSON object."
+    reply = model.invoke([("system", LESSON_SYSTEM_PROMPT), ("human", user_prompt)])
+    data = _coerce_json(reply.content)
+
+    knowledge_check = None
+    kc = data.get("knowledge_check")
+    if isinstance(kc, dict):
+        options = [str(o) for o in (kc.get("options") or [])]
+        correct = str(kc.get("correct", options[0] if options else ""))
+        if options and correct in options:
+            knowledge_check = {"question": str(kc.get("question", "")), "options": options, "correct": correct}
+
+    return {
+        "explanation": str(data.get("explanation", "")),
+        "example": str(data.get("example", "")),
+        "needs_visual": bool(data.get("needs_visual")),
+        "visual_suggestion": str(data.get("visual_suggestion", "")),
+        "knowledge_check": knowledge_check,
+    }
+
+
+def generate_final_assessment(lesson_titles: list[str]) -> list[dict]:
+    """Up to 10 MCQs covering the whole curriculum. Returns [] rather than
+    raising when there's no API key - a curriculum without a final assessment
+    still has real value; the frontend just won't show that step.
+    """
+    if not api_key_present() or not lesson_titles:
+        return []
+
+    context = "\n".join(f"- {title}" for title in lesson_titles)
+    model = get_chat_model().bind(response_mime_type="application/json")
+    reply = model.invoke(
+        [
+            ("system", FINAL_ASSESSMENT_SYSTEM_PROMPT),
+            ("human", f"Curriculum lessons:\n{context}\n\nReturn only the JSON object."),
+        ]
+    )
+    data = _coerce_json(reply.content)
+
+    questions = []
+    for item in (data.get("questions") or [])[:10]:
+        options = [str(o) for o in (item.get("options") or [])]
+        correct = str(item.get("correct", options[0] if options else ""))
+        if options and correct in options:
+            questions.append({"question": str(item.get("question", "")), "options": options, "correct": correct})
+    return questions

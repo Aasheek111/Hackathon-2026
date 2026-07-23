@@ -18,6 +18,7 @@ from PIL import Image, UnidentifiedImageError
 from . import rag_engine as engine
 from .celery_app import celery_app
 from .models import (
+    GenerateCurriculumRequest,
     GenerateVisualRequest,
     HealthResponse,
     ImageUploadResponse,
@@ -25,7 +26,7 @@ from .models import (
     TutorialRequest,
     TutorialResponse,
 )
-from .tasks import ping
+from .tasks import generate_curriculum, ping
 
 router = APIRouter()
 
@@ -139,6 +140,19 @@ def generate_visual(request: GenerateVisualRequest) -> ImageUploadResponse:
             detail="Could not generate an image right now (no API key, or the request was blocked/failed)",
         )
     return ImageUploadResponse(status="success", image_url=image_url)
+
+
+@router.post("/generate-curriculum", tags=["generate"])
+def generate_curriculum_endpoint(request: GenerateCurriculumRequest) -> dict:
+    """Enqueues the full-document curriculum generation task and returns
+    immediately - the actual work (minutes long) runs in the celery-worker
+    container, not in this request.
+    """
+    if not engine.unit_is_processed(request.unit_id):
+        raise HTTPException(status_code=404, detail="Unit not processed yet")
+
+    task = generate_curriculum.delay(request.job_id, request.unit_id)
+    return {"status": "queued", "celery_task_id": task.id}
 
 
 @router.post("/generate-tutorial", response_model=TutorialResponse, tags=["generate"])
