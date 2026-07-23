@@ -61,6 +61,11 @@ class ImageUploadResponse(BaseModel):
     image_url: str
 
 
+class GenerateVisualRequest(BaseModel):
+    unit_id: int = Field(..., ge=1, description="Used only to namespace the generated filename")
+    prompt: str = Field(..., min_length=1, description="Description of the picture to generate")
+
+
 class HealthResponse(BaseModel):
     status: str
     service: str = "neurolearn-rag"

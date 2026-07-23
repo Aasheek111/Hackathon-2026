@@ -66,6 +66,7 @@ services:
     environment:
       VITE_API_URL: http://localhost:5001/api
       VITE_CV_SERVICE_URL: http://localhost:8000
+      VITE_RAG_SERVICE_URL: http://localhost:8100
       CHOKIDAR_USEPOLLING: "true"
     ports:
       - "5173:5173"
