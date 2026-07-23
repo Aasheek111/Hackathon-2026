@@ -1,0 +1,13 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# generated at runtime - the code recreates the folders on startup
+uploads/pdfs/*
+uploads/images/*
+vector_store/*
+!uploads/pdfs/.gitkeep
+!uploads/images/.gitkeep
+!vector_store/.gitkeep
