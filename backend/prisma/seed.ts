@@ -4,7 +4,17 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  // Clear existing data
+  // Clear existing data - children first, in FK-safe order
+  await prisma.tutorial.deleteMany();
+  await prisma.syllabusDocument.deleteMany();
+  await prisma.unit.deleteMany();
+  await prisma.subject.deleteMany();
+  await prisma.classroomJoinRequest.deleteMany();
+  await prisma.enrolment.deleteMany();
+  await prisma.admissionCriteria.deleteMany();
+  await prisma.classroom.deleteMany();
+  await prisma.assessmentAttempt.deleteMany();
+  await prisma.studentProgress.deleteMany();
   await prisma.quizSession.deleteMany();
   await prisma.learningMaterial.deleteMany();
   await prisma.quizQuestion.deleteMany();
@@ -20,6 +30,83 @@ async function main() {
       email: 'admin@autismlearn.com',
       password: hashedPassword,
       role: Role.ADMIN
+    }
+  });
+
+  // Demo teacher, pre-approved, so the classroom/RAG flow is demoable
+  // immediately after seeding without a manual approval step.
+  const teacherPassword = await bcrypt.hash('Teacher@1234', 12);
+  const demoTeacher = await prisma.user.create({
+    data: {
+      name: 'Ms. Sharma',
+      email: 'teacher@neurolearn.com',
+      password: teacherPassword,
+      role: Role.TEACHER,
+      teacherStatus: 'APPROVED'
+    }
+  });
+
+  // A second, still-pending teacher so the admin approval UI has something to show
+  const pendingPassword = await bcrypt.hash('Teacher@1234', 12);
+  await prisma.user.create({
+    data: {
+      name: 'Mr. Gurung',
+      email: 'pending.teacher@neurolearn.com',
+      password: pendingPassword,
+      role: Role.TEACHER,
+      teacherStatus: 'PENDING'
+    }
+  });
+
+  const demoClassroom = await prisma.classroom.create({
+    data: {
+      name: 'Adaptive Learners - Grade 3',
+      description: 'A classroom tuned for visual and audio learners who benefit from shorter, high-feedback sessions.',
+      teacherId: demoTeacher.id,
+      admissionCriteria: {
+        create: {
+          minAttentionSpanScore: 0,
+          preferredModes: JSON.stringify(['VISUAL', 'AUDIO'])
+        }
+      }
+    }
+  });
+
+  const mathSubject = await prisma.subject.create({
+    data: { classroomId: demoClassroom.id, name: 'Mathematics' }
+  });
+  await prisma.unit.createMany({
+    data: [
+      { subjectId: mathSubject.id, title: 'Unit 1 - Numbers', order: 1 },
+      { subjectId: mathSubject.id, title: 'Unit 2 - Shapes', order: 2 }
+    ]
+  });
+
+  // A second, pre-approved teacher with a deliberately different (stricter)
+  // classroom, so /recommendations has more than one option to actually rank
+  // against instead of every student getting the same single classroom back.
+  const secondTeacherPassword = await bcrypt.hash('Teacher@1234', 12);
+  const secondTeacher = await prisma.user.create({
+    data: {
+      name: 'Mr. Thapa',
+      email: 'teacher2@neurolearn.com',
+      password: secondTeacherPassword,
+      role: Role.TEACHER,
+      teacherStatus: 'APPROVED'
+    }
+  });
+  await prisma.classroom.create({
+    data: {
+      name: 'Focused Readers - Advanced Track',
+      description: 'A faster-paced, text-first classroom for students who read attentively and are already scoring well.',
+      teacherId: secondTeacher.id,
+      admissionCriteria: {
+        create: {
+          minAttentionSpanScore: 60,
+          minScorePercent: 70,
+          preferredModes: JSON.stringify(['TEXT'])
+        }
+      }
     }
   });
 

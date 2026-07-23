@@ -1,41 +1,31 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Link, useLocation } from 'react-router-dom';
-import { Trophy, ArrowRight, Sparkles, BookOpen, Volume2, Image as ImageIcon } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Trophy, ArrowRight, Sparkles, BookOpen, Volume2, Image as ImageIcon, AlertTriangle } from 'lucide-react';
 import Button from '../components/ui/Button';
 
-type LearningMode = 'TEXT' | 'AUDIO' | 'VISUAL';
-
-type QuizSummary = {
-  score: number;
-  total: number;
-  profile: Record<LearningMode, number>;
-  recommended: LearningMode;
-  completedAt: string;
-  sessionMode: LearningMode;
-};
-
-const SUMMARY_STORAGE_KEY = 'neurolearn:lastQuizSummary';
+interface AssessmentAttempt {
+  textEngagement: number;
+  audioEngagement: number;
+  visualEngagement: number;
+  preferredMode: 'TEXT' | 'AUDIO' | 'VISUAL' | 'AR';
+}
 
 export const QuizResultPage: React.FC = () => {
   const location = useLocation();
-  const storedSummary = (() => {
-    try {
-      return JSON.parse(localStorage.getItem(SUMMARY_STORAGE_KEY) || 'null') as QuizSummary | null;
-    } catch {
-      return null;
-    }
-  })();
-  const summary = (location.state as QuizSummary | null) ?? storedSummary;
-  const quizScore = summary?.score ?? 0;
-  const totalQuestions = Math.max(1, summary?.total ?? 1);
-  const rawProfile = summary?.profile as Record<string, number> | undefined;
+  const navigate = useNavigate();
+  const quizScore = location.state?.score ?? 0;
+  const totalQuestions = location.state?.total ?? 0;
+  // Real data from POST /assessments/:id/complete (PLAN.md Part 6.4) - this
+  // used to be a hardcoded constant regardless of how the quiz actually went.
+  const attempt: AssessmentAttempt | null = location.state?.attempt ?? null;
+
   const profile = {
-    TEXT: rawProfile?.TEXT ?? rawProfile?.text ?? 0,
-    AUDIO: rawProfile?.AUDIO ?? rawProfile?.audio ?? 0,
-    VISUAL: rawProfile?.VISUAL ?? rawProfile?.visual ?? 0
+    text: Math.round(attempt?.textEngagement ?? 0),
+    audio: Math.round(attempt?.audioEngagement ?? 0),
+    visual: Math.round(attempt?.visualEngagement ?? 0),
+    recommended: attempt?.preferredMode ?? 'TEXT'
   };
-  const recommendedMode = summary?.recommended ?? 'VISUAL';
 
   const getModeDetails = (mode: string) => {
     switch (mode) {
@@ -45,7 +35,7 @@ export const QuizResultPage: React.FC = () => {
     }
   };
 
-  const recommended = getModeDetails(recommendedMode);
+  const recommended = getModeDetails(profile.recommended);
 
   return (
     <motion.div
@@ -66,11 +56,16 @@ export const QuizResultPage: React.FC = () => {
           </motion.div>
           <h1 className="text-4xl md:text-5xl font-display font-bold mb-4">Assessment Complete!</h1>
           <div className="inline-flex items-center px-4 py-2 rounded-full bg-primary/20 border border-primary/40 text-primary-light font-bold mb-4">
-            Quiz Score: {quizScore} / {totalQuestions} Correct ({Math.round((quizScore / totalQuestions) * 100)}%)
+            Quiz Score: {quizScore} / {totalQuestions} Correct ({totalQuestions > 0 ? Math.round((quizScore / totalQuestions) * 100) : 0}%)
           </div>
           <p className="text-xl text-gray-400 max-w-2xl mx-auto">
             We've analyzed your eye tracking engagement patterns across all {totalQuestions} questions.
           </p>
+          {!attempt && (
+            <div className="mt-4 inline-flex items-center gap-2 text-amber-400 text-sm bg-amber-500/10 border border-amber-500/30 px-4 py-2 rounded-full">
+              <AlertTriangle className="w-4 h-4" /> Could not save this attempt to your profile - check your connection and retake if needed.
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -84,9 +79,9 @@ export const QuizResultPage: React.FC = () => {
             <h3 className="text-xl font-bold mb-6">Engagement Breakdown</h3>
             <div className="space-y-6">
               {[
-                { label: 'Visual', value: profile.VISUAL, color: 'bg-green-500', icon: ImageIcon },
-                { label: 'Audio', value: profile.AUDIO, color: 'bg-blue-500', icon: Volume2 },
-                { label: 'Text', value: profile.TEXT, color: 'bg-amber-500', icon: BookOpen }
+                { label: 'Visual', value: profile.visual, color: 'bg-green-500', icon: ImageIcon },
+                { label: 'Audio', value: profile.audio, color: 'bg-blue-500', icon: Volume2 },
+                { label: 'Text', value: profile.text, color: 'bg-amber-500', icon: BookOpen }
               ].map((item, i) => (
                 <div key={i}>
                   <div className="flex justify-between items-center mb-2">
@@ -135,10 +130,15 @@ export const QuizResultPage: React.FC = () => {
               We've configured your dashboard to prioritize this modality, while still adapting dynamically when needed.
             </p>
 
-            <Link to="/subscription">
-              <Button size="lg" className="w-full gap-2 shadow-[0_0_20px_rgba(108,61,231,0.3)]">
-                Unlock Full Access <ArrowRight className="w-5 h-5" />
-              </Button>
+            <Button
+              size="lg"
+              onClick={() => navigate('/recommendation')}
+              className="w-full gap-2 shadow-[0_0_20px_rgba(108,61,231,0.3)]"
+            >
+              See recommended classrooms <ArrowRight className="w-5 h-5" />
+            </Button>
+            <Link to="/dashboard" className="text-center text-sm text-gray-400 hover:text-white mt-3 block">
+              Skip for now
             </Link>
           </motion.div>
         </div>

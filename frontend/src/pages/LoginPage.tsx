@@ -21,11 +21,12 @@ export const LoginPage: React.FC = () => {
     setError('');
     setLoading(true);
     try {
-      await login(email, password, rememberMe);
-      // Simulate checking if demo result exists, routing to consent first
-      navigate('/consent');
+      const user = await login(email, password, rememberMe);
+      if (user.role === 'ADMIN') navigate('/admin');
+      else if (user.role === 'TEACHER') navigate('/teacher');
+      else navigate('/consent');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to login. Please try again.');
+      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to login. Please try again.');
     } finally {
       setLoading(false);
     }

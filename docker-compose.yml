@@ -1,42 +1,25 @@
-version: '3.9'
-
 services:
-  # PostgreSQL Database
-  db:
-    image: postgres:16-alpine
-    container_name: neurolearn_db
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: neurolearn
-      POSTGRES_PASSWORD: neurolearn_secret
-      POSTGRES_DB: autism_learning
-    ports:
-      - '5432:5432'
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U neurolearn -d autism_learning']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # Node.js Backend API
+  # Uses Prisma's SQLite provider (see backend/prisma/schema.prisma) - the file
+  # lives inside the bind-mounted ./backend volume below, so it persists on the
+  # host exactly like the native `npm run dev` flow, no separate DB container.
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: neurolearn_backend
     restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
+    # --legacy-watch: file-change events from a Windows bind mount don't
+    # reliably reach nodemon's default watcher, so it polls instead.
+    command: sh -c "npx prisma generate && npx prisma migrate deploy && npx nodemon --legacy-watch --exec tsx src/index.ts"
     environment:
-      DATABASE_URL: postgresql://neurolearn:neurolearn_secret@db:5432/autism_learning
+      DATABASE_URL: file:./dev.db
       JWT_SECRET: super_secret_jwt_key_change_in_production
       JWT_EXPIRES_IN: 7d
       PORT: 5000
       FRONTEND_URL: http://localhost:5173
       CV_SERVICE_URL: http://cv-service:8000
+      RAG_SERVICE_URL: http://rag-service:8100
     ports:
       - '5000:5000'
     volumes:
@@ -83,6 +66,7 @@ services:
     environment:
       VITE_API_URL: http://localhost:5000/api
       VITE_CV_SERVICE_URL: http://localhost:8000
+      CHOKIDAR_USEPOLLING: "true"
     ports:
       - '5173:5173'
     volumes:
@@ -90,4 +74,5 @@ services:
       - /app/node_modules
 
 volumes:
-  postgres_data:
+  rag_uploads:
+  rag_vector_store:

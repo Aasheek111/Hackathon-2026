@@ -1,0 +1,15 @@
+# Mirrors cv-service/Dockerfile. No OpenCV system libraries needed here - this
+# service only reads PDFs and talks to an API.
+FROM python:3.11-slim
+
+WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# 8100, because cv-service already owns 8000
+EXPOSE 8100
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8100"]

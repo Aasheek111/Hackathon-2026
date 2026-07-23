@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { User, Mail, Lock, Eye, EyeOff, GraduationCap, BookOpen } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -12,9 +12,10 @@ export const RegisterPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [role, setRole] = useState<'STUDENT' | 'TEACHER'>('STUDENT');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  
+
   const { register } = useAuth();
   const navigate = useNavigate();
 
@@ -46,10 +47,13 @@ export const RegisterPage: React.FC = () => {
 
     setLoading(true);
     try {
-      await register(name, email, password);
-      navigate('/consent');
+      await register(name, email, password, role);
+      // A self-registered teacher lands on their (pending) dashboard - the
+      // page itself shows the "waiting for admin approval" state. A student
+      // goes straight into the existing consent -> assessment flow.
+      navigate(role === 'TEACHER' ? '/teacher' : '/consent');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to register. Please try again.');
+      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to register. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -92,6 +96,37 @@ export const RegisterPage: React.FC = () => {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="text-sm text-gray-400 mb-2 block">I am a...</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setRole('STUDENT')}
+                  className={`flex flex-col items-center gap-2 py-4 rounded-xl border transition-all ${
+                    role === 'STUDENT' ? 'border-primary bg-primary/10 text-white' : 'border-white/10 text-gray-400 hover:border-white/30'
+                  }`}
+                >
+                  <BookOpen className="w-6 h-6" />
+                  <span className="text-sm font-medium">Student</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRole('TEACHER')}
+                  className={`flex flex-col items-center gap-2 py-4 rounded-xl border transition-all ${
+                    role === 'TEACHER' ? 'border-primary bg-primary/10 text-white' : 'border-white/10 text-gray-400 hover:border-white/30'
+                  }`}
+                >
+                  <GraduationCap className="w-6 h-6" />
+                  <span className="text-sm font-medium">Teacher</span>
+                </button>
+              </div>
+              {role === 'TEACHER' && (
+                <p className="text-xs text-amber-400/80 mt-2">
+                  Teacher accounts need admin approval before you can create a classroom.
+                </p>
+              )}
+            </div>
+
             <Input
               label="Full Name"
               type="text"
