@@ -82,6 +82,34 @@ async function main() {
     ]
   });
 
+  // A second, pre-approved teacher with a deliberately different (stricter)
+  // classroom, so /recommendations has more than one option to actually rank
+  // against instead of every student getting the same single classroom back.
+  const secondTeacherPassword = await bcrypt.hash('Teacher@1234', 12);
+  const secondTeacher = await prisma.user.create({
+    data: {
+      name: 'Mr. Thapa',
+      email: 'teacher2@neurolearn.com',
+      password: secondTeacherPassword,
+      role: Role.TEACHER,
+      teacherStatus: 'APPROVED'
+    }
+  });
+  await prisma.classroom.create({
+    data: {
+      name: 'Focused Readers - Advanced Track',
+      description: 'A faster-paced, text-first classroom for students who read attentively and are already scoring well.',
+      teacherId: secondTeacher.id,
+      admissionCriteria: {
+        create: {
+          minAttentionSpanScore: 60,
+          minScorePercent: 70,
+          preferredModes: JSON.stringify(['TEXT'])
+        }
+      }
+    }
+  });
+
   // Seed Questions (30 total: 10 TEXT, 10 AUDIO, 10 VISUAL)
   const questions = [
     // TEXT Mode
