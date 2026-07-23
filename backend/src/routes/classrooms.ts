@@ -13,7 +13,7 @@ router.get('/mine', requireApprovedTeacher, async (req: Request, res: Response) 
       where: { teacherId: req.user!.id },
       include: {
         admissionCriteria: true,
-        subjects: { include: { units: true } },
+        subjects: { include: { units: { include: { _count: { select: { documents: true } } } } } },
         enrolments: { include: { student: { select: { id: true, name: true, email: true } } } },
         joinRequests: {
           where: { status: 'PENDING' },

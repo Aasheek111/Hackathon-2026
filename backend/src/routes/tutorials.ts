@@ -47,9 +47,12 @@ router.get('/:id/tutorial', requireRole('STUDENT'), async (req: Request, res: Re
     });
 
     const requestedMode = (req.query['mode'] as string | undefined)?.toUpperCase();
-    const learningMode: LearningMode = (['TEXT', 'AUDIO', 'VISUAL', 'AR'].includes(requestedMode || '')
+    let learningMode: LearningMode = (['TEXT', 'AUDIO', 'VISUAL', 'AR'].includes(requestedMode || '')
       ? requestedMode
       : latestAttempt?.preferredMode) as LearningMode || 'TEXT';
+    // AR isn't a reliable, fully-built tutorial experience yet - fall back to
+    // its closest working equivalent rather than generating for a dead end.
+    if (learningMode === 'AR') learningMode = 'VISUAL';
     const level = levelFromScore(latestAttempt?.scorePercent ?? 0);
 
     // Cached lookup first (PLAN.md 8.1) - stable experience, no re-roll, no
