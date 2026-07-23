@@ -69,7 +69,15 @@ router.get('/:id/curriculum', requireRole('STUDENT'), async (req: Request, res: 
       update: {}
     });
 
-    res.json({ curriculum, progress });
+    // Adaptive presentation on top of the canonical content (PLAN §23) - the
+    // student's own latest assessment, never a separate curriculum copy.
+    const latestAttempt = await prisma.assessmentAttempt.findFirst({
+      where: { userId: studentId, completedAt: { not: null } },
+      orderBy: { completedAt: 'desc' },
+      select: { preferredMode: true, attentionSpanScore: true }
+    });
+
+    res.json({ curriculum, progress, personalization: latestAttempt });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch curriculum' });
   }
