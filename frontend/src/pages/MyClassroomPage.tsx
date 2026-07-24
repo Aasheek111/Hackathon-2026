@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, BookOpen, TrendingUp, Loader2, Lock, PlayCircle } from 'lucide-react';
+import { LayoutDashboard, BookOpen, TrendingUp, Loader2, Lock, PlayCircle, ArrowRight } from 'lucide-react';
 import DashboardShell, { NavItem } from '../components/DashboardShell';
 import api from '../lib/api';
 
@@ -39,9 +39,6 @@ export const MyClassroomPage: React.FC = () => {
         .finally(() => setLoading(false));
     };
     load();
-    // Enrolment happens from the teacher's session, with no way to push here -
-    // pick it up when the student returns to this tab instead of requiring a
-    // manual reload.
     window.addEventListener('focus', load);
     return () => window.removeEventListener('focus', load);
   }, []);
@@ -54,8 +51,8 @@ export const MyClassroomPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-dark flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="min-h-screen bg-[#FAF9F5] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
       </div>
     );
   }
@@ -63,13 +60,20 @@ export const MyClassroomPage: React.FC = () => {
   if (!enrolment) {
     return (
       <DashboardShell navItems={navItems}>
-        <div className="max-w-2xl mx-auto glass-strong p-10 rounded-3xl text-center mt-12">
-          <h1 className="text-2xl font-bold mb-3">You are not in a classroom yet</h1>
-          <p className="text-gray-400 mb-6">
-            Complete the assessment to get a personalized classroom recommendation.
+        <div className="max-w-2xl mx-auto bg-white p-10 rounded-3xl border border-slate-200/80 shadow-md text-center mt-12">
+          <div className="w-16 h-16 bg-emerald-100 text-emerald-700 rounded-3xl flex items-center justify-center mx-auto mb-4 border border-emerald-200">
+            <BookOpen className="w-8 h-8" />
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">Not in a classroom yet</h1>
+          <p className="text-slate-600 text-sm mb-6 leading-relaxed">
+            Complete the adaptive assessment to receive a personalized classroom recommendation!
           </p>
-          <button onClick={() => navigate('/recommendation')} className="text-primary-light font-medium hover:text-white">
-            View recommendations →
+          <button
+            onClick={() => navigate('/recommendation')}
+            className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 px-6 rounded-2xl shadow-md border-b-4 border-emerald-700 active:translate-y-0.5 active:border-b-2 transition-all text-sm"
+          >
+            <span>View Recommendations</span>
+            <ArrowRight className="w-4 h-4" />
           </button>
         </div>
       </DashboardShell>
@@ -82,13 +86,13 @@ export const MyClassroomPage: React.FC = () => {
     <DashboardShell navItems={navItems}>
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-5xl mx-auto space-y-8">
         <div>
-          <h1 className="text-3xl font-display font-bold">{classroom.name}</h1>
-          <p className="text-gray-400">Taught by {classroom.teacher.name}</p>
+          <h1 className="text-3xl font-bold text-slate-900">{classroom.name}</h1>
+          <p className="text-slate-500 text-sm mt-1">Educator: <strong className="text-slate-800 font-bold">{classroom.teacher.name}</strong></p>
         </div>
 
         {classroom.subjects.map((subject) => (
-          <div key={subject.id} className="glass p-6 rounded-3xl">
-            <h2 className="text-xl font-bold mb-4">{subject.name}</h2>
+          <div key={subject.id} className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs">
+            <h2 className="text-xl font-bold text-slate-900 mb-4">{subject.name}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {subject.units.map((unit) => {
                 const ready = unit.indexStatus === 'READY';
@@ -99,28 +103,28 @@ export const MyClassroomPage: React.FC = () => {
                     onClick={() => navigate(`/classroom/units/${unit.id}/tutorial`)}
                     className={`text-left p-5 rounded-2xl border transition-all flex items-center justify-between ${
                       ready
-                        ? 'border-white/10 hover:border-primary bg-dark/50 cursor-pointer'
-                        : 'border-white/5 bg-dark/20 opacity-60 cursor-not-allowed'
+                        ? 'border-emerald-200 hover:border-emerald-500 bg-emerald-50/40 hover:bg-emerald-50 cursor-pointer shadow-xs'
+                        : 'border-slate-200 bg-[#FAF9F5] opacity-60 cursor-not-allowed'
                     }`}
                   >
                     <div>
-                      <p className="font-medium">{unit.title}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {ready ? 'Ready' : unit.indexStatus === 'PROCESSING' ? 'Being processed…' : 'Not available yet'}
+                      <p className="font-bold text-slate-900 text-sm">{unit.title}</p>
+                      <p className="text-xs font-semibold mt-1 text-slate-500">
+                        {ready ? '✨ Ready to Learn' : unit.indexStatus === 'PROCESSING' ? 'Processing…' : 'Locked'}
                       </p>
                     </div>
-                    {ready ? <PlayCircle className="w-6 h-6 text-primary shrink-0" /> : <Lock className="w-5 h-5 text-gray-600 shrink-0" />}
+                    {ready ? <PlayCircle className="w-6 h-6 text-emerald-600 shrink-0" /> : <Lock className="w-5 h-5 text-slate-400 shrink-0" />}
                   </button>
                 );
               })}
-              {subject.units.length === 0 && <p className="text-gray-500 text-sm">No units yet.</p>}
+              {subject.units.length === 0 && <p className="text-slate-400 text-xs">No learning units available yet.</p>}
             </div>
           </div>
         ))}
 
         {classroom.subjects.length === 0 && (
-          <div className="glass p-10 rounded-3xl text-center text-gray-400">
-            Your teacher hasn&apos;t added any subjects yet.
+          <div className="bg-white p-10 rounded-3xl border border-slate-200/80 text-center text-slate-500 text-sm">
+            Your educator hasn't added any subjects to this classroom yet.
           </div>
         )}
       </motion.div>
@@ -129,3 +133,4 @@ export const MyClassroomPage: React.FC = () => {
 };
 
 export default MyClassroomPage;
+
