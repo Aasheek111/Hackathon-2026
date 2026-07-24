@@ -112,7 +112,7 @@ async function queueUnitPreview(unitId: string, ragUnitId: number): Promise<void
  */
 async function queueCurriculumGeneration(
   unitId: string,
-  documentId: string,
+  documentId: string | null,
   teacherId: string,
   ragUnitId: number
 ): Promise<void> {
@@ -231,6 +231,44 @@ router.get('/:id/documents', async (req: Request, res: Response) => {
     res.json({ documents, indexStatus: unit.indexStatus });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch documents' });
+  }
+});
+
+const IN_FLIGHT_STAGES = [
+  'QUEUED', 'EXTRACTING', 'PLANNING', 'GENERATING_TEXT', 'GENERATING_VISUALS', 'GENERATING_AUDIO', 'GENERATING_QUESTIONS', 'FINALIZING'
+];
+
+/**
+ * Retroactively runs the full-curriculum pipeline for a unit that was
+ * indexed before this pipeline existed (or whose earlier attempt failed) -
+ * the source PDF is already indexed, so this just (re)generates the
+ * curriculum from the existing FAISS index, no re-upload needed.
+ */
+router.post('/:id/generate-curriculum', requireApprovedTeacher, async (req: Request, res: Response) => {
+  try {
+    const unit = await ownsUnit(req.user!.id, req.params['id'] as string);
+    if (!unit) return res.status(404).json({ error: 'Unit not found or not yours' });
+    if (unit.indexStatus !== 'READY' || !unit.ragUnitId) {
+      return res.status(400).json({ error: 'This unit has no indexed document yet - upload a PDF first' });
+    }
+
+    const existingJob = await prisma.tutorialGenerationJob.findFirst({
+      where: { unitId: unit.id },
+      orderBy: { startedAt: 'desc' }
+    });
+    if (existingJob && IN_FLIGHT_STAGES.includes(existingJob.stage)) {
+      return res.status(409).json({ error: 'Generation is already in progress for this unit', job: existingJob });
+    }
+
+    const document = await prisma.syllabusDocument.findFirst({
+      where: { unitId: unit.id },
+      orderBy: { uploadedAt: 'desc' }
+    });
+
+    queueCurriculumGeneration(unit.id, document?.id ?? null, req.user!.id, unit.ragUnitId).catch(() => {});
+    res.status(202).json({ status: 'queued' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to queue curriculum generation' });
   }
 });
 

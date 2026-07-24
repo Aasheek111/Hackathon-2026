@@ -1,10 +1,13 @@
 import { Router, Request, Response } from 'express';
+import axios from 'axios';
 import prisma from '../lib/prisma';
-import { requireAuth, requireRole } from '../middleware/auth';
+import { requireAuth, requireRole, requireApprovedTeacher } from '../middleware/auth';
 import { awardXp } from '../lib/progress';
 
 const router = Router();
 router.use(requireAuth);
+
+const RAG_SERVICE_URL = process.env['RAG_SERVICE_URL'] || 'http://localhost:8100';
 
 async function unitAccess(userId: string, unitId: string) {
   const unit = await prisma.unit.findUnique({
@@ -42,15 +45,17 @@ router.get('/:id/generation-job', async (req: Request, res: Response) => {
 /**
  * The canonical curriculum for a unit, plus this student's progress pointer
  * into it (created on first view - PLAN §23: one shared curriculum, a thin
- * per-student pointer, not a content copy per student).
+ * per-student pointer, not a content copy per student). The owning teacher
+ * can also view it - read-only preview, no progress pointer is created for
+ * them (a teacher isn't "a student progressing through" their own unit).
  */
-router.get('/:id/curriculum', requireRole('STUDENT'), async (req: Request, res: Response) => {
+router.get('/:id/curriculum', async (req: Request, res: Response) => {
   try {
-    const studentId = req.user!.id;
+    const userId = req.user!.id;
     const unitId = req.params['id'] as string;
-    const { unit, allowed } = await unitAccess(studentId, unitId);
+    const { unit, allowed } = await unitAccess(userId, unitId);
     if (!unit) return res.status(404).json({ error: 'Unit not found' });
-    if (!allowed) return res.status(403).json({ error: 'Not enrolled in this classroom' });
+    if (!allowed) return res.status(403).json({ error: 'Not allowed to view this unit' });
 
     const curriculum = await prisma.tutorialCurriculum.findUnique({
       where: { unitId },
@@ -63,21 +68,26 @@ router.get('/:id/curriculum', requireRole('STUDENT'), async (req: Request, res: 
       return res.status(404).json({ error: 'No curriculum generated for this unit yet' });
     }
 
-    const progress = await prisma.tutorialProgress.upsert({
-      where: { studentId_curriculumId: { studentId, curriculumId: curriculum.id } },
-      create: { studentId, curriculumId: curriculum.id, currentLessonOrder: 0 },
-      update: {}
-    });
+    const isStudent = req.user!.role === 'STUDENT';
+    const progress = isStudent
+      ? await prisma.tutorialProgress.upsert({
+          where: { studentId_curriculumId: { studentId: userId, curriculumId: curriculum.id } },
+          create: { studentId: userId, curriculumId: curriculum.id, currentLessonOrder: 0 },
+          update: {}
+        })
+      : null;
 
     // Adaptive presentation on top of the canonical content (PLAN §23) - the
     // student's own latest assessment, never a separate curriculum copy.
-    const latestAttempt = await prisma.assessmentAttempt.findFirst({
-      where: { userId: studentId, completedAt: { not: null } },
-      orderBy: { completedAt: 'desc' },
-      select: { preferredMode: true, attentionSpanScore: true }
-    });
+    const latestAttempt = isStudent
+      ? await prisma.assessmentAttempt.findFirst({
+          where: { userId, completedAt: { not: null } },
+          orderBy: { completedAt: 'desc' },
+          select: { preferredMode: true, attentionSpanScore: true }
+        })
+      : null;
 
-    res.json({ curriculum, progress, personalization: latestAttempt });
+    res.json({ curriculum, progress, personalization: latestAttempt, preview: !isStudent });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch curriculum' });
   }
@@ -207,5 +217,59 @@ router.post('/:id/curriculum/final-assessment', requireRole('STUDENT'), async (r
     res.status(500).json({ error: 'Failed to submit final assessment' });
   }
 });
+
+/**
+ * Regenerates every lesson's picture from its own text - fast and doesn't
+ * touch Gemini's text-generation quota at all, unlike a full regenerate:
+ * image generation goes through generate_visual_image() (Gemini image model,
+ * falling back to pollinations.ai), a completely separate call from the
+ * lesson-planning/writing pipeline that actually hits the daily text quota.
+ * Fire-and-forget, same pattern as the rest of this pipeline's background work.
+ */
+router.post('/:id/regenerate-visuals', requireApprovedTeacher, async (req: Request, res: Response) => {
+  try {
+    const unit = await prisma.unit.findUnique({
+      where: { id: req.params['id'] as string },
+      include: { subject: { include: { classroom: true } } }
+    });
+    if (!unit || unit.subject.classroom.teacherId !== req.user!.id) {
+      return res.status(404).json({ error: 'Unit not found or not yours' });
+    }
+    if (!unit.ragUnitId) return res.status(400).json({ error: 'This unit has no indexed document yet' });
+
+    const curriculum = await prisma.tutorialCurriculum.findUnique({
+      where: { unitId: unit.id },
+      include: { lessons: { select: { id: true, title: true, explanation: true } } }
+    });
+    if (!curriculum) return res.status(404).json({ error: 'No curriculum generated for this unit yet' });
+
+    regenerateVisuals(unit.ragUnitId, curriculum.lessons).catch(() => {});
+    res.status(202).json({ status: 'queued', lessonCount: curriculum.lessons.length });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to queue visual regeneration' });
+  }
+});
+
+async function regenerateVisuals(
+  ragUnitId: number,
+  lessons: Array<{ id: string; title: string; explanation: string }>
+): Promise<void> {
+  for (const lesson of lessons) {
+    try {
+      const prompt = `${lesson.title}. ${lesson.explanation}`;
+      const response = await axios.post(
+        `${RAG_SERVICE_URL}/generate-visual`,
+        { unit_id: ragUnitId, prompt },
+        { timeout: 60000 }
+      );
+      const imageUrl = response.data?.image_url;
+      if (imageUrl) {
+        await prisma.tutorialLesson.update({ where: { id: lesson.id }, data: { imageUrl } });
+      }
+    } catch {
+      // one lesson's image failing (quota, safety block) shouldn't stop the rest
+    }
+  }
+}
 
 export default router;
