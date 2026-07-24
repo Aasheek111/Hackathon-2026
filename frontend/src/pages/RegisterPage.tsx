@@ -11,6 +11,7 @@ import {
   BookOpen,
   ArrowRight,
   ShieldCheck,
+  CheckCircle2,
 } from "lucide-react";
 import { useAuth, DisabilityType } from "../contexts/AuthContext";
 import { DISABILITY_PROFILES } from "../data/disabilityProfiles";
@@ -22,7 +23,9 @@ export const RegisterPage: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<"STUDENT" | "TEACHER">("STUDENT");
-  const [disabilityType, setDisabilityType] = useState<DisabilityType | null>(null);
+  const [disabilityType, setDisabilityType] = useState<DisabilityType | null>(
+    null,
+  );
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -58,7 +61,13 @@ export const RegisterPage: React.FC = () => {
 
     setLoading(true);
     try {
-      await register(name, email, password, role, role === "STUDENT" ? disabilityType : null);
+      await register(
+        name,
+        email,
+        password,
+        role,
+        role === "STUDENT" ? disabilityType : null,
+      );
       if (role === "TEACHER") navigate("/teacher");
       // A blind student takes the voice quiz as their trial rather than the
       // webcam consent flow - same reasoning as ProtectedRoute's trialPath.
@@ -82,15 +91,15 @@ export const RegisterPage: React.FC = () => {
       exit={{ opacity: 0 }}
       className="min-h-screen w-full flex items-center justify-center p-3 sm:p-5 pt-16 sm:pt-20 pb-6 bg-[#FAF9F5] text-slate-800 font-sans selection:bg-emerald-100 selection:text-emerald-900"
     >
-      <div className="w-full max-w-5xl flex flex-col lg:flex-row rounded-3xl overflow-hidden bg-white border border-slate-200/90 shadow-lg lg:h-[82vh] lg:max-h-[600px]">
-        {/* Visual Info Side - Narrower (35%) */}
-        <div className="hidden lg:flex lg:w-[35%] bg-gradient-to-br from-amber-50/70 via-emerald-50/50 to-sky-50 p-6 sm:p-8 flex-col justify-between border-r border-slate-100 h-full">
+      <div className="w-full max-w-5xl flex flex-col lg:flex-row rounded-3xl overflow-hidden bg-white border border-slate-200/90 shadow-lg">
+        {/* Left Side - Visual Quote (50% Width, Identical to LoginPage) */}
+        <div className="lg:w-1/2 bg-gradient-to-br from-emerald-50 via-teal-50/50 to-sky-50 p-8 sm:p-12 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-100">
           <div>
-            <div className="flex items-center justify-start mb-6 -ml-4">
+            <div className="flex items-center justify-center lg:justify-start mb-8 -ml-5">
               <img
                 src="/logo.png"
                 alt="Pragya Logo"
-                className="h-16 w-auto object-contain notranslate"
+                className="h-20 w-auto object-contain notranslate"
               />
             </div>
 
@@ -110,15 +119,26 @@ export const RegisterPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="mt-4 pt-4 border-t border-emerald-100/80 flex items-center gap-2.5 text-[11px] text-slate-500">
-            <ShieldCheck className="w-4.5 h-4.5 text-emerald-600 shrink-0" />
-            <span>
-              Safe & private. Designed for children, families, and schools.
-            </span>
+          <div className="bg-white p-6 rounded-2xl shadow-xs border border-emerald-100/80 mt-8">
+            <p className="text-sm leading-relaxed text-slate-600 font-medium">
+              "Joining Pragya gave our classroom personalized lesson paths for
+              visual, auditory, and neurodivergent learners alike."
+            </p>
+            <div className="mt-4 flex items-center gap-3">
+              <div className="w-9 h-9 shrink-0 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center text-sm border border-emerald-200">
+                P
+              </div>
+              <div>
+                <p className="font-bold text-xs text-slate-900">Rahul Thapa</p>
+                <p className="text-[11px] text-slate-500">
+                  Safe & private for students, parents, & educators
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Form Side - Wider (65%) */}
+        {/* Form Side */}
         <div className="w-full lg:w-[65%] p-6 sm:p-8 flex flex-col justify-center h-full overflow-y-auto lg:overflow-y-auto">
           {/* Mobile Logo */}
           <div className="flex justify-center lg:hidden mb-4">
@@ -134,7 +154,7 @@ export const RegisterPage: React.FC = () => {
               Create Account
             </h1>
             <p className="text-slate-500 text-xs">
-              Join NeuroLearn in less than a minute.
+              Join Pragya in less than a minute.
             </p>
           </div>
 
@@ -147,126 +167,109 @@ export const RegisterPage: React.FC = () => {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-3">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {/* Account Role Selector */}
             <div>
-              <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                 Account Type
               </label>
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => setRole("STUDENT")}
-                  className={`flex items-center justify-center gap-1.5 p-2 rounded-xl border-2 transition-all text-xs font-bold ${
+                  className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border-2 transition-all text-xs font-bold cursor-pointer ${
                     role === "STUDENT"
                       ? "border-emerald-500 bg-emerald-50 text-emerald-900 shadow-xs"
                       : "border-slate-200 bg-[#FAF9F5] text-slate-600 hover:border-slate-300"
                   }`}
                 >
-                  <BookOpen className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <BookOpen className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>Learner / Student</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setRole("TEACHER")}
-                  className={`flex items-center justify-center gap-1.5 p-2 rounded-xl border-2 transition-all text-xs font-bold ${
+                  className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border-2 transition-all text-xs font-bold cursor-pointer ${
                     role === "TEACHER"
                       ? "border-emerald-500 bg-emerald-50 text-emerald-900 shadow-xs"
                       : "border-slate-200 bg-[#FAF9F5] text-slate-600 hover:border-slate-300"
                   }`}
                 >
-                  <GraduationCap className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                  <GraduationCap className="w-4 h-4 text-sky-600 shrink-0" />
                   <span>Educator / Teacher</span>
                 </button>
               </div>
-              {role === "TEACHER" && (
-                <p className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200 p-2 rounded-xl mt-1.5 font-medium">
-                  Teacher accounts require verification before classroom setup.
-                </p>
-              )}
             </div>
 
-            {/* Accessibility profile - students only. Picks which dashboard
-                you land on and seeds sensible defaults (narration, sign
-                language, reduced motion). It never restricts what you can
-                reach, and everything is changeable later from Settings. */}
+            {/* Accessibility Profile (Optional for Students) */}
             {role === "STUDENT" && (
               <div>
-                <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Accessibility profile (optional)
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Accessibility Profile{" "}
+                  <span className="text-slate-400 font-normal lowercase">
+                    (optional)
+                  </span>
                 </label>
-                <div
-                  role="radiogroup"
-                  aria-label="Accessibility profile"
-                  className="grid grid-cols-1 sm:grid-cols-2 gap-2"
-                >
+                <div className="grid grid-cols-2 gap-2">
                   {DISABILITY_PROFILES.map((opt) => {
                     const selected = disabilityType === opt.value;
                     return (
                       <button
                         key={opt.label}
                         type="button"
-                        role="radio"
-                        aria-checked={selected}
-                        onClick={() => setDisabilityType(opt.value)}
-                        className={`text-left p-2.5 rounded-xl border-2 transition-all ${
+                        onClick={() =>
+                          setDisabilityType(selected ? null : opt.value)
+                        }
+                        className={`text-left px-3 py-2 rounded-xl border transition-all cursor-pointer ${
                           selected
-                            ? "border-emerald-500 bg-emerald-50 shadow-xs"
-                            : "border-slate-200 bg-[#FAF9F5] hover:border-slate-300"
+                            ? "border-emerald-500 bg-emerald-50 text-emerald-900 font-bold"
+                            : "border-slate-200 bg-[#FAF9F5] text-slate-600 hover:border-slate-300"
                         }`}
                       >
-                        <span
-                          className={`block text-[11px] font-bold ${selected ? "text-emerald-900" : "text-slate-700"}`}
-                        >
+                        <span className="block text-xs truncate font-semibold">
                           {opt.label}
-                        </span>
-                        <span className="block text-[10px] text-slate-500 mt-0.5 leading-snug">
-                          {opt.blurb}
                         </span>
                       </button>
                     );
                   })}
                 </div>
-                <p className="text-[10px] text-slate-500 mt-1.5">
-                  You can change this anytime in Settings.
-                </p>
               </div>
             )}
 
             {/* 2-Column Grid for Name & Email */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label htmlFor="full-name" className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label htmlFor="full-name" className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                   Full Name
                 </label>
                 <div className="relative flex items-center">
-                  <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <User className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <input
                     id="full-name"
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="John Doe"
-                    className="w-full bg-[#FAF9F5] border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white text-xs leading-normal"
+                    className="w-full bg-[#FAF9F5] border border-slate-200 rounded-2xl pl-10 pr-3 py-2.5 text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white text-xs sm:text-sm"
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label htmlFor="email-address" className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label htmlFor="email-address" className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                   Email Address
                 </label>
                 <div className="relative flex items-center">
-                  <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <input
                     id="email-address"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@example.com"
-                    className="w-full bg-[#FAF9F5] border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white text-xs leading-normal"
+                    className="w-full bg-[#FAF9F5] border border-slate-200 rounded-2xl pl-10 pr-3 py-2.5 text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white text-xs sm:text-sm"
                     required
                   />
                 </div>
@@ -274,20 +277,20 @@ export const RegisterPage: React.FC = () => {
             </div>
 
             {/* 2-Column Grid for Password & Confirm Password */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label htmlFor="password" className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label htmlFor="password" className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                   Password
                 </label>
                 <div className="relative flex items-center">
-                  <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <input
                     id="password"
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-[#FAF9F5] border border-slate-200 rounded-xl pl-9 pr-9 py-2 text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white text-xs leading-normal"
+                    className="w-full bg-[#FAF9F5] border border-slate-200 rounded-2xl pl-10 pr-9 py-2.5 text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white text-xs sm:text-sm"
                     required
                   />
                   <button
@@ -295,7 +298,7 @@ export const RegisterPage: React.FC = () => {
                     onClick={() => setShowPassword(!showPassword)}
                     aria-label={showPassword ? "Hide password" : "Show password"}
                     aria-pressed={showPassword}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 flex items-center justify-center"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 flex items-center justify-center"
                   >
                     {showPassword ? (
                       <EyeOff className="w-4 h-4" />
@@ -307,18 +310,18 @@ export const RegisterPage: React.FC = () => {
               </div>
 
               <div>
-                <label htmlFor="confirm-password" className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label htmlFor="confirm-password" className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                   Confirm Password
                 </label>
                 <div className="relative flex items-center">
-                  <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <input
                     id="confirm-password"
                     type={showPassword ? "text" : "password"}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-[#FAF9F5] border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white text-xs leading-normal"
+                    className="w-full bg-[#FAF9F5] border border-slate-200 rounded-2xl pl-10 pr-3 py-2.5 text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white text-xs sm:text-sm"
                     required
                   />
                 </div>
@@ -328,7 +331,7 @@ export const RegisterPage: React.FC = () => {
             {/* Password Strength Meter */}
             {password && (
               <div className="mt-1">
-                <div className="flex justify-between text-[9px] font-bold mb-0.5">
+                <div className="flex justify-between text-[10px] font-bold mb-0.5">
                   <span className="text-slate-500">Password strength:</span>
                   <span className="text-slate-700">{strength.text}</span>
                 </div>
@@ -344,14 +347,14 @@ export const RegisterPage: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-6 rounded-xl shadow-md border-b-4 border-emerald-700 active:translate-y-0.5 active:border-b-2 transition-all flex items-center justify-center gap-1.5 text-sm mt-3 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
+              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 px-6 rounded-2xl shadow-md border-b-4 border-emerald-700 active:translate-y-0.5 active:border-b-2 transition-all flex items-center justify-center gap-2 text-base mt-3 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
             >
               <span>{loading ? "Creating Account..." : "Create Account"}</span>
-              {!loading && <ArrowRight className="w-4 h-4" />}
+              {!loading && <ArrowRight className="w-5 h-5" />}
             </button>
           </form>
 
-          <div className="mt-5 text-center text-xs text-slate-500">
+          <div className="mt-6 text-center text-xs text-slate-500 font-medium">
             Already have an account?{" "}
             <Link
               to="/login"

@@ -108,7 +108,6 @@ export const SignLanguagePage: React.FC = () => {
     { icon: ClipboardList, label: "Sign Quiz", path: "/dashboard/visual/sign-quiz" },
     { icon: BookOpen, label: "My Classroom", path: "/classroom" },
     { icon: TrendingUp, label: "My Progress", path: "/progress" },
-    { icon: SettingsIcon, label: "Settings", path: "/settings" },
   ];
 
   // Search wins over the category tabs when there's a query - a learner

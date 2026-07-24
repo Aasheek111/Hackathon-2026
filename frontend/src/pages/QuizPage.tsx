@@ -36,7 +36,6 @@ const CV_SERVICE_URL =
 const TRACKING_INTERVAL_MS = 250;
 const LOW_EYE_CONTACT_THRESHOLD = 40;
 const LOW_EYE_CONTACT_SAMPLES = 8;
-const MODE_CONFIDENCE_SAMPLES = 3;
 // How long the "Adapting Learning Mode…" screen stays up before the next
 // question replaces it. Long enough to actually read what changed and why -
 // at under a second it read as a flicker and the question just jumped.
@@ -46,6 +45,39 @@ const MODE_TRANSITION_MS = 3500;
 // when the answer was wrong.
 const ANSWER_FEEDBACK_MS = 3000;
 
+// Fixed adaptation cycle: when focus is lost, we move to the *next* mode in
+// this sequence (looping back to the start), regardless of subject. The
+// question itself doesn't change subject - only how it's presented changes.
+const MODE_CYCLE: LearningMode[] = ["TEXT", "AUDIO", "VISUAL"];
+
+const MODE_LABELS: Record<LearningMode, string> = {
+  TEXT: "Text",
+  AUDIO: "Audio",
+  VISUAL: "Visual",
+};
+
+const DEFAULT_SUBJECT_IMAGES: Record<string, string> = {
+  MATH: "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=800&q=80",
+  SCIENCE: "https://images.unsplash.com/photo-1532094349884-543bc11b234d?auto=format&fit=crop&w=800&q=80",
+  ASTRONOMY: "https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?auto=format&fit=crop&w=800&q=80",
+  NATURE: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=800&q=80",
+  ANIMALS: "https://images.unsplash.com/photo-1546182990-dffeafbe841d?auto=format&fit=crop&w=800&q=80",
+  SOUNDS: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=800&q=80",
+  GEOMETRY: "https://images.unsplash.com/photo-1509228468518-180dd4864904?auto=format&fit=crop&w=800&q=80",
+  GEOGRAPHY: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80",
+  BOTANY: "https://images.unsplash.com/photo-1464965911861-746a04b4bca6?auto=format&fit=crop&w=800&q=80",
+  BIOLOGY: "https://images.unsplash.com/photo-1530026405186-ed1f139313f8?auto=format&fit=crop&w=800&q=80",
+  ANATOMY: "https://images.unsplash.com/photo-1530026405186-ed1f139313f8?auto=format&fit=crop&w=800&q=80",
+};
+
+const getSubjectDatasetImage = (subject: string): string => {
+  const upper = (subject || "").toUpperCase();
+  return (
+    DEFAULT_SUBJECT_IMAGES[upper] ||
+    "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=800&q=80"
+  );
+};
+
 const demo20Questions = [
   {
     id: "1",
@@ -54,7 +86,7 @@ const demo20Questions = [
     answer: "8",
     learningMode: "TEXT",
     subject: "Math",
-    imageUrl: null,
+    imageUrl: "https://images.unsplash.com/photo-1596495578065-6e0763fa1178?auto=format&fit=crop&w=800&q=80",
   },
   {
     id: "2",
@@ -62,18 +94,17 @@ const demo20Questions = [
     options: ["Tiger", "Elephant", "Lion", "Bear"],
     answer: "Lion",
     learningMode: "VISUAL",
-    subject: "Science",
-    imageUrl:
-      "https://images.unsplash.com/photo-1546182990-dffeafbe841d?auto=format&fit=crop&w=800&q=80",
+    subject: "Animals",
+    imageUrl: "https://images.unsplash.com/photo-1546182990-dffeafbe841d?auto=format&fit=crop&w=800&q=80",
   },
   {
     id: "3",
-    question: "Listen carefully: What color is the clear sky during daytime?",
+    question: "What color is the clear sky during daytime?",
     options: ["Red", "Blue", "Green", "Yellow"],
     answer: "Blue",
     learningMode: "AUDIO",
-    subject: "Science",
-    imageUrl: null,
+    subject: "Nature",
+    imageUrl: "https://images.unsplash.com/photo-1534088568595-a066f410bcda?auto=format&fit=crop&w=800&q=80",
   },
   {
     id: "4",
@@ -82,7 +113,7 @@ const demo20Questions = [
     answer: "8",
     learningMode: "TEXT",
     subject: "Math",
-    imageUrl: null,
+    imageUrl: "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=800&q=80",
   },
   {
     id: "5",
@@ -91,17 +122,16 @@ const demo20Questions = [
     answer: "Mars",
     learningMode: "VISUAL",
     subject: "Astronomy",
-    imageUrl:
-      "https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?auto=format&fit=crop&w=800&q=80",
+    imageUrl: "https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?auto=format&fit=crop&w=800&q=80",
   },
   {
     id: "6",
-    question: "Listen carefully: How many legs does a spider have?",
+    question: "How many legs does a spider have?",
     options: ["6", "8", "10", "4"],
     answer: "8",
     learningMode: "AUDIO",
     subject: "Nature",
-    imageUrl: null,
+    imageUrl: "https://images.unsplash.com/photo-1579202673506-ca3ce28943ef?auto=format&fit=crop&w=800&q=80",
   },
   {
     id: "7",
@@ -110,7 +140,7 @@ const demo20Questions = [
     answer: "12",
     learningMode: "TEXT",
     subject: "Math",
-    imageUrl: null,
+    imageUrl: "https://images.unsplash.com/photo-1509228468518-180dd4864904?auto=format&fit=crop&w=800&q=80",
   },
   {
     id: "8",
@@ -119,17 +149,16 @@ const demo20Questions = [
     answer: "Bat",
     learningMode: "VISUAL",
     subject: "Animals",
-    imageUrl:
-      "https://images.unsplash.com/photo-1590005354167-6da97870c757?auto=format&fit=crop&w=800&q=80",
+    imageUrl: "https://images.unsplash.com/photo-1590005354167-6da97870c757?auto=format&fit=crop&w=800&q=80",
   },
   {
     id: "9",
-    question: "Listen carefully: What sound does a dog make?",
+    question: "What sound does a dog make?",
     options: ["Meow", "Woof", "Moo", "Quack"],
     answer: "Woof",
     learningMode: "AUDIO",
-    subject: "Sounds",
-    imageUrl: null,
+    subject: "Animals",
+    imageUrl: "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=800&q=80",
   },
   {
     id: "10",
@@ -138,7 +167,7 @@ const demo20Questions = [
     answer: "6",
     learningMode: "TEXT",
     subject: "Geometry",
-    imageUrl: null,
+    imageUrl: "https://images.unsplash.com/photo-1563089145-599997674d42?auto=format&fit=crop&w=800&q=80",
   },
   {
     id: "11",
@@ -147,17 +176,16 @@ const demo20Questions = [
     answer: "Pacific",
     learningMode: "VISUAL",
     subject: "Geography",
-    imageUrl:
-      "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80",
+    imageUrl: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80",
   },
   {
     id: "12",
-    question: "Listen carefully: What is 9 + 6?",
+    question: "What is 9 + 6?",
     options: ["13", "14", "15", "16"],
     answer: "15",
     learningMode: "AUDIO",
     subject: "Math",
-    imageUrl: null,
+    imageUrl: "https://images.unsplash.com/photo-1518133910546-b6c2fb7d79e3?auto=format&fit=crop&w=800&q=80",
   },
   {
     id: "13",
@@ -166,7 +194,7 @@ const demo20Questions = [
     answer: "0°C",
     learningMode: "TEXT",
     subject: "Science",
-    imageUrl: null,
+    imageUrl: "https://images.unsplash.com/photo-1517685352821-92cf88aee5a5?auto=format&fit=crop&w=800&q=80",
   },
   {
     id: "14",
@@ -175,17 +203,16 @@ const demo20Questions = [
     answer: "Strawberry",
     learningMode: "VISUAL",
     subject: "Botany",
-    imageUrl:
-      "https://images.unsplash.com/photo-1464965911861-746a04b4bca6?auto=format&fit=crop&w=800&q=80",
+    imageUrl: "https://images.unsplash.com/photo-1464965911861-746a04b4bca6?auto=format&fit=crop&w=800&q=80",
   },
   {
     id: "15",
-    question: "Listen carefully: Which gas do humans need to breathe to live?",
+    question: "Which gas do humans need to breathe to live?",
     options: ["Carbon Dioxide", "Oxygen", "Nitrogen", "Helium"],
     answer: "Oxygen",
     learningMode: "AUDIO",
     subject: "Biology",
-    imageUrl: null,
+    imageUrl: "https://images.unsplash.com/photo-1532094349884-543bc11b234d?auto=format&fit=crop&w=800&q=80",
   },
   {
     id: "16",
@@ -194,7 +221,7 @@ const demo20Questions = [
     answer: "5",
     learningMode: "TEXT",
     subject: "Math",
-    imageUrl: null,
+    imageUrl: "https://images.unsplash.com/photo-1596495578065-6e0763fa1178?auto=format&fit=crop&w=800&q=80",
   },
   {
     id: "17",
@@ -203,17 +230,16 @@ const demo20Questions = [
     answer: "Heart",
     learningMode: "VISUAL",
     subject: "Anatomy",
-    imageUrl:
-      "https://images.unsplash.com/photo-1530026405186-ed1f139313f8?auto=format&fit=crop&w=800&q=80",
+    imageUrl: "https://images.unsplash.com/photo-1530026405186-ed1f139313f8?auto=format&fit=crop&w=800&q=80",
   },
   {
     id: "18",
-    question: "Listen carefully: How many days are in a leap year?",
+    question: "How many days are in a leap year?",
     options: ["364", "365", "366", "367"],
     answer: "366",
     learningMode: "AUDIO",
     subject: "General Knowledge",
-    imageUrl: null,
+    imageUrl: "https://images.unsplash.com/photo-1506784983877-45594efa4cbe?auto=format&fit=crop&w=800&q=80",
   },
   {
     id: "19",
@@ -222,23 +248,388 @@ const demo20Questions = [
     answer: "Blue & Yellow",
     learningMode: "TEXT",
     subject: "Art",
-    imageUrl: null,
+    imageUrl: "https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=800&q=80",
   },
   {
     id: "20",
     question: "What is 20 - 7?",
     options: ["11", "12", "13", "14"],
     answer: "13",
+    learningMode: "VISUAL",
+    subject: "Math",
+    imageUrl: "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "21",
+    question: "What is the tallest mountain peak in the world?",
+    options: ["K2", "Mount Everest", "Kanchanjunga", "Lhotse"],
+    answer: "Mount Everest",
+    learningMode: "VISUAL",
+    subject: "Geography",
+    imageUrl: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "22",
+    question: "What process do plants use to make food using sunlight?",
+    options: ["Respiration", "Photosynthesis", "Evaporation", "Digestion"],
+    answer: "Photosynthesis",
+    learningMode: "TEXT",
+    subject: "Botany",
+    imageUrl: "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "23",
+    question: "What is the main source of energy for planet Earth?",
+    options: ["The Moon", "The Sun", "Volcanoes", "Wind"],
+    answer: "The Sun",
+    learningMode: "VISUAL",
+    subject: "Astronomy",
+    imageUrl: "https://images.unsplash.com/photo-1538370965046-79c0d6907d47?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "24",
+    question: "What is 7 x 7?",
+    options: ["42", "47", "49", "54"],
+    answer: "49",
     learningMode: "TEXT",
     subject: "Math",
-    imageUrl: null,
+    imageUrl: "https://images.unsplash.com/photo-1509228468518-180dd4864904?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "25",
+    question: "Which organ in the human body is responsible for thinking and memory?",
+    options: ["Heart", "Lungs", "Brain", "Liver"],
+    answer: "Brain",
+    learningMode: "VISUAL",
+    subject: "Anatomy",
+    imageUrl: "https://images.unsplash.com/photo-1559757175-5700dde675bc?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "26",
+    question: "What is the capital city of Nepal?",
+    options: ["Pokhara", "Kathmandu", "Lalitpur", "Biratnagar"],
+    answer: "Kathmandu",
+    learningMode: "TEXT",
+    subject: "Geography",
+    imageUrl: "https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "27",
+    question: "Which planet is famous for its large ring system?",
+    options: ["Jupiter", "Saturn", "Uranus", "Neptune"],
+    answer: "Saturn",
+    learningMode: "VISUAL",
+    subject: "Astronomy",
+    imageUrl: "https://images.unsplash.com/photo-1614732414444-096e5f1122d5?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "28",
+    question: "How many sides does a triangle have?",
+    options: ["2", "3", "4", "5"],
+    answer: "3",
+    learningMode: "TEXT",
+    subject: "Geometry",
+    imageUrl: "https://images.unsplash.com/photo-1509228468518-180dd4864904?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "29",
+    question: "What is the hardest natural substance found on Earth?",
+    options: ["Gold", "Iron", "Diamond", "Quartz"],
+    answer: "Diamond",
+    learningMode: "VISUAL",
+    subject: "Science",
+    imageUrl: "https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "30",
+    question: "What force keeps our feet on the ground and pulls objects downward?",
+    options: ["Magnetism", "Friction", "Gravity", "Electricity"],
+    answer: "Gravity",
+    learningMode: "AUDIO",
+    subject: "Physics",
+    imageUrl: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "31",
+    question: "What is 8 x 6?",
+    options: ["42", "46", "48", "52"],
+    answer: "48",
+    learningMode: "TEXT",
+    subject: "Math",
+    imageUrl: "https://images.unsplash.com/photo-1596495578065-6e0763fa1178?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "32",
+    question: "Which nocturnal bird can rotate its head almost 270 degrees?",
+    options: ["Owl", "Falcon", "Parrot", "Peacock"],
+    answer: "Owl",
+    learningMode: "VISUAL",
+    subject: "Animals",
+    imageUrl: "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "33",
+    question: "How many bones are in the adult human body?",
+    options: ["186", "206", "226", "246"],
+    answer: "206",
+    learningMode: "TEXT",
+    subject: "Anatomy",
+    imageUrl: "https://images.unsplash.com/photo-1530026405186-ed1f139313f8?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "34",
+    question: "What is the boiling point of pure water in Celsius?",
+    options: ["80°C", "90°C", "100°C", "120°C"],
+    answer: "100°C",
+    learningMode: "VISUAL",
+    subject: "Science",
+    imageUrl: "https://images.unsplash.com/photo-1517685352821-92cf88aee5a5?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "35",
+    question: "Which galaxy contains our Solar System?",
+    options: ["Andromeda", "Milky Way", "Sombrero", "Whirlpool"],
+    answer: "Milky Way",
+    learningMode: "VISUAL",
+    subject: "Astronomy",
+    imageUrl: "https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "36",
+    question: "What is 100 - 45?",
+    options: ["45", "50", "55", "65"],
+    answer: "55",
+    learningMode: "TEXT",
+    subject: "Math",
+    imageUrl: "https://images.unsplash.com/photo-1518133910546-b6c2fb7d79e3?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "37",
+    question: "Which gas do green plants absorb from the atmosphere for photosynthesis?",
+    options: ["Oxygen", "Nitrogen", "Carbon Dioxide", "Hydrogen"],
+    answer: "Carbon Dioxide",
+    learningMode: "VISUAL",
+    subject: "Botany",
+    imageUrl: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "38",
+    question: "Which animal is the largest living mammal on Earth?",
+    options: ["African Elephant", "Blue Whale", "Giraffe", "Hippopotamus"],
+    answer: "Blue Whale",
+    learningMode: "VISUAL",
+    subject: "Animals",
+    imageUrl: "https://images.unsplash.com/photo-1568430460464-02e706195981?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "39",
+    question: "What is 18 ÷ 2?",
+    options: ["7", "8", "9", "10"],
+    answer: "9",
+    learningMode: "TEXT",
+    subject: "Math",
+    imageUrl: "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "40",
+    question: "Which ancient civilization built the Great Pyramids of Giza?",
+    options: ["Romans", "Greeks", "Egyptians", "Mayans"],
+    answer: "Egyptians",
+    learningMode: "VISUAL",
+    subject: "History",
+    imageUrl: "https://images.unsplash.com/photo-1503177119275-0aa32b3a9368?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "41",
+    question: "What is 3 squared (3²)?",
+    options: ["6", "7", "8", "9"],
+    answer: "9",
+    learningMode: "TEXT",
+    subject: "Math",
+    imageUrl: "https://images.unsplash.com/photo-1509228468518-180dd4864904?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "42",
+    question: "Which country has the largest total land area in the world?",
+    options: ["Canada", "China", "United States", "Russia"],
+    answer: "Russia",
+    learningMode: "VISUAL",
+    subject: "Geography",
+    imageUrl: "https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "43",
+    question: "What is the primary organ in humans used for breathing?",
+    options: ["Heart", "Lungs", "Liver", "Kidneys"],
+    answer: "Lungs",
+    learningMode: "VISUAL",
+    subject: "Anatomy",
+    imageUrl: "https://images.unsplash.com/photo-1530026405186-ed1f139313f8?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "44",
+    question: "What is 50% of 80?",
+    options: ["30", "40", "50", "60"],
+    answer: "40",
+    learningMode: "TEXT",
+    subject: "Math",
+    imageUrl: "https://images.unsplash.com/photo-1518133910546-b6c2fb7d79e3?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "45",
+    question: "Which natural satellite orbits planet Earth?",
+    options: ["Phobos", "Europa", "The Moon", "Titan"],
+    answer: "The Moon",
+    learningMode: "VISUAL",
+    subject: "Astronomy",
+    imageUrl: "https://images.unsplash.com/photo-1532693322450-2cb5c511067d?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "46",
+    question: "What is the chemical formula for water?",
+    options: ["CO2", "H2O", "NaCl", "O2"],
+    answer: "H2O",
+    learningMode: "TEXT",
+    subject: "Science",
+    imageUrl: "https://images.unsplash.com/photo-1517685352821-92cf88aee5a5?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "47",
+    question: "How many sides does an octagon have?",
+    options: ["6", "7", "8", "10"],
+    answer: "8",
+    learningMode: "VISUAL",
+    subject: "Geometry",
+    imageUrl: "https://images.unsplash.com/photo-1563089145-599997674d42?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "48",
+    question: "What is 11 x 11?",
+    options: ["111", "121", "131", "141"],
+    answer: "121",
+    learningMode: "TEXT",
+    subject: "Math",
+    imageUrl: "https://images.unsplash.com/photo-1509228468518-180dd4864904?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "49",
+    question: "Which desert is the largest hot desert in the world?",
+    options: ["Gobi", "Kalahari", "Sahara", "Atacama"],
+    answer: "Sahara",
+    learningMode: "VISUAL",
+    subject: "Geography",
+    imageUrl: "https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "50",
+    question: "What is 64 ÷ 8?",
+    options: ["6", "7", "8", "9"],
+    answer: "8",
+    learningMode: "TEXT",
+    subject: "Math",
+    imageUrl: "https://images.unsplash.com/photo-1596495578065-6e0763fa1178?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "51",
+    question: "Which organ system protects the body and includes our skin?",
+    options: ["Integumentary", "Circulatory", "Nervous", "Skeletal"],
+    answer: "Integumentary",
+    learningMode: "VISUAL",
+    subject: "Anatomy",
+    imageUrl: "https://images.unsplash.com/photo-1512290900673-45a8df2f3e8f?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "52",
+    question: "What is 14 + 19?",
+    options: ["31", "32", "33", "34"],
+    answer: "33",
+    learningMode: "TEXT",
+    subject: "Math",
+    imageUrl: "https://images.unsplash.com/photo-1518133910546-b6c2fb7d79e3?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "53",
+    question: "Which continent is Mount Everest located in?",
+    options: ["Europe", "Africa", "Asia", "South America"],
+    answer: "Asia",
+    learningMode: "VISUAL",
+    subject: "Geography",
+    imageUrl: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "54",
+    question: "How many planets are in our solar system?",
+    options: ["7", "8", "9", "10"],
+    answer: "8",
+    learningMode: "TEXT",
+    subject: "Astronomy",
+    imageUrl: "https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "55",
+    question: "What state of matter is steam?",
+    options: ["Solid", "Liquid", "Gas", "Plasma"],
+    answer: "Gas",
+    learningMode: "VISUAL",
+    subject: "Science",
+    imageUrl: "https://images.unsplash.com/photo-1517685352821-92cf88aee5a5?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "56",
+    question: "What is 9 x 9?",
+    options: ["72", "79", "81", "90"],
+    answer: "81",
+    learningMode: "TEXT",
+    subject: "Math",
+    imageUrl: "https://images.unsplash.com/photo-1509228468518-180dd4864904?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "57",
+    question: "Which fast cat species is famous for being the fastest land animal?",
+    options: ["Lion", "Cheetah", "Leopard", "Jaguar"],
+    answer: "Cheetah",
+    learningMode: "VISUAL",
+    subject: "Animals",
+    imageUrl: "https://images.unsplash.com/photo-1534188753412-3e26d0d618d6?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "58",
+    question: "What is 144 ÷ 12?",
+    options: ["10", "11", "12", "13"],
+    answer: "12",
+    learningMode: "TEXT",
+    subject: "Math",
+    imageUrl: "https://images.unsplash.com/photo-1596495578065-6e0763fa1178?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "59",
+    question: "Which organ filters waste from the blood to produce urine?",
+    options: ["Liver", "Kidneys", "Pancreas", "Spleen"],
+    answer: "Kidneys",
+    learningMode: "VISUAL",
+    subject: "Anatomy",
+    imageUrl: "https://images.unsplash.com/photo-1530026405186-ed1f139313f8?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    id: "60",
+    question: "What is the longest river in the world?",
+    options: ["Amazon", "Nile", "Mississippi", "Yangtze"],
+    answer: "Nile",
+    learningMode: "VISUAL",
+    subject: "Geography",
+    imageUrl: "https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=800&q=80",
   },
 ];
+
+const getRandom20Questions = () => {
+  const shuffled = [...demo20Questions].sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, 20);
+};
 
 export const QuizPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [questions, setQuestions] = useState(demo20Questions);
+  const [questions, setQuestions] = useState(() => getRandom20Questions());
   const [currentIndex, setCurrentIndex] = useState(0);
   const [currentMode, setCurrentMode] = useState<LearningMode>("TEXT");
   const [timeLeft, setTimeLeft] = useState(900);
@@ -259,6 +650,48 @@ export const QuizPage: React.FC = () => {
     AUDIO: { totalScore: 0, samples: 0, focusedSamples: 0 },
     VISUAL: { totalScore: 0, samples: 0, focusedSamples: 0 },
   });
+
+  // Fetch admin-uploaded questions from database
+  useEffect(() => {
+    api
+      .get("/assessments/questions")
+      .then(({ data }) => {
+        if (data.questions && Array.isArray(data.questions) && data.questions.length > 0) {
+          const adminFormatted = data.questions.map((q: any) => ({
+            id: q.id,
+            question: q.question,
+            options: Array.isArray(q.options)
+              ? q.options
+              : typeof q.options === "string"
+              ? JSON.parse(q.options)
+              : [],
+            answer: q.answer,
+            learningMode: q.learningMode || "TEXT",
+            subject: q.subject || "General",
+            imageUrl:
+              q.imageUrl ||
+              "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80",
+          }));
+
+          // Admin questions come first, merged with demo pool
+          const combined = [...adminFormatted, ...demo20Questions];
+          const deduplicated = Array.from(
+            new Map(combined.map((item) => [item.question, item])).values()
+          );
+          const merged = deduplicated.slice(0, Math.max(20, adminFormatted.length));
+          setQuestions(merged);
+          // Set initial mode from the first question's learningMode
+          if (merged[0]?.learningMode) {
+            const firstMode = merged[0].learningMode as LearningMode;
+            setCurrentMode(firstMode);
+            currentModeRef.current = firstMode;
+          }
+        }
+      })
+      .catch(() => {
+        /* Local fallback holds */
+      });
+  }, []);
 
   const lowEyeContactCounter = useRef(0);
   const adaptationLockedRef = useRef(false);
@@ -408,76 +841,39 @@ export const QuizPage: React.FC = () => {
       );
     });
 
-  const pickBestMode = useCallback((): LearningMode => {
-    const totals = modeEngagementRef.current;
-    const modes: LearningMode[] = ["TEXT", "AUDIO", "VISUAL"];
-    const explorationOrder: LearningMode[] = ["VISUAL", "AUDIO", "TEXT"];
-    const confidentModes = modes.filter(
-      (mode) => totals[mode].samples >= MODE_CONFIDENCE_SAMPLES,
-    );
-    const currentMode = currentModeRef.current;
-    if (confidentModes.length === 0) {
-      return (
-        explorationOrder.find(
-          (mode) => mode !== currentMode && totals[mode].samples === 0,
-        ) ?? currentMode
-      );
-    }
-    const currentAverage =
-      totals[currentMode].samples > 0
-        ? totals[currentMode].totalScore / totals[currentMode].samples
-        : 0;
-    const untriedMode = explorationOrder.find(
-      (mode) => mode !== currentMode && totals[mode].samples === 0,
-    );
-    if (currentAverage < LOW_EYE_CONTACT_THRESHOLD && untriedMode) {
-      return untriedMode;
-    }
-    const rankedModes = (
-      confidentModes.length > 0 ? confidentModes : modes
-    ).sort((a, b) => {
-      const aAvg =
-        totals[a].samples > 0 ? totals[a].totalScore / totals[a].samples : 0;
-      const bAvg =
-        totals[b].samples > 0 ? totals[b].totalScore / totals[b].samples : 0;
-      const aFocusedRate =
-        totals[a].samples > 0
-          ? totals[a].focusedSamples / totals[a].samples
-          : 0;
-      const bFocusedRate =
-        totals[b].samples > 0
-          ? totals[b].focusedSamples / totals[b].samples
-          : 0;
-      return bAvg + bFocusedRate * 20 - (aAvg + aFocusedRate * 20);
-    });
-    return rankedModes[0] ?? currentMode;
-  }, []);
-
-  const findNextQuestionIndex = useCallback(
-    (mode: LearningMode) => {
-      const visited = visitedQuestionIdsRef.current;
-      const start = currentIndexRef.current + 1;
-      const nextInMode = questions.findIndex(
-        (question, index) =>
-          index >= start &&
-          question.learningMode === mode &&
-          !visited.has(question.id),
-      );
-      if (nextInMode !== -1) return nextInMode;
-      const anyFreshInMode = questions.findIndex(
-        (question) =>
-          question.learningMode === mode && !visited.has(question.id),
-      );
-      return anyFreshInMode !== -1 ? anyFreshInMode : null;
+  // Instead of scoring which mode has performed "best" and jumping to a
+  // matching subject, we simply advance to the next mode in the fixed
+  // cycle: Text -> Audio -> Visual -> AR Game -> Text -> ...
+  const getNextModeInCycle = useCallback(
+    (current: LearningMode): LearningMode => {
+      const idx = MODE_CYCLE.indexOf(current);
+      return MODE_CYCLE[(idx + 1) % MODE_CYCLE.length];
     },
-    [questions],
+    [],
   );
+
+  // Finds the next unvisited question in sequence, regardless of its
+  // subject or the learningMode it was originally tagged with - the
+  // question order/subject progression is preserved, only the *mode* used
+  // to present it changes.
+  const findNextQuestionIndex = useCallback(() => {
+    const visited = visitedQuestionIdsRef.current;
+    const start = currentIndexRef.current + 1;
+    const nextInOrder = questions.findIndex(
+      (question, index) => index >= start && !visited.has(question.id),
+    );
+    if (nextInOrder !== -1) return nextInOrder;
+    const anyFresh = questions.findIndex(
+      (question) => !visited.has(question.id),
+    );
+    return anyFresh !== -1 ? anyFresh : null;
+  }, [questions]);
 
   const handleEyeContactLossAdaptation = useCallback(() => {
     if (adaptationLockedRef.current || selectedAnswer !== null) return;
     adaptationLockedRef.current = true;
-    const bestMode = pickBestMode();
-    const nextIndex = findNextQuestionIndex(bestMode);
+    const nextMode = getNextModeInCycle(currentModeRef.current);
+    const nextIndex = findNextQuestionIndex();
     if (nextIndex === null) {
       completeAssessment(score, visitedQuestionIdsRef.current.size).then(
         (attempt) => {
@@ -492,20 +888,18 @@ export const QuizPage: React.FC = () => {
       );
       return;
     }
-    const nextTopic = questions[nextIndex]?.subject ?? "next topic";
-    const isRealSwitch = bestMode !== currentModeRef.current;
     setAdaptationToast(
-      `Attention shift detected! Switching to ${nextTopic} in ${bestMode} mode.`,
+      `Attention shift detected! Switching to ${MODE_LABELS[nextMode]} mode.`,
     );
     setTimeout(() => setAdaptationToast(null), 4000);
     setShowTransition(true);
     synth.cancel();
     window.setTimeout(() => {
-      if (isRealSwitch) adaptationCountRef.current += 1;
-      setCurrentMode(bestMode);
+      adaptationCountRef.current += 1;
+      setCurrentMode(nextMode);
       setCurrentIndex(nextIndex);
       currentIndexRef.current = nextIndex;
-      currentModeRef.current = bestMode;
+      currentModeRef.current = nextMode;
       setSelectedAnswer(null);
       setIsCorrect(null);
       setShowTransition(false);
@@ -517,9 +911,8 @@ export const QuizPage: React.FC = () => {
   }, [
     completeAssessment,
     findNextQuestionIndex,
+    getNextModeInCycle,
     navigate,
-    pickBestMode,
-    questions,
     score,
     selectedAnswer,
     synth,
@@ -725,8 +1118,15 @@ export const QuizPage: React.FC = () => {
         .catch(() => undefined);
     }
     setTimeout(() => {
-      const nextIndex = findNextQuestionIndex(currentModeRef.current);
+      const nextIndex = findNextQuestionIndex();
       if (nextIndex !== null) {
+        // Respect admin-set learningMode for the next question as the baseline
+        const nextQ = questions[nextIndex];
+        if (nextQ?.learningMode && !adaptationLockedRef.current) {
+          const nextQMode = nextQ.learningMode as LearningMode;
+          setCurrentMode(nextQMode);
+          currentModeRef.current = nextQMode;
+        }
         setCurrentIndex(nextIndex);
         setSelectedAnswer(null);
         setIsCorrect(null);
@@ -839,7 +1239,7 @@ export const QuizPage: React.FC = () => {
             className="flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3.5 py-2 rounded-2xl transition-all"
           >
             <ArrowRight className="w-4 h-4" />
-            <span className="hidden sm:inline">Skip Demo</span>
+            <span className="hidden sm:inline">Finish Quiz</span>
           </button>
           <button
             onClick={() => navigate(homePathFor(user))}
@@ -875,7 +1275,7 @@ export const QuizPage: React.FC = () => {
                 <p className="text-slate-600 mt-2 text-sm">
                   Switching dynamically to{" "}
                   <strong className="text-emerald-700 font-bold">
-                    {currentMode} Mode
+                    {MODE_LABELS[currentMode]} Mode
                   </strong>
                 </p>
               </motion.div>
@@ -892,12 +1292,20 @@ export const QuizPage: React.FC = () => {
                     Subject: {currentQ.subject.toUpperCase()}
                   </div>
 
-                  {currentMode === "VISUAL" && currentQ.imageUrl && (
-                    <div className="relative overflow-hidden rounded-2xl mb-6 max-h-72 border border-slate-200">
+                  {(currentMode === "VISUAL" || currentQ.learningMode === "VISUAL") && (
+                    <div className="relative overflow-hidden rounded-2xl mb-6 border border-slate-200 shadow-sm bg-slate-100 max-h-80">
                       <img
-                        src={currentQ.imageUrl}
-                        alt="Visual context"
-                        className="w-full h-full object-cover"
+                        src={
+                          currentQ.imageUrl && currentQ.imageUrl.trim().length > 5
+                            ? currentQ.imageUrl
+                            : "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80"
+                        }
+                        alt={`Visual context for ${currentQ.subject}`}
+                        className="w-full h-64 sm:h-72 object-cover rounded-2xl"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src =
+                            "https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=800&q=80";
+                        }}
                       />
                     </div>
                   )}
