@@ -44,7 +44,7 @@ export const LoginPage: React.FC = () => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="min-h-screen w-full flex items-center justify-center p-3 sm:p-5 bg-[#FAF9F5] text-slate-800 font-sans selection:bg-emerald-100 selection:text-emerald-900"
+      className="min-h-screen w-full flex items-center justify-center p-3 sm:p-5 pt-16 sm:pt-20 pb-6 bg-[#FAF9F5] text-slate-800 font-sans selection:bg-emerald-100 selection:text-emerald-900"
     >
       <div className="w-full max-w-5xl flex flex-col lg:flex-row rounded-3xl overflow-hidden bg-white border border-slate-200/90 shadow-lg">
         {/* Left Side - Visual Quote */}

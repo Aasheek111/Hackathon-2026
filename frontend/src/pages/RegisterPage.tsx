@@ -74,9 +74,9 @@ export const RegisterPage: React.FC = () => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="h-screen w-full flex items-center justify-center p-3 sm:p-5 bg-[#FAF9F5] text-slate-800 font-sans selection:bg-emerald-100 selection:text-emerald-900 overflow-hidden"
+      className="min-h-screen w-full flex items-center justify-center p-3 sm:p-5 pt-16 sm:pt-20 pb-6 bg-[#FAF9F5] text-slate-800 font-sans selection:bg-emerald-100 selection:text-emerald-900"
     >
-      <div className="w-full max-w-5xl flex flex-col lg:flex-row rounded-3xl overflow-hidden bg-white border border-slate-200/90 shadow-lg lg:h-[82vh] lg:max-h-[700px]">
+      <div className="w-full max-w-5xl flex flex-col lg:flex-row rounded-3xl overflow-hidden bg-white border border-slate-200/90 shadow-lg lg:h-[82vh] lg:max-h-[600px]">
         {/* Visual Info Side - Narrower (35%) */}
         <div className="hidden lg:flex lg:w-[35%] bg-gradient-to-br from-amber-50/70 via-emerald-50/50 to-sky-50 p-6 sm:p-8 flex-col justify-between border-r border-slate-100 h-full">
           <div>
@@ -93,7 +93,9 @@ export const RegisterPage: React.FC = () => {
             </h1>
 
             <p className="text-slate-600 text-xs leading-relaxed mb-4">
-              Join our supportive learning community. Discover custom lesson plans that adapt to your visual, auditory, and hands-on learning preferences.
+              Join our supportive learning community. Discover custom lesson
+              plans that adapt to your visual, auditory, and hands-on learning
+              preferences.
             </p>
           </div>
 
