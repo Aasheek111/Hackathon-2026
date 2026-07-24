@@ -146,8 +146,8 @@ export const LandingPage: React.FC = () => {
               One Concept. Four Adaptations.
             </h2>
             <p className="text-slate-600 mt-2 max-w-xl mx-auto text-base">
-              When focus drifts, Pragya automatically pivots to keep
-              learning comforting and engaging.
+              When focus drifts, Pragya automatically pivots to keep learning
+              comforting and engaging.
             </p>
           </div>
 

@@ -32,7 +32,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ navItems, childr
       <aside className="w-64 bg-white border-r border-slate-200/80 flex-col hidden md:flex sticky top-0 h-screen shadow-xs">
         <div className="p-6 border-b border-slate-100">
           <Link to="/" className="flex items-center">
-            <img src="/logo.png" alt="Pragya Logo" className="h-11 md:h-12 w-auto object-contain" />
+            <img src="/logo.png" alt="Pragya Logo" className="h-16 md:h-20 w-auto object-contain" />
           </Link>
         </div>
 
