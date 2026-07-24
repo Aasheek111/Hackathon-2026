@@ -1,0 +1,7 @@
+-- Adds SIGN to the LearningMode enum.
+--
+-- Intentionally empty, same reasoning as 20260724125232_add_adhd_disability_type:
+-- SQLite has no native ENUM type, so Prisma persists LearningMode as a plain
+-- TEXT column with no CHECK constraint. Adding a value is a client-side
+-- validation change only. On a database with real enums this step would emit
+-- `ALTER TYPE ... ADD VALUE 'SIGN'`.

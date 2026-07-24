@@ -57,7 +57,7 @@ export const AslFingerspellingStrip: React.FC<{ word: string; highContrast?: boo
           <div className={`shrink-0 rounded-lg p-1 ${highContrast ? "bg-black/40 border border-yellow-700" : "bg-white dark:bg-white/10"}`}>
             <HandshapeDiagram term={letters[active]} size={72} />
           </div>
-          <p className={`text-xs ${highContrast ? "text-yellow-200" : "text-slate-500 dark:text-gray-400"}`}>
+          <p className={`text-xs ${highContrast ? "text-yellow-200" : "text-slate-600 dark:text-gray-300"}`}>
             <strong>{letters[active]}:</strong> {ASL_ALPHABET[letters[active]]}
           </p>
         </div>

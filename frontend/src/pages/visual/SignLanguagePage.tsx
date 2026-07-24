@@ -25,9 +25,8 @@ import {
   Sign,
   signsInCategory,
   searchSigns,
-  loadFavourites,
-  saveFavourites,
 } from "../../data/signLanguage";
+import useSignFavourites from "../../hooks/useSignFavourites";
 
 /**
  * Sign language learning + dictionary for the deaf dashboard.
@@ -58,7 +57,11 @@ const SignCard: React.FC<{
     )}
     <div className="min-w-0 flex-1">
       <div className="flex items-start justify-between gap-2">
-        <h3 className="font-bold text-slate-900 text-sm">{sign.term}</h3>
+        {/* Not a heading: these are <li> items in a list, which already
+            gives screen-reader users a navigable structure - a heading per
+            card (up to 65 of them) would just add heading-navigation noise,
+            and it was ranking above the page's own <h2>s besides. */}
+        <p className="font-bold text-slate-900 text-sm">{sign.term}</p>
         <button
           type="button"
           onClick={() => onToggleFavourite(sign.id)}
@@ -90,7 +93,7 @@ const SignCard: React.FC<{
 export const SignLanguagePage: React.FC = () => {
   const [category, setCategory] = useState<SignCategory | "Favourites">("Alphabet");
   const [query, setQuery] = useState("");
-  const [favourites, setFavourites] = useState<string[]>(() => loadFavourites());
+  const { favourites, toggleFavourite } = useSignFavourites();
   const [systemId, setSystemId] = useState<SignSystemId>("ASL");
   const system = SIGN_SYSTEMS.find((s) => s.id === systemId)!;
 
@@ -102,14 +105,6 @@ export const SignLanguagePage: React.FC = () => {
     { icon: TrendingUp, label: "My Progress", path: "/progress" },
     { icon: SettingsIcon, label: "Settings", path: "/settings" },
   ];
-
-  const toggleFavourite = (id: string) => {
-    setFavourites((prev) => {
-      const next = prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id];
-      saveFavourites(next);
-      return next;
-    });
-  };
 
   // Search wins over the category tabs when there's a query - a learner
   // typing a word wants it found wherever it lives, not filtered to the tab
@@ -238,7 +233,7 @@ export const SignLanguagePage: React.FC = () => {
                       : "bg-white text-slate-600 border-slate-200 hover:border-emerald-400"
                   }`}
                 >
-                  {cat} <span className={active ? "text-emerald-100" : "text-slate-400"}>({count})</span>
+                  {cat} <span className={active ? "text-emerald-100" : "text-slate-500"}>({count})</span>
                 </button>
               );
             })}

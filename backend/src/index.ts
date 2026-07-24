@@ -24,6 +24,7 @@ import ttsRouter from './routes/tts';
 import analyticsRouter from './routes/analytics';
 import accessibilityRouter from './routes/accessibility';
 import assistantRouter from './routes/assistant';
+import signFavouritesRouter from './routes/signFavourites';
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -65,6 +66,7 @@ app.use('/api/tts', ttsRouter);
 app.use('/api', analyticsRouter); // defines /analytics/class itself
 app.use('/api/me/accessibility', accessibilityRouter);
 app.use('/api/assistant', assistantRouter);
+app.use('/api/me/sign-favourites', signFavouritesRouter);
 // Service-to-service only (shared-secret header, not user JWT) - the Celery
 // worker calls back into these to report job progress and persist results.
 app.use('/internal', internalJobsRouter);

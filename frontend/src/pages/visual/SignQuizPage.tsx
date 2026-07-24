@@ -163,7 +163,7 @@ export const SignQuizPage: React.FC = () => {
         </div>
 
         <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-6">
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
             Which sign is this?
           </p>
           <div className="flex items-start gap-4">
@@ -176,7 +176,7 @@ export const SignQuizPage: React.FC = () => {
             )}
             <div>
               <p className="text-lg text-slate-800 leading-relaxed">{question.sign.description}</p>
-              <p className="text-xs text-slate-400 mt-2">Category: {question.sign.category}</p>
+              <p className="text-xs text-slate-500 mt-2">Category: {question.sign.category}</p>
             </div>
           </div>
         </div>

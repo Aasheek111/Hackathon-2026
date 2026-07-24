@@ -183,7 +183,7 @@ router.post('/:id/engagement', requireRole('STUDENT'), async (req: Request, res:
     const lessonOrder = Math.max(0, Math.round(Number(req.body?.lessonOrder) || 0));
     const score = Math.max(0, Math.min(100, Number(req.body?.score) || 0));
     const focused = Boolean(req.body?.focused);
-    const mode = (['TEXT', 'AUDIO', 'VISUAL', 'AR', 'STORY'] as const).includes(req.body?.mode)
+    const mode = (['TEXT', 'AUDIO', 'VISUAL', 'AR', 'STORY', 'SIGN'] as const).includes(req.body?.mode)
       ? (req.body.mode as LearningMode)
       : 'TEXT';
 
@@ -453,7 +453,7 @@ router.patch('/:id/curriculum/progress', requireRole('STUDENT'), async (req: Req
       completed?: boolean;
       preferredMode?: LearningMode;
     };
-    const validMode = (['TEXT', 'AUDIO', 'VISUAL', 'AR', 'STORY'] as const).includes(preferredMode as any)
+    const validMode = (['TEXT', 'AUDIO', 'VISUAL', 'AR', 'STORY', 'SIGN'] as const).includes(preferredMode as any)
       ? (preferredMode as LearningMode)
       : undefined;
 
