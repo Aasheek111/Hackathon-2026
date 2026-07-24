@@ -38,7 +38,7 @@ const ProtectedRoute = ({
 }) => {
   const { user, token, isLoading } = useAuth();
 
-  if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-dark"><LoadingSpinner size="lg" /></div>;
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-[#FAF9F5]"><LoadingSpinner size="lg" /></div>;
   if (!token) return <Navigate to="/login" replace />;
   if (requireAdmin && user?.role !== 'ADMIN') return <Navigate to="/dashboard" replace />;
   if (allowRoles && user && !allowRoles.includes(user.role)) {
@@ -69,7 +69,7 @@ const App: React.FC = () => {
   const homePath = user?.role === 'ADMIN' ? '/admin' : user?.role === 'TEACHER' ? '/teacher' : '/dashboard';
 
   return (
-    <div className="min-h-screen bg-dark text-white font-sans selection:bg-primary/30 selection:text-white">
+    <div className="min-h-screen bg-[#FAF9F5] text-slate-800 font-sans selection:bg-emerald-100 selection:text-emerald-900">
       {showNavbar && <Navbar />}
       
       <AnimatePresence mode="wait">
