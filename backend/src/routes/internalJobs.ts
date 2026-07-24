@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { requireInternalSecret } from '../middleware/internalAuth';
-import { JobStage, YoutubeQuizStatus } from '@prisma/client';
+import { JobStage, YoutubeQuizStatus, StorybookStatus } from '@prisma/client';
 
 const router = Router();
 router.use(requireInternalSecret);
@@ -13,6 +13,10 @@ const VALID_STAGES: JobStage[] = [
 
 const VALID_YOUTUBE_QUIZ_STATUSES: YoutubeQuizStatus[] = [
   'QUEUED', 'FETCHING_TRANSCRIPT', 'GENERATING_QUESTIONS', 'READY', 'FAILED'
+];
+
+const VALID_STORYBOOK_STATUSES: StorybookStatus[] = [
+  'QUEUED', 'GENERATING_STORY', 'GENERATING_IMAGES', 'READY', 'FAILED'
 ];
 
 /** Celery calls this after every stage transition - real progress, not simulated. */
@@ -229,6 +233,75 @@ router.post('/youtube-quiz/:quizId/questions', async (req: Request, res: Respons
     res.status(201).json({ ok: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to persist quiz questions' });
+  }
+});
+
+/** Celery calls this after every storybook generation stage transition. */
+router.patch('/storybook/:storybookId', async (req: Request, res: Response) => {
+  try {
+    const { status, errorMessage } = req.body;
+    if (status && !VALID_STORYBOOK_STATUSES.includes(status)) {
+      return res.status(400).json({ error: `Invalid status: ${status}` });
+    }
+
+    await prisma.tutorialStorybook.update({
+      where: { id: req.params['storybookId'] as string },
+      data: {
+        ...(status ? { status } : {}),
+        ...(errorMessage ? { errorMessage } : {})
+      }
+    });
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update storybook' });
+  }
+});
+
+interface StorybookPagePayload {
+  pageNumber: number;
+  storyText: string;
+  imageUrl?: string | null;
+  imageQuery?: string | null;
+}
+
+/**
+ * Celery's final step: persist all 5 pages and mark the storybook ready.
+ * Replaces any previous pages for this storybook (a re-triggered generation
+ * after FAILED is idempotent rather than accumulating duplicates).
+ */
+router.post('/storybook/:storybookId/pages', async (req: Request, res: Response) => {
+  try {
+    const storybook = await prisma.tutorialStorybook.findUnique({ where: { id: req.params['storybookId'] as string } });
+    if (!storybook) return res.status(404).json({ error: 'Storybook not found' });
+
+    const { title, pages } = req.body as { title?: string; pages: StorybookPagePayload[] };
+    if (!Array.isArray(pages) || pages.length === 0) {
+      return res.status(400).json({ error: 'A storybook needs at least one page' });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.storybookPage.deleteMany({ where: { storybookId: storybook.id } });
+      await tx.tutorialStorybook.update({
+        where: { id: storybook.id },
+        data: {
+          title: title || storybook.title,
+          status: 'READY',
+          errorMessage: null,
+          pages: {
+            create: pages.map((p) => ({
+              pageNumber: p.pageNumber,
+              storyText: p.storyText,
+              imageUrl: p.imageUrl || null,
+              imageQuery: p.imageQuery || null
+            }))
+          }
+        }
+      });
+    });
+
+    res.status(201).json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to persist storybook pages' });
   }
 });
 

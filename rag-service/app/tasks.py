@@ -206,6 +206,72 @@ def generate_curriculum(self, job_id: str, unit_id: int, grade_level: str | None
         _update_job(job_id, stage="FAILED", errorMessage=str(exc)[:500])
 
 
+def _update_storybook(storybook_id: str, **fields) -> None:
+    """Best-effort progress report, same contract as _update_job."""
+    try:
+        requests.patch(
+            f"{BACKEND_INTERNAL_URL}/internal/storybook/{storybook_id}",
+            json=fields,
+            headers=_callback_headers(),
+            timeout=15,
+        )
+    except Exception:
+        pass
+
+
+@celery_app.task(name="app.tasks.generate_storybook", bind=True)
+def generate_storybook(
+    self, storybook_id: str, unit_id: int, curriculum_title: str, grade_level: str | None = None
+) -> None:
+    """A 5-page illustrated story grounded in the unit's own content: one text
+    call, then up to 5 image generations overlapped on the same small thread
+    pool _run_media_stage uses. Never raises past this function - a failure
+    is reported on the storybook row so the UI can show it rather than the
+    task dying silently in the worker logs.
+    """
+    try:
+        _update_storybook(storybook_id, status="GENERATING_STORY")
+        story = engine.generate_storybook_pages(unit_id, curriculum_title, grade_level)
+        pages = story["pages"]
+
+        _update_storybook(storybook_id, status="GENERATING_IMAGES")
+
+        def make_visual(page: dict) -> str | None:
+            return engine.generate_visual_image(page["image_prompt"], unit_id)
+
+        with ThreadPoolExecutor(max_workers=min(MEDIA_POOL_SIZE, len(pages) or 1)) as pool:
+            futures = {pool.submit(make_visual, page): page for page in pages}
+            for future in as_completed(futures):
+                page = futures[future]
+                try:
+                    page["image_url"] = future.result()
+                except Exception:
+                    page["image_url"] = None
+
+        payload = {
+            "title": story["title"],
+            "pages": [
+                {
+                    "pageNumber": p["page_number"],
+                    "storyText": p["story_text"],
+                    "imageUrl": p.get("image_url"),
+                    "imageQuery": p.get("image_prompt"),
+                }
+                for p in pages
+            ],
+        }
+
+        response = requests.post(
+            f"{BACKEND_INTERNAL_URL}/internal/storybook/{storybook_id}/pages",
+            json=payload,
+            headers=_callback_headers(),
+            timeout=30,
+        )
+        response.raise_for_status()
+    except Exception as exc:
+        _update_storybook(storybook_id, status="FAILED", errorMessage=str(exc)[:500])
+
+
 def _update_youtube_quiz(quiz_id: str, **fields) -> None:
     try:
         requests.patch(

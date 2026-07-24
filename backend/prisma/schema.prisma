@@ -35,6 +35,7 @@ enum LearningMode {
   AUDIO
   VISUAL
   AR
+  STORY
 }
 
 enum SubscriptionPlan {
@@ -494,10 +495,53 @@ model TutorialCurriculum {
   finalAssessmentQuestions FinalAssessmentQuestion[]
   progresses               TutorialProgress[]
   finalAssessmentAttempts  FinalAssessmentAttempt[]
+  storybook                TutorialStorybook?
 
   sourceChunks Int      @default(0) // total chunks the source document produced
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+// A 5-page illustrated story generated once from the unit's own curriculum
+// content (not a free-text theme) - a fifth presentation mode alongside
+// TEXT/AUDIO/VISUAL/AR, same "generate once, cache forever" discipline as the
+// rest of this pipeline. Status lives on the model itself (not a separate
+// job table) since this is a single short-lived generation, matching the
+// YoutubeQuiz precedent rather than the heavier TutorialGenerationJob one.
+model TutorialStorybook {
+  id           String             @id @default(cuid())
+  curriculumId String             @unique
+  curriculum   TutorialCurriculum @relation(fields: [curriculumId], references: [id], onDelete: Cascade)
+
+  title        String?
+  status       StorybookStatus @default(QUEUED)
+  errorMessage String?
+  celeryTaskId String?
+
+  pages     StorybookPage[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+}
+
+model StorybookPage {
+  id          String            @id @default(cuid())
+  storybookId String
+  storybook   TutorialStorybook @relation(fields: [storybookId], references: [id], onDelete: Cascade)
+
+  pageNumber Int
+  storyText  String
+  imageUrl   String?
+  imageQuery String?
+
+  @@unique([storybookId, pageNumber])
+}
+
+enum StorybookStatus {
+  QUEUED
+  GENERATING_STORY
+  GENERATING_IMAGES
+  READY
+  FAILED
 }
 
 model TutorialLesson {
