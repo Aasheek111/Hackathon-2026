@@ -43,6 +43,21 @@ function getRecognitionCtor(): (new () => SpeechRecognitionLike) | null {
   return w.SpeechRecognition || w.webkitSpeechRecognition || null;
 }
 
+/**
+ * Voice activity goes to the console under one filterable prefix, so
+ * "[voice]" in the devtools filter shows the whole conversation: whether the
+ * microphone actually started, what words came back, and whether they matched
+ * a command. Diagnosing voice control without this means guessing which of
+ * those three steps failed.
+ *
+ * Dev-only - a learner's console shouldn't fill up with this in production.
+ */
+function voiceLog(message: string, ...rest: unknown[]) {
+  if (import.meta.env.PROD) return;
+  // eslint-disable-next-line no-console
+  console.log(`%c[voice]%c ${message}`, 'color:#059669;font-weight:bold', 'color:inherit', ...rest);
+}
+
 export function useVoiceCommands(commands: VoiceCommand[], enabled = true) {
   const [listening, setListening] = useState(false);
   const [lastHeard, setLastHeard] = useState('');
@@ -69,10 +84,25 @@ export function useVoiceCommands(commands: VoiceCommand[], enabled = true) {
       .flatMap((command) => command.phrases.map((phrase) => ({ command, phrase })))
       .sort((a, b) => b.phrase.length - a.phrase.length);
     const hit = ranked.find(({ phrase }) => transcript.includes(phrase));
+
+    // Logged because "it didn't hear me" and "it heard me but matched
+    // nothing" are completely different bugs, and without this they look
+    // identical from the outside. On a miss, list what WAS available so the
+    // gap between what was said and what is registered is obvious.
+    if (hit) {
+      voiceLog(`heard "${transcript}" -> matched "${hit.phrase}" (${hit.command.description})`);
+    } else {
+      voiceLog(
+        `heard "${transcript}" -> NO MATCH. Available: ` +
+          commandsRef.current.map((c) => `"${c.phrases[0]}"`).join(', '),
+      );
+    }
+
     if (hit) hit.command.run(transcript);
   }, []);
 
   const stop = useCallback(() => {
+    if (listeningRef.current) voiceLog('microphone stopped');
     listeningRef.current = false;
     setListening(false);
     recognitionRef.current?.abort();
@@ -97,6 +127,7 @@ export function useVoiceCommands(commands: VoiceCommand[], enabled = true) {
       if (result?.isFinal !== false) handleTranscript(result[0].transcript);
     };
     recognition.onerror = (event: any) => {
+      voiceLog(`recognition error: ${event.error}`);
       // 'no-speech' and 'aborted' are normal in continuous mode - only a
       // genuine permission/hardware problem is worth telling the learner about.
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
@@ -113,6 +144,7 @@ export function useVoiceCommands(commands: VoiceCommand[], enabled = true) {
       // Chrome ends the stream after a silence; restart so "listening" means
       // listening. Guarded by the ref so an explicit stop() stays stopped.
       if (listeningRef.current && recognitionRef.current === recognition) {
+        voiceLog('stream ended (silence) - restarting');
         try {
           recognition.start();
         } catch {
@@ -125,6 +157,10 @@ export function useVoiceCommands(commands: VoiceCommand[], enabled = true) {
     listeningRef.current = true;
     setError(null);
     setListening(true);
+    voiceLog(
+      `microphone starting - ${commandsRef.current.length} commands registered`,
+      commandsRef.current.map((c) => c.phrases[0]),
+    );
     try {
       recognition.start();
     } catch {

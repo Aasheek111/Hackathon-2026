@@ -51,6 +51,8 @@ interface AudioNavigationContextType {
   /** The browser has let us play sound at least once. */
   unlocked: boolean;
   listening: boolean;
+  /** The last phrase recognition returned - shown in the bar so a mismatch is visible without devtools. */
+  lastHeard: string;
   micSupported: boolean;
   /** Speak text and mirror it into the app-wide live region. */
   announce: (text: string) => void;
@@ -231,6 +233,7 @@ export const AudioNavigationProvider: React.FC<{ children: React.ReactNode }> = 
 
   const {
     listening,
+    lastHeard,
     supported: micSupported,
     toggle: toggleMic,
     start: startMic,
@@ -298,6 +301,7 @@ export const AudioNavigationProvider: React.FC<{ children: React.ReactNode }> = 
     dismissed,
     unlocked: unlocked && !blocked,
     listening,
+    lastHeard,
     micSupported,
     announce,
     readPage,
