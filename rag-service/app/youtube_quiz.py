@@ -1,38 +1,39 @@
-"""YouTube transcript retrieval (via SerpApi) and quiz generation from it.
+"""YouTube transcript retrieval and quiz generation from it.
 
-VERIFIED LIVE against a real SERPAPI_API_KEY (docker exec against the running
-rag-service). The docs page fetched during initial implementation
-(https://serpapi.com/youtube-video-api) said the transcript engine's video
-parameter was `video_id` - that was WRONG. Confirmed live:
+Transcript fetching goes through `youtube-transcript-api` (PyPI), NOT a paid
+API - no key, no signup, no per-month credit cap. It talks directly to
+YouTube's own public caption endpoint (the same one youtube.com's own player
+uses), which is why it has no rate limit worth planning around for a
+hackathon's traffic. Confirmed live (docker exec against the running
+rag-service, version 1.2.4): `YouTubeTranscriptApi().fetch(video_id,
+languages=[...])` returns a `FetchedTranscript` - an iterable of
+`FetchedTranscriptSnippet(text, start, duration)`.
 
-- The main `youtube_video` engine's response includes
-  `transcript.serpapi_link`, e.g.
-  `https://serpapi.com/search.json?engine=youtube_video_transcript&language_code=en&v=dQw4w9WgXcQ`
-  - the parameter is **`v`**, not `video_id`.
-- Calling `engine=youtube_video_transcript` directly with `v` (+ `api_key`,
-  not included in the serpapi_link itself) returns
-  `{"search_metadata": ..., "search_parameters": ..., "transcript": [...]}`
-  where `transcript` is a flat list of
-  `{"start_ms": int, "snippet": str, "start_time_text": str, "start_time_label": str}`.
-
-`fetch_transcript()` uses the confirmed `v` parameter and the confirmed
-`snippet` field, while keeping the other defensive fallbacks (`text`/
-`content`, alternate top-level keys) in case SerpApi's shape varies for a
-video with no transcript, auto-captions disabled, etc. - untested territory
-still gets a clear error naming the actual keys, never a fabricated result.
+This replaced an earlier SerpApi-based implementation: SerpApi's free tier is
+a small monthly credit cap (not truly free at any real usage volume) and, on
+top of that, hit a live transient DNS failure reaching serpapi.com during
+testing - two independent reasons the paid, third-party dependency didn't
+belong here for something as simple as "get a video's captions".
 """
 
 from __future__ import annotations
 
-import os
 import re
 import time
 
-import requests
+from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api._errors import (
+    CouldNotRetrieveTranscript,
+    NoTranscriptFound,
+    TranscriptsDisabled,
+    VideoUnavailable,
+)
 
 from . import rag_engine as engine
 
-SERPAPI_BASE_URL = "https://serpapi.com/search"
+# Tried in order - falls through to auto-generated/any available language
+# rather than failing a video just because it has no manual English captions.
+TRANSCRIPT_LANGUAGE_PREFERENCE = ["en", "en-US", "en-GB"]
 
 # youtube.com/watch?v=ID, youtube.com/shorts/ID, or youtu.be/ID - a YouTube
 # video id is always exactly 11 characters of [A-Za-z0-9_-].
@@ -51,22 +52,15 @@ YOUTUBE_QUIZ_SYSTEM_PROMPT = (
     "\"questions\": [{\"question\", \"options\", \"correct\"}]}. Return only the JSON object."
 )
 
-PLACEHOLDER_KEYS = {"", "your-key-here", "changeme"}
-
 # A generous cap, not a precise token budget - keeps a very long video's
 # transcript from producing an unbounded prompt.
 MAX_TRANSCRIPT_CHARS = 20000
 
-# Observed live: a transient Docker/DNS blip (NameResolutionError reaching
-# serpapi.com) failed a quiz job outright even though the network recovered
-# seconds later. A couple of retries turns that into a few-second delay
-# instead of a permanent failure the teacher has to notice and retry by hand.
+# A couple of retries for transient network blips (the same kind of
+# Docker-network hiccup observed elsewhere in this pipeline) - this now hits
+# YouTube directly rather than a third party, but a blip is still a blip.
 TRANSCRIPT_FETCH_ATTEMPTS = 3
 TRANSCRIPT_FETCH_RETRY_DELAY_SECONDS = 3
-
-
-def serpapi_key_present() -> bool:
-    return os.getenv("SERPAPI_API_KEY", "").strip().strip('"') not in PLACEHOLDER_KEYS
 
 
 def extract_video_id(url: str) -> str | None:
@@ -82,65 +76,37 @@ def extract_video_id(url: str) -> str | None:
 
 
 def fetch_transcript(video_id: str) -> str:
-    """Calls SerpApi's YouTube Video Transcript engine and returns the full
-    transcript as plain text. See the module docstring for the verification
-    caveat on the exact response shape.
+    """Fetches the video's captions (manual or auto-generated) as plain text
+    via youtube-transcript-api - free, no key required. Tries the preferred
+    language list first; TranscriptsDisabled/NoTranscriptFound/VideoUnavailable
+    are real, permanent conditions (this video genuinely has no usable
+    captions) and are raised immediately without retrying. A network-level
+    failure gets a couple of retries, matching this pipeline's established
+    "a blip shouldn't fail a job outright" pattern.
     """
-    if not serpapi_key_present():
-        raise RuntimeError("SERPAPI_API_KEY is not set. Copy .env.example to .env and add your key.")
-
-    data = None
+    api = YouTubeTranscriptApi()
     last_error: Exception | None = None
     for attempt in range(TRANSCRIPT_FETCH_ATTEMPTS):
         try:
-            response = requests.get(
-                SERPAPI_BASE_URL,
-                params={
-                    "engine": "youtube_video_transcript",
-                    "v": video_id,
-                    "language_code": "en",
-                    "api_key": os.getenv("SERPAPI_API_KEY"),
-                },
-                timeout=30,
-            )
-            response.raise_for_status()
-            data = response.json()
-            break
-        except requests.exceptions.RequestException as exc:
+            transcript = api.fetch(video_id, languages=TRANSCRIPT_LANGUAGE_PREFERENCE)
+            lines = [snippet.text for snippet in transcript if snippet.text.strip()]
+            if not lines:
+                raise RuntimeError("This video's captions came back empty.")
+            return " ".join(lines)
+        except (TranscriptsDisabled, NoTranscriptFound, VideoUnavailable) as exc:
+            raise RuntimeError(f"This video has no usable captions: {exc}") from exc
+        except CouldNotRetrieveTranscript as exc:
+            # covers IP/request-blocked and similar - not worth retrying
+            raise RuntimeError(f"Could not retrieve this video's transcript: {exc}") from exc
+        except Exception as exc:  # genuine network blip - retry
             last_error = exc
             if attempt < TRANSCRIPT_FETCH_ATTEMPTS - 1:
                 time.sleep(TRANSCRIPT_FETCH_RETRY_DELAY_SECONDS)
 
-    if data is None:
-        raise RuntimeError(
-            f"Could not reach SerpApi after {TRANSCRIPT_FETCH_ATTEMPTS} attempts "
-            f"(likely a transient network/DNS issue): {last_error}"
-        )
-
-    segments = data.get("transcript") or data.get("transcripts") or data.get("segments")
-    if not isinstance(segments, list) or not segments:
-        raise RuntimeError(
-            "Unexpected response from SerpApi's youtube_video_transcript engine - "
-            f"got top-level keys: {list(data.keys())}"
-        )
-
-    lines: list[str] = []
-    for segment in segments:
-        if isinstance(segment, str):
-            lines.append(segment)
-        elif isinstance(segment, dict):
-            text = segment.get("text") or segment.get("snippet") or segment.get("content")
-            if text:
-                lines.append(str(text))
-
-    if not lines:
-        sample_keys = list(segments[0].keys()) if isinstance(segments[0], dict) else type(segments[0]).__name__
-        raise RuntimeError(
-            f"SerpApi returned transcript segments but none had a recognisable text field - "
-            f"got segment shape: {sample_keys}"
-        )
-
-    return " ".join(lines)
+    raise RuntimeError(
+        f"Could not reach YouTube after {TRANSCRIPT_FETCH_ATTEMPTS} attempts "
+        f"(likely a transient network/DNS issue): {last_error}"
+    )
 
 
 def clean_transcript(text: str) -> str:

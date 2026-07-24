@@ -6,7 +6,7 @@ import {
   BookOpen, Image as ImageIcon, Gamepad2, Eye, EyeOff
 } from 'lucide-react';
 import Button from '../components/ui/Button';
-import api from '../lib/api';
+import api, { resolveMediaUrl } from '../lib/api';
 import { useConcentrationTracking, hasCameraConsent } from '../hooks/useConcentrationTracking';
 
 /**
@@ -681,7 +681,7 @@ export const CurriculumPlayerPage: React.FC = () => {
                     it as a supporting image when present. */}
                 {lesson.imageUrl ? (
                   <img
-                    src={`${RAG_SERVICE_URL}${lesson.imageUrl}`}
+                    src={resolveMediaUrl(lesson.imageUrl)}
                     alt={lesson.title}
                     className={`w-full object-contain rounded-2xl mb-6 bg-black/20 ${
                       mode === 'VISUAL' ? 'max-h-[32rem]' : 'max-h-96'

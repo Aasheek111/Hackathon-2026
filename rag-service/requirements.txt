@@ -21,3 +21,9 @@ pillow>=10.3
 # Background job queue (full-curriculum generation, YouTube quiz, TTS)
 celery>=5.3,<6.0
 redis>=5.0,<6.0
+
+# YouTube transcript fetch for the YouTube-quiz feature - free, no API key
+# (talks directly to YouTube's own public caption endpoint), replacing an
+# earlier SerpApi-based implementation that was both a paid/metered
+# dependency and hit a live DNS failure during testing.
+youtube-transcript-api>=1.0,<2.0
