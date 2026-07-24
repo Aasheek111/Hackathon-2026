@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, ArrowRight, LayoutDashboard, LogOut } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import LanguageToggle from "./LanguageToggle";
 
 export const Navbar: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -36,16 +37,16 @@ export const Navbar: React.FC = () => {
     >
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between">
-          <Link to="/" className="flex items-center group py-0.5">
+          <Link to="/" className="flex items-center group py-0.5 notranslate">
             <img
               src="/logo.png"
               alt="Pragya Logo"
-              className="h-12 sm:h-14 md:h-20 w-auto object-contain transition-all duration-300 hover:scale-[1.02]"
+              className="h-12 sm:h-14 md:h-20 w-auto object-contain transition-all duration-300 hover:scale-[1.02] notranslate"
             />
           </Link>
 
           {/* Desktop Nav */}
-          <div className="hidden md:flex items-center space-x-8">
+          <div className="hidden md:flex items-center space-x-6">
             <div className="flex space-x-6">
               {navLinks.map((link) => (
                 <a
@@ -58,6 +59,7 @@ export const Navbar: React.FC = () => {
               ))}
             </div>
             <div className="flex items-center space-x-3">
+              <LanguageToggle />
               {user ? (
                 <>
                   <Link to={user.role === 'ADMIN' ? '/admin' : user.role === 'TEACHER' ? '/teacher' : '/dashboard'}>
@@ -92,8 +94,9 @@ export const Navbar: React.FC = () => {
             </div>
           </div>
 
-          {/* Mobile Menu Button */}
-          <div className="md:hidden">
+          {/* Mobile Menu Button + Language Toggle */}
+          <div className="md:hidden flex items-center space-x-2">
+            <LanguageToggle />
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="text-slate-700 hover:text-slate-900 p-2"

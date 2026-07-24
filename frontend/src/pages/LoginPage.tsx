@@ -54,7 +54,7 @@ export const LoginPage: React.FC = () => {
               <img
                 src="/logo.png"
                 alt="Pragya Logo"
-                className="h-20 w-auto object-contain"
+                className="h-20 w-auto object-contain notranslate"
               />
             </div>
             <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 leading-tight text-center lg:text-left">

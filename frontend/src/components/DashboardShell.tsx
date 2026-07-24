@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { LogOut, LucideIcon } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import LanguageToggle from './LanguageToggle';
 
 export interface NavItem {
   icon: LucideIcon;
@@ -30,10 +31,11 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ navItems, childr
   return (
     <div className="min-h-screen bg-[#FAF9F5] text-slate-800 flex font-sans selection:bg-emerald-100 selection:text-emerald-900">
       <aside className="w-64 bg-white border-r border-slate-200/80 flex-col hidden md:flex sticky top-0 h-screen shadow-xs">
-        <div className="p-6 border-b border-slate-100">
-          <Link to="/" className="flex items-center">
-            <img src="/logo.png" alt="Pragya Logo" className="h-16 md:h-20 w-auto object-contain" />
+        <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+          <Link to="/" className="flex items-center notranslate">
+            <img src="/logo.png" alt="Pragya Logo" className="h-14 w-auto object-contain notranslate" />
           </Link>
+          <LanguageToggle />
         </div>
 
         <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
@@ -80,7 +82,17 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ navItems, childr
         </div>
       </aside>
 
-      <main className="flex-1 p-6 md:p-10 overflow-y-auto">{children}</main>
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Mobile Header Bar */}
+        <div className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+          <Link to="/" className="flex items-center notranslate">
+            <img src="/logo.png" alt="Pragya Logo" className="h-10 w-auto object-contain notranslate" />
+          </Link>
+          <LanguageToggle />
+        </div>
+
+        <main className="flex-1 p-6 md:p-10 overflow-y-auto">{children}</main>
+      </div>
     </div>
   );
 };

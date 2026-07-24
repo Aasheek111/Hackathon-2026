@@ -84,7 +84,7 @@ export const RegisterPage: React.FC = () => {
               <img
                 src="/logo.png"
                 alt="Pragya Logo"
-                className="h-16 w-auto object-contain"
+                className="h-16 w-auto object-contain notranslate"
               />
             </div>
 
