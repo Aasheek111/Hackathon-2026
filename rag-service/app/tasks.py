@@ -142,7 +142,10 @@ def generate_curriculum(self, job_id: str, unit_id: int, grade_level: str | None
         # title + explanation.
         def make_visual(lesson: dict) -> str | None:
             prompt = (lesson.get("visual_suggestion") or "").strip() or _visual_prompt_from_lesson(lesson)
-            return engine.generate_visual_image(prompt, unit_id)
+            # image_query is the model's own photo-search phrase for this
+            # lesson (see LESSON_SYSTEM_PROMPT) - far more relevant than
+            # keyword-stripping an abstract lesson title, at no extra cost.
+            return engine.generate_visual_image(prompt, unit_id, lesson.get("image_query"))
 
         _run_media_stage(
             job_id, lessons, "image_url", make_visual,
@@ -181,6 +184,7 @@ def generate_curriculum(self, job_id: str, unit_id: int, grade_level: str | None
                     "explanation": lesson["explanation"],
                     "example": lesson.get("example") or None,
                     "imageUrl": lesson.get("image_url"),
+                    "imageQuery": lesson.get("image_query") or None,
                     "audioUrl": lesson.get("audio_url"),
                     "sourceChunkStart": lesson["chunk_start"],
                     "sourceChunkEnd": lesson["chunk_end"],

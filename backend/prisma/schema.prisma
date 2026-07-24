@@ -511,6 +511,11 @@ model TutorialLesson {
   example     String?
   imageUrl    String?
   audioUrl    String?
+  // The photo-search phrase the model wrote for this lesson (e.g. "team
+  // planning whiteboard" for a lesson on mission statements). Kept so
+  // "regenerate visuals" searches as intelligently as the first generation
+  // did, instead of falling back to keyword-stripping an abstract title.
+  imageQuery  String?
 
   // Traceability back to the source document (TODO.md §22 RAG compatibility)
   sourceChunkStart Int?

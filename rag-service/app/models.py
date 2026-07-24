@@ -68,6 +68,10 @@ class ImageUploadResponse(BaseModel):
 class GenerateVisualRequest(BaseModel):
     unit_id: int = Field(..., ge=1, description="Used only to namespace the generated filename")
     prompt: str = Field(..., min_length=1, description="Description of the picture to generate")
+    image_query: str | None = Field(
+        default=None,
+        description="Model-written photo-search phrase for this lesson - more relevant than the raw prompt.",
+    )
 
 
 class GenerateCurriculumRequest(BaseModel):
