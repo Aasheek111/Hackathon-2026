@@ -33,8 +33,7 @@ async function main() {
     }
   });
 
-  // Demo teacher, pre-approved, so the classroom/RAG flow is demoable
-  // immediately after seeding without a manual approval step.
+  // Demo teacher, pre-approved
   const teacherPassword = await bcrypt.hash('Teacher@1234', 12);
   const demoTeacher = await prisma.user.create({
     data: {
@@ -46,7 +45,7 @@ async function main() {
     }
   });
 
-  // A second, still-pending teacher so the admin approval UI has something to show
+  // A second, still-pending teacher
   const pendingPassword = await bcrypt.hash('Teacher@1234', 12);
   await prisma.user.create({
     data: {
@@ -61,7 +60,7 @@ async function main() {
   const demoClassroom = await prisma.classroom.create({
     data: {
       name: 'Adaptive Learners - Grade 3',
-      description: 'A classroom tuned for visual and audio learners who benefit from shorter, high-feedback sessions.',
+      description: 'A classroom tuned for visual and audio learners who benefit from shorter, high-feedback sessions. Focuses on foundational skills in Nepal.',
       teacherId: demoTeacher.id,
       admissionCriteria: {
         create: {
@@ -75,16 +74,25 @@ async function main() {
   const mathSubject = await prisma.subject.create({
     data: { classroomId: demoClassroom.id, name: 'Mathematics' }
   });
+  const scienceSubject = await prisma.subject.create({
+    data: { classroomId: demoClassroom.id, name: 'Basic Science & Environment' }
+  });
+  const nepalHistorySubject = await prisma.subject.create({
+    data: { classroomId: demoClassroom.id, name: 'Our Community (Nepal)' }
+  });
+
   await prisma.unit.createMany({
     data: [
-      { subjectId: mathSubject.id, title: 'Unit 1 - Numbers', order: 1 },
-      { subjectId: mathSubject.id, title: 'Unit 2 - Shapes', order: 2 }
+      { subjectId: mathSubject.id, title: 'Unit 1 - Numbers and Counting', order: 1 },
+      { subjectId: mathSubject.id, title: 'Unit 2 - Shapes and Patterns', order: 2 },
+      { subjectId: scienceSubject.id, title: 'Unit 1 - Living and Non-living Things', order: 1 },
+      { subjectId: scienceSubject.id, title: 'Unit 2 - Our Environment in Nepal', order: 2 },
+      { subjectId: nepalHistorySubject.id, title: 'Unit 1 - Festivals of Nepal', order: 1 },
+      { subjectId: nepalHistorySubject.id, title: 'Unit 2 - Geography of Nepal', order: 2 }
     ]
   });
 
-  // A second, pre-approved teacher with a deliberately different (stricter)
-  // classroom, so /recommendations has more than one option to actually rank
-  // against instead of every student getting the same single classroom back.
+  // A second, pre-approved teacher with a stricter classroom
   const secondTeacherPassword = await bcrypt.hash('Teacher@1234', 12);
   const secondTeacher = await prisma.user.create({
     data: {
@@ -98,7 +106,7 @@ async function main() {
   await prisma.classroom.create({
     data: {
       name: 'Focused Readers - Advanced Track',
-      description: 'A faster-paced, text-first classroom for students who read attentively and are already scoring well.',
+      description: 'A faster-paced, text-first classroom for students who read attentively and are already scoring well. Specialized in English and Social Studies.',
       teacherId: secondTeacher.id,
       admissionCriteria: {
         create: {
@@ -110,43 +118,73 @@ async function main() {
     }
   });
 
-  // Seed Questions (30 total: 10 TEXT, 10 AUDIO, 10 VISUAL)
+  // Seed Students
+  const studentPassword = await bcrypt.hash('Student@1234', 12);
+  await prisma.user.create({
+    data: {
+      name: 'Aarav Karki',
+      email: 'aarav@student.com',
+      password: studentPassword,
+      role: Role.STUDENT,
+      disabilityType: 'AUTISM',
+      enrolments: {
+        create: {
+          classroomId: demoClassroom.id
+        }
+      }
+    }
+  });
+
+  await prisma.user.create({
+    data: {
+      name: 'Sita Rai',
+      email: 'sita@student.com',
+      password: studentPassword,
+      role: Role.STUDENT,
+      disabilityType: 'DEAFNESS',
+      enrolments: {
+        create: {
+          classroomId: demoClassroom.id
+        }
+      }
+    }
+  });
+
+  // Comprehensive Seed Questions
   const questions = [
-    // TEXT Mode
+    // TEXT Mode - Math & Science
     { subject: 'math', question: 'What is 5 + 3?', options: ['6', '7', '8', '9'], answer: '8', learningMode: LearningMode.TEXT },
     { subject: 'math', question: 'What is 10 - 4?', options: ['4', '5', '6', '7'], answer: '6', learningMode: LearningMode.TEXT },
+    { subject: 'math', question: 'If you have 15 apples and give 5 away, how many are left?', options: ['5', '10', '15', '20'], answer: '10', learningMode: LearningMode.TEXT },
     { subject: 'science', question: 'Which planet is known as the Red Planet?', options: ['Earth', 'Mars', 'Jupiter', 'Venus'], answer: 'Mars', learningMode: LearningMode.TEXT },
+    { subject: 'science', question: 'What gas do plants absorb from the atmosphere?', options: ['Oxygen', 'Nitrogen', 'Carbon Dioxide', 'Helium'], answer: 'Carbon Dioxide', learningMode: LearningMode.TEXT },
     { subject: 'animals', question: 'Which animal is known as the king of the jungle?', options: ['Tiger', 'Lion', 'Elephant', 'Bear'], answer: 'Lion', learningMode: LearningMode.TEXT },
     { subject: 'colors', question: 'What color do you get by mixing red and yellow?', options: ['Green', 'Orange', 'Purple', 'Brown'], answer: 'Orange', learningMode: LearningMode.TEXT },
     { subject: 'shapes', question: 'How many sides does a triangle have?', options: ['2', '3', '4', '5'], answer: '3', learningMode: LearningMode.TEXT },
-    { subject: 'math', question: 'What is 2 x 4?', options: ['6', '8', '10', '12'], answer: '8', learningMode: LearningMode.TEXT },
-    { subject: 'science', question: 'What do plants need to grow?', options: ['Fire', 'Water', 'Salt', 'Ice'], answer: 'Water', learningMode: LearningMode.TEXT },
-    { subject: 'animals', question: 'Which bird can swim but not fly?', options: ['Eagle', 'Penguin', 'Parrot', 'Sparrow'], answer: 'Penguin', learningMode: LearningMode.TEXT },
-    { subject: 'shapes', question: 'Which shape is round?', options: ['Square', 'Triangle', 'Circle', 'Rectangle'], answer: 'Circle', learningMode: LearningMode.TEXT },
+    
+    // TEXT Mode - Nepal Context
+    { subject: 'nepal', question: 'What is the capital of Nepal?', options: ['Pokhara', 'Lalitpur', 'Kathmandu', 'Bhaktapur'], answer: 'Kathmandu', learningMode: LearningMode.TEXT },
+    { subject: 'nepal', question: 'Which is the highest mountain in the world located in Nepal?', options: ['K2', 'Mount Everest', 'Makalu', 'Annapurna'], answer: 'Mount Everest', learningMode: LearningMode.TEXT },
+    { subject: 'nepal', question: 'What is the national animal of Nepal?', options: ['Tiger', 'Cow', 'Elephant', 'Rhino'], answer: 'Cow', learningMode: LearningMode.TEXT },
+    { subject: 'nepal', question: 'Which festival is known as the festival of lights in Nepal?', options: ['Dashain', 'Tihar', 'Holi', 'Teej'], answer: 'Tihar', learningMode: LearningMode.TEXT },
 
     // AUDIO Mode
     { subject: 'math', question: 'Listen and solve: If you have 2 apples and get 3 more, how many do you have?', options: ['4', '5', '6', '7'], answer: '5', learningMode: LearningMode.AUDIO, audioText: 'If you have two apples and get three more, how many do you have?' },
     { subject: 'animals', question: 'Which animal makes a "moo" sound?', options: ['Dog', 'Cat', 'Cow', 'Sheep'], answer: 'Cow', learningMode: LearningMode.AUDIO, audioText: 'Which animal makes a moo sound?' },
     { subject: 'colors', question: 'What is the color of the sky?', options: ['Green', 'Blue', 'Red', 'Yellow'], answer: 'Blue', learningMode: LearningMode.AUDIO, audioText: 'What is the color of the sky?' },
-    { subject: 'shapes', question: 'What shape has four equal sides?', options: ['Circle', 'Square', 'Triangle', 'Oval'], answer: 'Square', learningMode: LearningMode.AUDIO, audioText: 'What shape has four equal sides?' },
+    { subject: 'nepal', question: 'Which instrument is known as a traditional Nepali drum?', options: ['Guitar', 'Madal', 'Piano', 'Flute'], answer: 'Madal', learningMode: LearningMode.AUDIO, audioText: 'Which instrument is known as a traditional Nepali drum?' },
     { subject: 'science', question: 'What gives us heat and light during the day?', options: ['Moon', 'Stars', 'Sun', 'Earth'], answer: 'Sun', learningMode: LearningMode.AUDIO, audioText: 'What gives us heat and light during the day?' },
     { subject: 'math', question: 'What is 6 minus 2?', options: ['2', '3', '4', '5'], answer: '4', learningMode: LearningMode.AUDIO, audioText: 'What is six minus two?' },
-    { subject: 'animals', question: 'Which animal barks?', options: ['Cat', 'Dog', 'Bird', 'Fish'], answer: 'Dog', learningMode: LearningMode.AUDIO, audioText: 'Which animal barks?' },
-    { subject: 'colors', question: 'What color is a banana?', options: ['Red', 'Yellow', 'Blue', 'Purple'], answer: 'Yellow', learningMode: LearningMode.AUDIO, audioText: 'What color is a banana?' },
-    { subject: 'shapes', question: 'What shape looks like an egg?', options: ['Square', 'Oval', 'Circle', 'Triangle'], answer: 'Oval', learningMode: LearningMode.AUDIO, audioText: 'What shape looks like an egg?' },
-    { subject: 'science', question: 'What falls from clouds when it storms?', options: ['Rocks', 'Rain', 'Leaves', 'Sand'], answer: 'Rain', learningMode: LearningMode.AUDIO, audioText: 'What falls from clouds when it storms?' },
+    { subject: 'nepal', question: 'What is the main language spoken in Nepal?', options: ['Hindi', 'Nepali', 'English', 'Newari'], answer: 'Nepali', learningMode: LearningMode.AUDIO, audioText: 'What is the main language spoken in Nepal?' },
 
     // VISUAL Mode
     { subject: 'animals', question: 'Identify this animal:', options: ['Lion', 'Elephant', 'Giraffe', 'Zebra'], answer: 'Elephant', learningMode: LearningMode.VISUAL, imageUrl: 'https://images.unsplash.com/photo-1557050543-4d5f4e07ef46' },
     { subject: 'colors', question: 'What color is this apple?', options: ['Red', 'Green', 'Yellow', 'Blue'], answer: 'Red', learningMode: LearningMode.VISUAL, imageUrl: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6fac6' },
     { subject: 'shapes', question: 'Identify this shape:', options: ['Square', 'Triangle', 'Circle', 'Star'], answer: 'Circle', learningMode: LearningMode.VISUAL, imageUrl: 'https://images.unsplash.com/photo-1517524285303-d6fc683dddf8' },
+    { subject: 'nepal', question: 'Identify this famous monument in Kathmandu:', options: ['Swayambhunath', 'Pashupatinath', 'Boudhanath', 'Lumbini'], answer: 'Swayambhunath', learningMode: LearningMode.VISUAL, imageUrl: 'https://images.unsplash.com/photo-1544735716-392fe2489ffa' },
     { subject: 'science', question: 'What planet is this?', options: ['Earth', 'Mars', 'Jupiter', 'Saturn'], answer: 'Earth', learningMode: LearningMode.VISUAL, imageUrl: 'https://images.unsplash.com/photo-1614730321146-b6fa6a46bcb4' },
     { subject: 'math', question: 'Count the items:', options: ['3', '4', '5', '6'], answer: '4', learningMode: LearningMode.VISUAL, imageUrl: 'https://images.unsplash.com/photo-1518133910546-b6c2fb7d79e3' },
-    { subject: 'animals', question: 'Identify this bird:', options: ['Penguin', 'Parrot', 'Eagle', 'Owl'], answer: 'Penguin', learningMode: LearningMode.VISUAL, imageUrl: 'https://images.unsplash.com/photo-1598439210625-5067c578f3f6' },
-    { subject: 'colors', question: 'What color is this leaf?', options: ['Red', 'Green', 'Brown', 'Yellow'], answer: 'Green', learningMode: LearningMode.VISUAL, imageUrl: 'https://images.unsplash.com/photo-1536882240095-0379873feb4e' },
-    { subject: 'shapes', question: 'Identify this shape:', options: ['Square', 'Triangle', 'Circle', 'Rectangle'], answer: 'Triangle', learningMode: LearningMode.VISUAL, imageUrl: 'https://images.unsplash.com/photo-1563242034-706f9bd47702' },
-    { subject: 'science', question: 'What weather is shown?', options: ['Sunny', 'Rainy', 'Snowy', 'Cloudy'], answer: 'Snowy', learningMode: LearningMode.VISUAL, imageUrl: 'https://images.unsplash.com/photo-1517260739337-6799d239ce83' },
-    { subject: 'math', question: 'How many fingers are held up?', options: ['1', '2', '3', '4'], answer: '2', learningMode: LearningMode.VISUAL, imageUrl: 'https://images.unsplash.com/photo-1506869640319-a1b65e90a9ab' },
+    { subject: 'nepal', question: 'What are these colorful flags called?', options: ['Prayer Flags', 'National Flags', 'Festive Banners', 'Kites'], answer: 'Prayer Flags', learningMode: LearningMode.VISUAL, imageUrl: 'https://images.unsplash.com/photo-1553557202-698e47f9f30b' },
   ];
 
   for (const q of questions) {
@@ -163,13 +201,16 @@ async function main() {
     });
   }
 
-  // Seed Learning Materials (5 total)
+  // Seed Learning Materials (Comprehensive Set)
   const materials = [
     { title: 'Introduction to Numbers', subject: 'math', type: 'article', learningMode: LearningMode.TEXT, content: { text: 'Numbers are used to count things...' } },
     { title: 'Sounds of the Zoo', subject: 'animals', type: 'audio', learningMode: LearningMode.AUDIO, content: { url: 'https://example.com/zoo-sounds.mp3' } },
     { title: 'Shapes all around us', subject: 'shapes', type: 'video', learningMode: LearningMode.VISUAL, content: { videoUrl: 'https://example.com/shapes.mp4' } },
     { title: 'Colors of the Rainbow', subject: 'colors', type: 'interactive', learningMode: LearningMode.VISUAL, content: { gameId: 'rainbow_game_123' } },
-    { title: 'Solar System Exploration', subject: 'science', type: 'ar', learningMode: LearningMode.AR, content: { arModelUrl: 'https://example.com/solar-system.glb' } }
+    { title: 'Solar System Exploration', subject: 'science', type: 'ar', learningMode: LearningMode.AR, content: { arModelUrl: 'https://example.com/solar-system.glb' } },
+    { title: 'History of Mount Everest', subject: 'nepal', type: 'article', learningMode: LearningMode.TEXT, content: { text: 'Mount Everest, known as Sagarmatha in Nepal, is the highest peak in the world...' } },
+    { title: 'Nepali Traditional Music', subject: 'nepal', type: 'audio', learningMode: LearningMode.AUDIO, content: { url: 'https://example.com/nepali-music.mp3' } },
+    { title: 'Festivals of Nepal', subject: 'nepal', type: 'video', learningMode: LearningMode.VISUAL, content: { videoUrl: 'https://example.com/nepal-festivals.mp4' } }
   ];
 
   for (const m of materials) {

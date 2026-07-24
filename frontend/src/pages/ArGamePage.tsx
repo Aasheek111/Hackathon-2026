@@ -20,7 +20,7 @@ const GAMES: GameMeta[] = [
   {
     id: "balloon",
     label: "3D Balloon Popper",
-    emoji: "🎈",
+    emoji: "",
     src: "/ar-game.html",
     tagline: "Pop the correct answer balloon in 3D space",
     activeClass: "bg-violet-600 text-white shadow-lg shadow-violet-600/40",
@@ -28,7 +28,7 @@ const GAMES: GameMeta[] = [
   {
     id: "rocket",
     label: "Space Rocket Shooter",
-    emoji: "🚀",
+    emoji: "",
     src: "/ar-game-3.html",
     tagline: "Aim with your mouse — click asteroids to fire!",
     activeClass: "bg-sky-600 text-white shadow-lg shadow-sky-600/40",
@@ -36,7 +36,7 @@ const GAMES: GameMeta[] = [
   {
     id: "puzzle",
     label: "Memory Match Puzzle",
-    emoji: "🧩",
+    emoji: "",
     src: "/ar-game-4.html",
     tagline: "Flip cards to match every question with its answer",
     activeClass: "bg-indigo-600 text-white shadow-lg shadow-indigo-600/40",
@@ -94,11 +94,10 @@ export const ArGamePage: React.FC = () => {
             <button
               key={g.id}
               onClick={() => setActiveGameId(g.id)}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                activeGameId === g.id
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${activeGameId === g.id
                   ? g.activeClass
                   : "text-gray-400 hover:text-white hover:bg-white/5"
-              }`}
+                }`}
             >
               <span>{g.emoji}</span>
               <span className="hidden md:inline">{g.label}</span>

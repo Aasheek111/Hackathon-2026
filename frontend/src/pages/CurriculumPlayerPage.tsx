@@ -881,7 +881,7 @@ export const CurriculumPlayerPage: React.FC = () => {
             instant (no regeneration) and keeps your place.
             Sign mode is strictly reserved for DEAF learners. */}
         <div className="flex flex-wrap gap-2 mb-3">
-          {MODES.filter((m) => m.key !== "SIGN" || (user?.disabilityType === "DEAFNESS" || prefs.signLanguage)).map((m) => {
+          {MODES.filter((m) => m.key !== "SIGN" || (user?.disabilityType === "DEAFNESS" || user?.disabilityType === null)).map((m) => {
             const Icon = m.icon;
             const active = mode === m.key;
             return (

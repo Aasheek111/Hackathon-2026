@@ -63,10 +63,14 @@ export const VisualDashboardPage: React.FC = () => {
     `Open sign language to learn the alphabet, or the practice quiz to test yourself.`
   );
 
+  const showSignLanguage = user?.disabilityType === 'DEAFNESS' || user?.disabilityType === null;
+
   const navItems: NavItem[] = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard/visual", active: true },
-    { icon: Hand, label: "Sign Language", path: "/dashboard/visual/sign-language" },
-    { icon: ClipboardList, label: "Sign Quiz", path: "/dashboard/visual/sign-quiz" },
+    ...(showSignLanguage ? [
+      { icon: Hand, label: "Sign Language", path: "/dashboard/visual/sign-language" },
+      { icon: ClipboardList, label: "Sign Quiz", path: "/dashboard/visual/sign-quiz" },
+    ] : []),
     { icon: BookOpen, label: "My Classroom", path: "/classroom" },
     { icon: TrendingUp, label: "My Progress", path: "/progress" },
   ];
@@ -75,7 +79,9 @@ export const VisualDashboardPage: React.FC = () => {
     { label: "XP", value: progress?.xp ?? 0, icon: Zap, tone: "text-amber-600 bg-amber-50 border-amber-200" },
     { label: "Day streak", value: progress?.streakDays ?? 0, icon: Flame, tone: "text-rose-600 bg-rose-50 border-rose-200" },
     { label: "Badges", value: progress?.badges?.length ?? 0, icon: Award, tone: "text-emerald-600 bg-emerald-50 border-emerald-200" },
-    { label: "Saved signs", value: favouriteCount, icon: Hand, tone: "text-sky-600 bg-sky-50 border-sky-200" },
+    ...(showSignLanguage ? [
+      { label: "Saved signs", value: favouriteCount, icon: Hand, tone: "text-sky-600 bg-sky-50 border-sky-200" },
+    ] : []),
   ];
 
   if (loading) {
@@ -129,40 +135,42 @@ export const VisualDashboardPage: React.FC = () => {
           })}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Link
-            to="/dashboard/visual/sign-language"
-            className="group bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs hover:border-emerald-300 hover:shadow-md transition-all"
-          >
-            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-200 mb-3">
-              <Hand className="w-6 h-6" aria-hidden="true" />
-            </div>
-            <h2 className="font-bold text-slate-900 flex items-center gap-2">
-              Learn sign language
-              <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all" />
-            </h2>
-            <p className="text-sm text-slate-500 mt-1 leading-relaxed">
-              {SIGNS.length} signs across the alphabet, numbers, greetings, school and feelings —
-              with a searchable dictionary and favourites.
-            </p>
-          </Link>
+        {showSignLanguage && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Link
+              to="/dashboard/visual/sign-language"
+              className="group bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs hover:border-emerald-300 hover:shadow-md transition-all"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-200 mb-3">
+                <Hand className="w-6 h-6" aria-hidden="true" />
+              </div>
+              <h2 className="font-bold text-slate-900 flex items-center gap-2">
+                Learn sign language
+                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all" />
+              </h2>
+              <p className="text-sm text-slate-500 mt-1 leading-relaxed">
+                {SIGNS.length} signs across the alphabet, numbers, greetings, school and feelings —
+                with a searchable dictionary and favourites.
+              </p>
+            </Link>
 
-          <Link
-            to="/dashboard/visual/sign-quiz"
-            className="group bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs hover:border-emerald-300 hover:shadow-md transition-all"
-          >
-            <div className="w-12 h-12 rounded-2xl bg-sky-50 text-sky-700 flex items-center justify-center border border-sky-200 mb-3">
-              <ClipboardList className="w-6 h-6" aria-hidden="true" />
-            </div>
-            <h2 className="font-bold text-slate-900 flex items-center gap-2">
-              Practice quiz
-              <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all" />
-            </h2>
-            <p className="text-sm text-slate-500 mt-1 leading-relaxed">
-              Test what you've learned. Fully visual, with instant written feedback on every answer.
-            </p>
-          </Link>
-        </div>
+            <Link
+              to="/dashboard/visual/sign-quiz"
+              className="group bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs hover:border-emerald-300 hover:shadow-md transition-all"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-sky-50 text-sky-700 flex items-center justify-center border border-sky-200 mb-3">
+                <ClipboardList className="w-6 h-6" aria-hidden="true" />
+              </div>
+              <h2 className="font-bold text-slate-900 flex items-center gap-2">
+                Practice quiz
+                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all" />
+              </h2>
+              <p className="text-sm text-slate-500 mt-1 leading-relaxed">
+                Test what you've learned. Fully visual, with instant written feedback on every answer.
+              </p>
+            </Link>
+          </div>
+        )}
 
         <AiAssistantPanel />
       </motion.div>
