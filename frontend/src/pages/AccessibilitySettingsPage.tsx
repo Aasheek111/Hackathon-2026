@@ -17,6 +17,7 @@ import DashboardShell, { NavItem } from "../components/DashboardShell";
 import { useAuth } from "../contexts/AuthContext";
 import { useAccessibility, FontSize } from "../contexts/AccessibilityContext";
 import { DISABILITY_PROFILES } from "../data/disabilityProfiles";
+import { usePageAudio } from "../contexts/AudioNavigationContext";
 
 const FONT_SIZE_OPTIONS: { value: FontSize; label: string; sample: string }[] = [
   { value: "SMALL", label: "Small", sample: "text-sm" },
@@ -68,10 +69,21 @@ export const AccessibilitySettingsPage: React.FC = () => {
   const { prefs, updatePrefs, loading } = useAccessibility();
   const [savingProfile, setSavingProfile] = React.useState(false);
 
+  usePageAudio("Accessibility Settings", () =>
+    `Change how Pragya works for you. Your accessibility profile is ${user?.disabilityType ?? "not set"}. ` +
+    `Text size is ${prefs.fontSize.toLowerCase()}. ` +
+    `High contrast is ${prefs.highContrast ? "on" : "off"}. ` +
+    `Always narrate is ${prefs.alwaysNarrate ? "on" : "off"}. ` +
+    `Audiobook mode is ${prefs.audiobookMode ? "on" : "off"}. ` +
+    `Sign language mode is ${prefs.signLanguage ? "on" : "off"}. ` +
+    `Reduced motion is ${prefs.reducedMotion ? "on" : "off"}.`
+  );
+
   const navItems: NavItem[] = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
     { icon: BookOpen, label: "My Classroom", path: "/classroom" },
     { icon: TrendingUp, label: "My Progress", path: "/progress" },
+    { icon: Hand, label: "Sign Practice", path: "/practice/signs" },
     { icon: SettingsIcon, label: "Settings", path: "/settings", active: true },
   ];
 

@@ -16,6 +16,7 @@ import {
   Loader2,
   ArrowRight,
   Settings as SettingsIcon,
+  Hand,
 } from "lucide-react";
 import {
   AreaChart,
@@ -28,6 +29,7 @@ import {
 } from "recharts";
 import DashboardShell, { NavItem } from "../components/DashboardShell";
 import api from "../lib/api";
+import { usePageAudio } from "../contexts/AudioNavigationContext";
 
 interface Attempt {
   id: string;
@@ -91,6 +93,16 @@ export const DashboardPage: React.FC = () => {
     return () => window.removeEventListener("focus", load);
   }, []);
 
+  usePageAudio("Dashboard", () => {
+    const latest = history[0];
+    return (
+      `Your learning dashboard. ` +
+      (progress ? `${progress.xp} experience points, a ${progress.streakDays} day streak, and ${progress.badges?.length ?? 0} badges. ` : "") +
+      (latest ? `Your most recent assessment scored ${Math.round(latest.scorePercent)} percent, and you engaged best in ${latest.preferredMode} mode. ` : "You have not taken an assessment yet. ") +
+      `Use the menu to open your classroom, your progress, the adaptive quiz, sign practice, or settings.`
+    );
+  });
+
   const navItems: NavItem[] = [
     {
       icon: LayoutDashboard,
@@ -102,6 +114,7 @@ export const DashboardPage: React.FC = () => {
     { icon: BookOpen, label: "My Classroom", path: "/classroom" },
     { icon: TrendingUp, label: "My Progress", path: "/progress" },
     { icon: Gamepad2, label: "AR Game", path: "/ar-game" },
+    { icon: Hand, label: "Sign Practice", path: "/practice/signs" },
     { icon: SettingsIcon, label: "Settings", path: "/settings" },
   ];
 

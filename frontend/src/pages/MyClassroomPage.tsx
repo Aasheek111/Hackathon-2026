@@ -12,9 +12,11 @@ import {
   FileText,
   Video,
   Settings as SettingsIcon,
+  Hand,
 } from "lucide-react";
 import DashboardShell, { NavItem } from "../components/DashboardShell";
 import api from "../lib/api";
+import { usePageAudio } from "../contexts/AudioNavigationContext";
 
 interface Unit {
   id: string;
@@ -55,10 +57,18 @@ export const MyClassroomPage: React.FC = () => {
     return () => window.removeEventListener("focus", load);
   }, []);
 
+  usePageAudio("My Classroom", () => {
+    if (!classroom) return "You are not enrolled in a classroom yet.";
+    const subjectCount = classroom.subjects?.length ?? 0;
+    const unitCount = classroom.subjects?.reduce((n: number, s: any) => n + (s.units?.length ?? 0), 0) ?? 0;
+    return `${classroom.name}. ${subjectCount} subjects containing ${unitCount} units. Open a unit to start its lessons.`;
+  });
+
   const navItems: NavItem[] = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
     { icon: BookOpen, label: "My Classroom", path: "/classroom", active: true },
     { icon: TrendingUp, label: "My Progress", path: "/progress" },
+    { icon: Hand, label: "Sign Practice", path: "/practice/signs" },
     { icon: SettingsIcon, label: "Settings", path: "/settings" },
   ];
 

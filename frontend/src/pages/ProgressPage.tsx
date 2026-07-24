@@ -14,6 +14,7 @@ import {
   RefreshCw,
   ArrowRight,
   Settings as SettingsIcon,
+  Hand,
 } from "lucide-react";
 import {
   LineChart,
@@ -26,6 +27,7 @@ import {
 } from "recharts";
 import DashboardShell, { NavItem } from "../components/DashboardShell";
 import api from "../lib/api";
+import { usePageAudio } from "../contexts/AudioNavigationContext";
 
 interface Attempt {
   id: string;
@@ -114,10 +116,19 @@ export const ProgressPage: React.FC = () => {
       .finally(() => setLoading(false));
   }, []);
 
+  usePageAudio("My Progress", () => {
+    const parts: string[] = [];
+    if (progress) parts.push(`${progress.xp} experience points, a ${progress.streakDays} day streak, and ${progress.badges?.length ?? 0} badges.`);
+    if (report?.overall !== null && report?.overall !== undefined) parts.push(`Your overall mark is ${report.overall} percent, grade ${report.overallGrade}.`);
+    if (report?.pattern?.bestMode) parts.push(`You learn best in ${report.pattern.bestMode} mode.`);
+    return parts.length ? parts.join(" ") : "Your progress will appear here once you complete some work.";
+  });
+
   const navItems: NavItem[] = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
     { icon: BookOpen, label: "My Classroom", path: "/classroom" },
     { icon: TrendingUp, label: "My Progress", path: "/progress", active: true },
+    { icon: Hand, label: "Sign Practice", path: "/practice/signs" },
     { icon: SettingsIcon, label: "Settings", path: "/settings" },
   ];
 

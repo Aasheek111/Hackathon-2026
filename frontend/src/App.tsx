@@ -29,7 +29,9 @@ import AudioQuizPage from './pages/audio/AudioQuizPage';
 import VisualDashboardPage from './pages/visual/VisualDashboardPage';
 import SignLanguagePage from './pages/visual/SignLanguagePage';
 import SignQuizPage from './pages/visual/SignQuizPage';
+import SignPracticePage from './pages/practice/SignPracticePage';
 import LoadingSpinner from './components/ui/LoadingSpinner';
+import AudioControlBar from './components/AudioControlBar';
 import { homePathFor } from './lib/homePath';
 
 const ProtectedRoute = ({
@@ -82,8 +84,14 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FAF9F5] text-slate-800 font-sans selection:bg-emerald-100 selection:text-emerald-900">
+      {/* FIRST in the DOM on purpose - see AudioControlBar. One Tab press from
+          anywhere in the app lands on "Read this screen", which is what makes
+          the whole thing usable without sight. It renders pinned to the
+          bottom, so the visual order is unaffected. */}
+      <AudioControlBar />
+
       {showNavbar && <Navbar />}
-      
+
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>
           <Route path="/" element={token && user ? <Navigate to={homePath} replace /> : <LandingPage />} />
@@ -128,6 +136,11 @@ const App: React.FC = () => {
           <Route path="/dashboard/visual" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><VisualDashboardPage /></ProtectedRoute>} />
           <Route path="/dashboard/visual/sign-language" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><SignLanguagePage /></ProtectedRoute>} />
           <Route path="/dashboard/visual/sign-quiz" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><SignQuizPage /></ProtectedRoute>} />
+
+          {/* Sign practice is deliberately NOT under /dashboard/visual - it's
+              for every learner, not only deaf ones. A hearing classmate who
+              can fingerspell is worth more than any feature we ship. */}
+          <Route path="/practice/signs" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><SignPracticePage /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AnimatePresence>
