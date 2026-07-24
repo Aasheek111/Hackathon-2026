@@ -1,4 +1,4 @@
-# 🧠 NeuroLearn — Adaptive Learning Platform
+# Pragya — Adaptive Learning Platform
 
 > An adaptive learning platform that personalizes education for autistic students by identifying the learning mode that best maintains engagement.
 
