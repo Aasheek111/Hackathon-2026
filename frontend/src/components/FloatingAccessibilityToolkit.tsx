@@ -5,11 +5,12 @@ import {
   Type,
   Contrast,
   Languages,
+  Palette,
   X,
   RotateCcw,
   Sparkles,
 } from "lucide-react";
-import { useAccessibility, FontSize } from "../contexts/AccessibilityContext";
+import { useAccessibility, FontSize, AppTheme } from "../contexts/AccessibilityContext";
 import LanguageToggle from "./LanguageToggle";
 
 export const FloatingAccessibilityToolkit: React.FC = () => {
@@ -21,6 +22,14 @@ export const FloatingAccessibilityToolkit: React.FC = () => {
     { value: "MEDIUM", label: "Med", tag: "A" },
     { value: "LARGE", label: "Large", tag: "A+" },
     { value: "XLARGE", label: "XL", tag: "A++" },
+  ];
+
+  const themes: { value: AppTheme; label: string; sub: string; dot: string }[] = [
+    { value: "DEFAULT", label: "Default Warm", sub: "Standard light emerald", dot: "bg-emerald-500" },
+    { value: "DYSLEXIA", label: "Dyslexia Friendly", sub: "Warm cream & high readability", dot: "bg-amber-300 border border-amber-500" },
+    { value: "ADHD", label: "ADHD Focus", sub: "Calm dark slate, low distraction", dot: "bg-slate-800 border border-slate-600" },
+    { value: "SENSORY", label: "Sensory / Autism", sub: "Soft pastel sage green", dot: "bg-emerald-200 border border-emerald-400" },
+    { value: "DARK_CONTRAST", label: "Low Vision Dark", sub: "Dark mode with yellow text", dot: "bg-amber-400 border border-black" },
   ];
 
   return (
@@ -65,12 +74,15 @@ export const FloatingAccessibilityToolkit: React.FC = () => {
                 {/* Header */}
                 <div className="bg-[#FAF9F5] border-b border-slate-200/80 p-5 text-slate-900 flex items-center justify-between sticky top-0 z-10">
                   <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center justify-center shrink-0">
+                      <Sparkles className="w-4.5 h-4.5" />
+                    </div>
                     <div>
                       <h2 className="font-bold text-base leading-tight text-slate-900 font-display">
                         Accessibility Controls
                       </h2>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        Font size, contrast & language settings
+                        Themes, font size & language
                       </p>
                     </div>
                   </div>
@@ -84,7 +96,47 @@ export const FloatingAccessibilityToolkit: React.FC = () => {
 
                 {/* Body Content */}
                 <div className="p-5 space-y-6">
-                  {/* 1. Font Size Selector */}
+                  {/* 1. Disability Theme Selector */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <Palette className="w-4 h-4 text-emerald-600" />
+                      <span>Disability Color Themes</span>
+                    </label>
+                    <div className="space-y-1.5">
+                      {themes.map((t) => {
+                        const active = (prefs.appTheme || "DEFAULT") === t.value;
+                        return (
+                          <button
+                            key={t.value}
+                            type="button"
+                            onClick={() => updatePrefs({ appTheme: t.value })}
+                            className={`w-full text-left p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                              active
+                                ? "bg-emerald-50 border-2 border-emerald-500 shadow-xs"
+                                : "bg-[#FAF9F5] border-slate-200 hover:border-slate-300"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <span className={`w-3.5 h-3.5 rounded-full ${t.dot} shrink-0`} />
+                              <div>
+                                <p className={`text-xs font-bold ${active ? "text-emerald-900" : "text-slate-900"}`}>
+                                  {t.label}
+                                </p>
+                                <p className="text-[10px] text-slate-500 leading-tight mt-0.5">{t.sub}</p>
+                              </div>
+                            </div>
+                            {active && (
+                              <span className="text-[9px] font-bold uppercase tracking-wider bg-emerald-500 text-white px-2 py-0.5 rounded-full shrink-0">
+                                Active
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 2. Font Size Selector */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                       <Type className="w-4 h-4 text-emerald-600" />
@@ -97,9 +149,7 @@ export const FloatingAccessibilityToolkit: React.FC = () => {
                           <button
                             key={item.value}
                             type="button"
-                            onClick={() =>
-                              updatePrefs({ fontSize: item.value })
-                            }
+                            onClick={() => updatePrefs({ fontSize: item.value })}
                             className={`py-2 rounded-xl text-xs transition-all cursor-pointer text-center ${
                               active
                                 ? "bg-emerald-50 text-emerald-900 font-bold border-2 border-emerald-500 shadow-xs"
@@ -118,7 +168,7 @@ export const FloatingAccessibilityToolkit: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* 2. High Contrast Mode Toggle */}
+                  {/* 3. High Contrast Mode Toggle */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                       <Contrast className="w-4 h-4 text-emerald-600" />
@@ -160,7 +210,7 @@ export const FloatingAccessibilityToolkit: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* 3. Language Translation */}
+                  {/* 4. Language Translation */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                       <Languages className="w-4 h-4 text-emerald-600" />
