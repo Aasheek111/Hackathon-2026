@@ -1013,6 +1013,94 @@ def generate_final_assessment(lesson_titles: list[str], grade_level: str | None 
     return questions
 
 
+# --- storybook mode -------------------------------------------------------------
+#
+# A 5th presentation mode alongside TEXT/AUDIO/VISUAL/AR: the unit's own
+# content retold as a short illustrated story, grounded in the SAME whole-
+# document chunk set plan_curriculum() uses (not a free-text "theme" - unlike
+# the standalone storybook prototype this was adapted from, there is no user
+# input here beyond the unit itself). Generated once per curriculum and
+# cached, same discipline as everything else in this file.
+
+STORYBOOK_SYSTEM_PROMPT = (
+    "You are a children's book author adapting a real lesson's content into a short, "
+    "engaging story - not inventing a new topic, retelling THIS one. Below is a "
+    "curriculum's actual content (a title and its lessons). Turn it into a 5-page "
+    "illustrated story that teaches the same ideas through a narrative.\n\n"
+    "Return JSON: {\"title\": <a fun story title related to the lesson content>, "
+    "\"pages\": [{\"page_number\": <1-5>, \"story_text\": <2-3 short sentences>, "
+    "\"image_prompt\": <a vivid, standalone scene description for THIS page, matching "
+    "the story_text - subject, action, setting>}]}.\n\n"
+    "Rules:\n"
+    "- Return EXACTLY 5 pages, forming a complete arc (beginning, middle, climax, "
+    "resolution, satisfying ending) - not just 5 disconnected facts restated.\n"
+    "- Every page must stay grounded in the real content provided - characters and "
+    "events can be invented to make it a story, but the actual concept being taught "
+    "must be accurate to the source material, never replaced with something unrelated.\n"
+    "- Keep story_text short, warm, and age-appropriate; no scary or violent content.\n"
+    "- image_prompt must describe a concrete, paintable scene - never an abstract idea.\n"
+    "Return only the JSON object, no commentary."
+)
+
+
+def _offline_storybook_pages(chunks: list[dict]) -> list[dict]:
+    """No-key fallback: extractive, same honesty contract as offline_tutorial -
+    real sentences from the document, clearly not a narrative, rather than
+    fabricating a story with no model to write it.
+    """
+    texts = [c["text"] for c in chunks if c["text"].strip()][:5] or ["No content was found for this unit."]
+    pages = []
+    for i, text in enumerate(texts):
+        sentences = [s for s in re.split(r"(?<=[.!?])\s+", text.strip()) if s]
+        pages.append(
+            {
+                "page_number": i + 1,
+                "story_text": " ".join(sentences[:2]) or text[:200],
+                "image_prompt": (sentences[0] if sentences else text)[:120],
+            }
+        )
+    return pages
+
+
+def generate_storybook_pages(unit_id: int, curriculum_title: str, grade_level: str | None = None) -> dict:
+    """One LLM call over the whole unit's content, producing a 5-page story
+    grounded in it. Mirrors plan_curriculum's whole-document approach rather
+    than generate_tutorial's top-K retrieval, since a story should be able to
+    draw on any part of the unit, not just the most-similar chunk to a query.
+    """
+    chunks = all_chunks(unit_id)
+    if not chunks:
+        raise ValueError("No content found for this unit")
+
+    if not any_llm_configured():
+        return {"title": curriculum_title, "pages": _offline_storybook_pages(chunks), "offline": True}
+
+    numbered = "\n\n".join(f"[chunk {c['position']}] {c['text']}" for c in chunks)
+    user_prompt = f"Curriculum title: {curriculum_title}\n\nContent:\n{numbered}\n\nReturn only the JSON object."
+    data = _coerce_json(invoke_json(grade_prefix(grade_level) + STORYBOOK_SYSTEM_PROMPT, user_prompt))
+
+    pages = []
+    for item in (data.get("pages") or [])[:5]:
+        if not isinstance(item, dict):
+            continue
+        story_text = str(item.get("story_text", "")).strip()
+        if not story_text:
+            continue
+        pages.append(
+            {
+                "page_number": len(pages) + 1,  # re-numbered sequentially - never trust the model's own count blindly
+                "story_text": story_text,
+                "image_prompt": str(item.get("image_prompt", "")).strip() or story_text[:120],
+            }
+        )
+
+    if not pages:
+        # The model returned nothing usable - fall back rather than persist an empty storybook.
+        pages = _offline_storybook_pages(chunks)
+
+    return {"title": str(data.get("title") or curriculum_title), "pages": pages, "offline": False}
+
+
 # --- text-to-speech -----------------------------------------------------------
 #
 # Verified live during implementation (Docker exec against the real API):

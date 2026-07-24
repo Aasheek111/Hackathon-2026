@@ -24,6 +24,7 @@ from .models import (
     GenerateCurriculumRequest,
     GenerateSpeechRequest,
     GenerateSpeechResponse,
+    GenerateStorybookRequest,
     GenerateVisualRequest,
     GenerateYoutubeQuizRequest,
     HealthResponse,
@@ -32,7 +33,7 @@ from .models import (
     TutorialRequest,
     TutorialResponse,
 )
-from .tasks import generate_curriculum, generate_youtube_quiz, ping
+from .tasks import generate_curriculum, generate_storybook, generate_youtube_quiz, ping
 
 router = APIRouter()
 
@@ -158,6 +159,21 @@ def generate_curriculum_endpoint(request: GenerateCurriculumRequest) -> dict:
         raise HTTPException(status_code=404, detail="Unit not processed yet")
 
     task = generate_curriculum.delay(request.job_id, request.unit_id, request.grade_level)
+    return {"status": "queued", "celery_task_id": task.id}
+
+
+@router.post("/generate-storybook", tags=["generate"])
+def generate_storybook_endpoint(request: GenerateStorybookRequest) -> dict:
+    """Enqueues the 5-page storybook generation (one text call + up to 5
+    image generations) and returns immediately, same fire-and-forget pattern
+    as /generate-curriculum.
+    """
+    if not engine.unit_is_processed(request.unit_id):
+        raise HTTPException(status_code=404, detail="Unit not processed yet")
+
+    task = generate_storybook.delay(
+        request.storybook_id, request.unit_id, request.curriculum_title, request.grade_level
+    )
     return {"status": "queued", "celery_task_id": task.id}
 
 
