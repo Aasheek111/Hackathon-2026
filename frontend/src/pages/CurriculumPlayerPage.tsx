@@ -19,7 +19,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import Button from "../components/ui/Button";
-import api from "../lib/api";
+import api, { resolveMediaUrl } from "../lib/api";
 import {
   useConcentrationTracking,
   hasCameraConsent,
