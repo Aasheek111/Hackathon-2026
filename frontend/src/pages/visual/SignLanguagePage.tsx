@@ -27,6 +27,7 @@ import {
   searchSigns,
 } from "../../data/signLanguage";
 import useSignFavourites from "../../hooks/useSignFavourites";
+import { NSL_SOURCES, NSL_UNDOCUMENTED, NSL_DOCUMENTED_COUNT } from "../../data/nepaliSignLanguage";
 
 /**
  * Sign language learning + dictionary for the deaf dashboard.
@@ -84,7 +85,11 @@ const SignCard: React.FC<{
           className="w-full rounded-lg my-2 bg-slate-100"
         />
       )}
-      <p className="text-xs text-slate-600 leading-relaxed mt-0.5">{sign.description}</p>
+      {sign.description === NSL_UNDOCUMENTED ? (
+        <p className="text-xs text-amber-800 italic leading-relaxed mt-0.5">{sign.description}</p>
+      ) : (
+        <p className="text-xs text-slate-600 leading-relaxed mt-0.5">{sign.description}</p>
+      )}
       {sign.tip && <p className="text-[11px] text-emerald-800 bg-emerald-50 rounded-lg px-2 py-1 mt-1.5">💡 {sign.tip}</p>}
     </div>
   </li>
@@ -164,17 +169,50 @@ export const SignLanguagePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Being straight with the learner about what these cards are. */}
+        {/* Being straight with the learner about what these cards are.
+            Each language gets its own honest caveat - they are different. */}
         <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
           <Info className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" aria-hidden="true" />
-          <p className="text-xs text-amber-900 leading-relaxed">
-            Letters and numbers show a <strong>schematic hand diagram</strong> — which fingers are up,
-            curled or folded — alongside a written description. They are drawn from the standard ASL
-            manual alphabet, <strong>not photos or video</strong>, and cannot show movement, wrist
-            angle, or facial expression, which are all real parts of signing. Words with movement
-            show the description only. For live practice, work with a qualified ASL tutor or a Deaf
-            mentor.
-          </p>
+          {systemId === "ASL" ? (
+            <p className="text-xs text-amber-900 leading-relaxed">
+              Letters and numbers show a <strong>schematic hand diagram</strong> — which fingers are up,
+              curled or folded — alongside a written description. They are drawn from the standard ASL
+              manual alphabet, <strong>not photos or video</strong>, and cannot show movement, wrist
+              angle, or facial expression, which are all real parts of signing. Words with movement
+              show the description only. For live practice, work with a qualified ASL tutor or a Deaf
+              mentor.
+            </p>
+          ) : (
+            <div className="text-xs text-amber-900 leading-relaxed">
+              <p>
+                This is the <strong>full Nepali manual alphabet</strong> — every vowel, consonant and
+                numeral it fingerspells. The character list is sourced, but only{" "}
+                <strong>{NSL_DOCUMENTED_COUNT} of {visible.length || "the"} handshapes</strong> are
+                documented here.
+              </p>
+              <p className="mt-1.5">
+                NSL handshapes are <strong>indigenous</strong> — apart from अ, ब, म and र they are not
+                derived from ASL, so they cannot be inferred from it. Rather than invent the rest and
+                risk teaching a deaf child a wrong sign, undocumented characters say so. To learn them
+                properly, use:
+              </p>
+              <ul className="mt-1.5 space-y-0.5 list-disc list-inside">
+                {NSL_SOURCES.map((src) => (
+                  <li key={src.label}>
+                    <a
+                      href={src.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-bold underline hover:text-amber-950"
+                    >
+                      {src.label}
+                    </a>{" "}
+                    — {src.detail}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         {/* An honest empty state beats a fabricated catalogue. */}
