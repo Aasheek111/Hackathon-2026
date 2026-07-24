@@ -278,6 +278,7 @@ export const CurriculumPlayerPage: React.FC = () => {
   const [finalScore, setFinalScore] = useState<{ scoreCorrect: number; scoreTotal: number } | null>(null);
   const [newBadges, setNewBadges] = useState<Array<{ name: string }>>([]);
   const [personalization, setPersonalization] = useState<Personalization | null>(null);
+  const [isPreview, setIsPreview] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -288,6 +289,7 @@ export const CurriculumPlayerPage: React.FC = () => {
         setCurriculum(data.curriculum);
         setProgress(data.progress);
         setPersonalization(data.personalization || null);
+        setIsPreview(!!data.preview);
         const resumeIndex = Math.min(
           Math.max(data.progress?.currentLessonOrder ?? 0, 0),
           Math.max(data.curriculum.lessons.length - 1, 0)
@@ -305,6 +307,7 @@ export const CurriculumPlayerPage: React.FC = () => {
 
   const saveProgress = useCallback(
     (nextIndex: number, completed?: boolean) => {
+      if (isPreview) return; // a teacher previewing isn't "a student progressing"
       api
         .patch(`/units/${unitId}/curriculum/progress`, { currentLessonOrder: nextIndex, completed })
         .then(({ data }) => {
@@ -315,7 +318,7 @@ export const CurriculumPlayerPage: React.FC = () => {
              student re-reads this lesson next visit, never blocks navigation */
         });
     },
-    [unitId]
+    [unitId, isPreview]
   );
 
   const goTo = (index: number) => {
@@ -328,7 +331,9 @@ export const CurriculumPlayerPage: React.FC = () => {
 
   const finishCurriculum = () => {
     if (!curriculum) return;
-    if (curriculum.finalAssessmentQuestions.length > 0) {
+    if (isPreview) {
+      setView('complete');
+    } else if (curriculum.finalAssessmentQuestions.length > 0) {
       setView('final-assessment');
     } else {
       saveProgress(lessonIndex, true);
@@ -376,8 +381,14 @@ export const CurriculumPlayerPage: React.FC = () => {
           className="glass-strong max-w-md w-full p-10 rounded-3xl text-center"
         >
           <Trophy className="w-12 h-12 text-accent mx-auto mb-4" />
-          <h1 className="text-2xl font-display font-bold mb-2">Coursework complete!</h1>
+          <h1 className="text-2xl font-display font-bold mb-2">{isPreview ? 'End of preview' : 'Coursework complete!'}</h1>
           <p className="text-gray-400 mb-2">{curriculum.title}</p>
+          {isPreview && (
+            <p className="text-sm text-gray-500 mb-4">
+              This is what a student sees after finishing every lesson - knowledge checks and the final
+              assessment aren't shown here since you're viewing as the teacher.
+            </p>
+          )}
           {finalScore && (
             <p className="text-lg font-bold mb-4">
               Score: {finalScore.scoreCorrect} / {finalScore.scoreTotal}
@@ -389,7 +400,9 @@ export const CurriculumPlayerPage: React.FC = () => {
           <div className="w-full h-2 bg-dark-card rounded-full overflow-hidden mb-6">
             <div className="h-full bg-gradient-to-r from-primary to-primary-light" style={{ width: '100%' }} />
           </div>
-          <Button onClick={() => navigate('/classroom')} className="w-full">Back to classroom</Button>
+          <Button onClick={() => navigate(isPreview ? '/teacher' : '/classroom')} className="w-full">
+            {isPreview ? 'Back to dashboard' : 'Back to classroom'}
+          </Button>
         </motion.div>
       </div>
     );
@@ -495,7 +508,13 @@ export const CurriculumPlayerPage: React.FC = () => {
 
         <SelectionListenButton containerRef={lessonContentRef} onListen={speak} />
 
-        <KnowledgeCheckCard unitId={unitId as string} lesson={lesson} />
+        {!isPreview && <KnowledgeCheckCard unitId={unitId as string} lesson={lesson} />}
+        {isPreview && lesson.knowledgeCheck && (
+          <div className="glass p-6 rounded-2xl mb-6 opacity-70">
+            <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">Quick check (student view only)</p>
+            <p className="font-medium">{lesson.knowledgeCheck.question}</p>
+          </div>
+        )}
 
         <div className="flex items-center justify-between gap-3">
           <Button variant="ghost" onClick={() => goTo(lessonIndex - 1)} disabled={onFirstLesson} className="gap-2">
@@ -503,7 +522,7 @@ export const CurriculumPlayerPage: React.FC = () => {
           </Button>
           {onLastLesson ? (
             <Button onClick={finishCurriculum} className="gap-2">
-              <Sparkles className="w-4 h-4" /> Finish curriculum
+              <Sparkles className="w-4 h-4" /> {isPreview ? 'End preview' : 'Finish curriculum'}
             </Button>
           ) : (
             <Button onClick={() => goTo(lessonIndex + 1)} className="gap-2">

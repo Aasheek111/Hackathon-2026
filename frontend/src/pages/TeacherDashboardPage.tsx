@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Users, BookOpen, ClipboardCheck, Settings, Clock, Check, X,
-  Plus, Upload, FileText, Loader2, AlertCircle, Bell, Video, Sparkles
+  Plus, Upload, FileText, Loader2, AlertCircle, Bell, Video, Sparkles, Eye,
+  RefreshCw, Image as ImageIcon
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import DashboardShell, { NavItem } from '../components/DashboardShell';
@@ -342,7 +344,7 @@ const UnitPreviewBadge: React.FC<{ unitId: string; ready: boolean }> = ({ unitId
   if (preview.status === 'PROCESSING') {
     return (
       <span className="flex items-center gap-1 text-xs text-gray-500">
-        <Loader2 className="w-3 h-3 animate-spin" /> preparing visuals&hellip;
+        <Loader2 className="w-3 h-3 animate-spin" /> on queue - preparing preview&hellip;
       </span>
     );
   }
@@ -356,6 +358,160 @@ const UnitPreviewBadge: React.FC<{ unitId: string; ready: boolean }> = ({ unitId
     );
   }
   return null;
+};
+
+const GENERATION_STAGE_LABELS: Record<string, string> = {
+  QUEUED: 'Queued for generation…',
+  EXTRACTING: 'Reading the document…',
+  PLANNING: 'Organizing topics into lessons…',
+  GENERATING_TEXT: 'Writing lessons…',
+  GENERATING_VISUALS: 'Creating pictures…',
+  GENERATING_QUESTIONS: 'Preparing questions…',
+  FINALIZING: 'Finishing up…'
+};
+
+interface GenerationJob {
+  stage: string;
+  progressPercent: number;
+  errorMessage: string | null;
+}
+
+/**
+ * Real progress for the full-curriculum background job (TODO.md Phases 1-3)
+ * - distinct from UnitPreviewBadge above, which tracks the lighter, older
+ * per-unit preview. Polls only while a job is actually in flight; stops
+ * itself once COMPLETED (the READY status badge already covers that) or
+ * FAILED (shown here with the real error message).
+ */
+const GenerationProgressBadge: React.FC<{ unitId: string; ready: boolean }> = ({ unitId, ready }) => {
+  const [job, setJob] = useState<GenerationJob | null>(null);
+  const [checked, setChecked] = useState(false);
+  const [triggering, setTriggering] = useState(false);
+  const [visualsMessage, setVisualsMessage] = useState('');
+  const [pollKey, setPollKey] = useState(0);
+
+  useEffect(() => {
+    if (!ready) return;
+    let cancelled = false;
+    let interval: ReturnType<typeof setInterval> | null = null;
+
+    const poll = async () => {
+      try {
+        const { data } = await api.get(`/units/${unitId}/generation-job`);
+        if (cancelled) return;
+        setJob(data.job);
+        setChecked(true);
+        if (!data.job || data.job.stage === 'COMPLETED' || data.job.stage === 'FAILED') {
+          if (interval) clearInterval(interval);
+        }
+      } catch {
+        /* silent - badge just won't update this tick */
+      }
+    };
+
+    poll();
+    interval = setInterval(poll, 4000);
+    return () => {
+      cancelled = true;
+      if (interval) clearInterval(interval);
+    };
+    // pollKey deliberately unused in the body - bumping it just restarts this
+    // effect (and therefore the interval) after a manual trigger/retry, since
+    // the previous run may have already stopped polling on COMPLETED/FAILED.
+  }, [unitId, ready, pollKey]);
+
+  const triggerGeneration = async () => {
+    setTriggering(true);
+    try {
+      await api.post(`/units/${unitId}/generate-curriculum`);
+      setJob({ stage: 'QUEUED', progressPercent: 0, errorMessage: null });
+      setPollKey((k) => k + 1);
+    } catch {
+      /* the next poll will reflect whatever actually happened */
+    } finally {
+      setTriggering(false);
+    }
+  };
+
+  const regenerateVisuals = async () => {
+    setVisualsMessage('Queuing new pictures…');
+    try {
+      const { data } = await api.post(`/units/${unitId}/regenerate-visuals`);
+      setVisualsMessage(`Regenerating pictures for ${data.lessonCount} lesson${data.lessonCount === 1 ? '' : 's'}…`);
+    } catch (err: any) {
+      setVisualsMessage(err.response?.data?.error || 'Could not start regeneration');
+    } finally {
+      setTimeout(() => setVisualsMessage(''), 8000);
+    }
+  };
+
+  if (!ready || !checked) return null;
+
+  if (!job) {
+    // Indexed before this pipeline existed (or a job was never queued) -
+    // the source PDF is already indexed, so this can generate from it
+    // directly without re-uploading.
+    return (
+      <button
+        onClick={triggerGeneration}
+        disabled={triggering}
+        className="text-xs text-primary-light hover:text-white flex items-center gap-1 disabled:opacity-60"
+      >
+        {triggering ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+        Generate full lesson plan
+      </button>
+    );
+  }
+
+  if (job.stage === 'COMPLETED') {
+    return (
+      <div className="flex items-center gap-4 flex-wrap">
+        <Link to={`/classroom/units/${unitId}/tutorial`} className="text-xs text-primary-light hover:text-white flex items-center gap-1">
+          <Eye className="w-3.5 h-3.5" /> Preview lessons
+        </Link>
+        <button
+          onClick={triggerGeneration}
+          disabled={triggering}
+          title="Regenerate the entire lesson plan from scratch"
+          className="text-xs text-gray-400 hover:text-white flex items-center gap-1 disabled:opacity-60"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${triggering ? 'animate-spin' : ''}`} /> Regenerate all
+        </button>
+        <button
+          onClick={regenerateVisuals}
+          disabled={!!visualsMessage}
+          title="Regenerate just the pictures - fast, doesn't use the text-generation quota"
+          className="text-xs text-gray-400 hover:text-white flex items-center gap-1 disabled:opacity-60"
+        >
+          <ImageIcon className="w-3.5 h-3.5" /> Regenerate visuals
+        </button>
+        {visualsMessage && <span className="text-xs text-gray-500">{visualsMessage}</span>}
+      </div>
+    );
+  }
+
+  if (job.stage === 'FAILED') {
+    return (
+      <div className="flex items-center gap-3">
+        <span className="text-xs text-red-400">Generation failed: {job.errorMessage}</span>
+        <button onClick={triggerGeneration} disabled={triggering} className="text-xs text-primary-light hover:text-white disabled:opacity-60">
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 text-xs text-gray-400 w-full sm:w-56">
+      <div className="flex-1 h-1.5 bg-dark-card rounded-full overflow-hidden min-w-[4rem]">
+        <div
+          className="h-full bg-primary transition-all duration-500"
+          style={{ width: `${Math.max(job.progressPercent, 4)}%` }}
+        />
+      </div>
+      <span className="whitespace-nowrap">{GENERATION_STAGE_LABELS[job.stage] || job.stage}</span>
+    </div>
+  );
 };
 
 const ContentTab: React.FC<{ classroom: Classroom; onChanged: () => Promise<void> }> = ({ classroom, onChanged }) => {
@@ -441,41 +597,44 @@ const ContentTab: React.FC<{ classroom: Classroom; onChanged: () => Promise<void
 
           <div className="space-y-3">
             {subject.units.map((unit) => (
-              <div key={unit.id} className="bg-dark/50 border border-white/5 rounded-xl p-4 flex items-center justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-3">
-                  <FileText className="w-4 h-4 text-gray-400" />
-                  <span className="font-medium">{unit.title}</span>
-                  {statusBadge(unit.indexStatus)}
-                  <span className="text-xs text-gray-500">{unit._count?.documents || 0} document(s)</span>
-                  <UnitPreviewBadge unitId={unit.id} ready={unit.indexStatus === 'READY'} />
-                </div>
-                {uploadingUnit === unit.id ? (
-                  <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg border border-white/10">
-                    <Loader2 className="w-4 h-4 animate-spin" /> Processing…
-                    <button
-                      type="button"
-                      onClick={() => cancelUpload(unit.id)}
-                      className="text-red-400 hover:text-red-300 font-medium ml-1"
-                    >
-                      Cancel
-                    </button>
+              <div key={unit.id} className="bg-dark/50 border border-white/5 rounded-xl p-4 flex flex-col gap-2">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-3">
+                    <FileText className="w-4 h-4 text-gray-400" />
+                    <span className="font-medium">{unit.title}</span>
+                    {statusBadge(unit.indexStatus)}
+                    <span className="text-xs text-gray-500">{unit._count?.documents || 0} document(s)</span>
+                    <UnitPreviewBadge unitId={unit.id} ready={unit.indexStatus === 'READY'} />
                   </div>
-                ) : (
-                  <label className="cursor-pointer text-xs px-3 py-2 rounded-lg border border-white/10 flex items-center gap-2 hover:border-primary">
-                    <Upload className="w-4 h-4" />
-                    Upload PDF
-                    <input
-                      type="file"
-                      accept="application/pdf"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) uploadDocument(unit.id, file);
-                        e.target.value = '';
-                      }}
-                    />
-                  </label>
-                )}
+                  {uploadingUnit === unit.id ? (
+                    <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg border border-white/10">
+                      <Loader2 className="w-4 h-4 animate-spin" /> Processing…
+                      <button
+                        type="button"
+                        onClick={() => cancelUpload(unit.id)}
+                        className="text-red-400 hover:text-red-300 font-medium ml-1"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="cursor-pointer text-xs px-3 py-2 rounded-lg border border-white/10 flex items-center gap-2 hover:border-primary">
+                      <Upload className="w-4 h-4" />
+                      Upload PDF
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) uploadDocument(unit.id, file);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+                <GenerationProgressBadge unitId={unit.id} ready={unit.indexStatus === 'READY'} />
               </div>
             ))}
           </div>

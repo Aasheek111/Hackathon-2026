@@ -72,7 +72,7 @@ const App: React.FC = () => {
           {/* Student: classroom system */}
           <Route path="/recommendation" element={<ProtectedRoute allowRoles={['STUDENT']}><RecommendationPage /></ProtectedRoute>} />
           <Route path="/classroom" element={<ProtectedRoute allowRoles={['STUDENT']}><MyClassroomPage /></ProtectedRoute>} />
-          <Route path="/classroom/units/:unitId/tutorial" element={<ProtectedRoute allowRoles={['STUDENT']}><TutorialRouter /></ProtectedRoute>} />
+          <Route path="/classroom/units/:unitId/tutorial" element={<ProtectedRoute allowRoles={['STUDENT', 'TEACHER']}><TutorialRouter /></ProtectedRoute>} />
           <Route path="/progress" element={<ProtectedRoute allowRoles={['STUDENT']}><ProgressPage /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

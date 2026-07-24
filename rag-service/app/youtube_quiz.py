@@ -1,17 +1,25 @@
 """YouTube transcript retrieval (via SerpApi) and quiz generation from it.
 
-IMPORTANT VERIFICATION NOTE: SerpApi's transcript engine was checked against
-their own live documentation during implementation (https://serpapi.com/
-youtube-video-api) - engine=`youtube_video_transcript`, params `video_id`
-(required) and `language_code` (optional). Their docs page did not include a
-worked JSON example for the transcript segment shape, and no real
-SERPAPI_API_KEY was available in this environment to exercise a live call.
-`fetch_transcript()` below is therefore written defensively: it tries the
-plausible/documented shapes and raises a RuntimeError naming the ACTUAL
-top-level keys SerpApi returned if none match, rather than silently
-returning an empty or wrong transcript. Confirm against a real response the
-first time this runs with a real key, and adjust the key names below if
-needed - this is flagged, not assumed, per the "do not fake it" instruction.
+VERIFIED LIVE against a real SERPAPI_API_KEY (docker exec against the running
+rag-service). The docs page fetched during initial implementation
+(https://serpapi.com/youtube-video-api) said the transcript engine's video
+parameter was `video_id` - that was WRONG. Confirmed live:
+
+- The main `youtube_video` engine's response includes
+  `transcript.serpapi_link`, e.g.
+  `https://serpapi.com/search.json?engine=youtube_video_transcript&language_code=en&v=dQw4w9WgXcQ`
+  - the parameter is **`v`**, not `video_id`.
+- Calling `engine=youtube_video_transcript` directly with `v` (+ `api_key`,
+  not included in the serpapi_link itself) returns
+  `{"search_metadata": ..., "search_parameters": ..., "transcript": [...]}`
+  where `transcript` is a flat list of
+  `{"start_ms": int, "snippet": str, "start_time_text": str, "start_time_label": str}`.
+
+`fetch_transcript()` uses the confirmed `v` parameter and the confirmed
+`snippet` field, while keeping the other defensive fallbacks (`text`/
+`content`, alternate top-level keys) in case SerpApi's shape varies for a
+video with no transcript, auto-captions disabled, etc. - untested territory
+still gets a clear error naming the actual keys, never a fabricated result.
 """
 
 from __future__ import annotations
