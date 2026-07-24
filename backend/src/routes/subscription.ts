@@ -130,4 +130,40 @@ router.get('/status', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
+router.post('/test-activate', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { plan = 'MONTH_1' } = req.body;
+    const selectedPlan = plans.find(p => p.id === plan) || plans[0];
+    const userId = req.user!.id;
+    const durationDays = selectedPlan.durationDays;
+    const startDate = new Date();
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + durationDays);
+
+    const subscription = await prisma.subscription.upsert({
+      where: { userId },
+      create: {
+        userId,
+        plan: selectedPlan.id as SubscriptionPlan,
+        paymentStatus: PaymentStatus.SUCCESS,
+        paymentMethod: 'eSewa Sandbox',
+        transactionId: `ESEWA-TEST-${crypto.randomUUID().slice(0, 8)}`,
+        startDate,
+        expiryDate
+      },
+      update: {
+        plan: selectedPlan.id as SubscriptionPlan,
+        paymentStatus: PaymentStatus.SUCCESS,
+        paymentMethod: 'eSewa Sandbox',
+        startDate,
+        expiryDate
+      }
+    });
+
+    res.json({ success: true, subscription });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to activate test subscription' });
+  }
+});
+
 export default router;

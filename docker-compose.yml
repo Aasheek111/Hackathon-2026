@@ -24,6 +24,10 @@ services:
       # calling back into /internal/* routes) - not a real external credential,
       # so hardcoded here exactly like JWT_SECRET above.
       INTERNAL_API_SECRET: neurolearn_internal_dev_secret_change_in_production
+      ESEWA_MERCHANT_CODE: EPAYTEST
+      ESEWA_SECRET_KEY: '8gBm/:&EnhH.1/q'
+      ESEWA_SUCCESS_URL: http://localhost:5001/api/subscription/verify
+      ESEWA_FAILURE_URL: http://localhost:5173/subscription?error=payment_failed
     ports:
       - "5001:5000"
     volumes:
