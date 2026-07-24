@@ -18,12 +18,6 @@ interface DashboardShellProps {
   children: React.ReactNode;
 }
 
-/**
- * The sidebar/logout/user-badge chrome that DashboardPage.tsx already
- * established. Pulled out because Teacher, Classroom, Tutorial and Progress
- * pages all need the identical shell around different content - this is the
- * "reuse the existing theme and components" instruction applied literally.
- */
 export const DashboardShell: React.FC<DashboardShellProps> = ({ navItems, children }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -34,32 +28,31 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ navItems, childr
   };
 
   return (
-    <div className="min-h-screen bg-dark flex">
-      <aside className="w-64 glass border-r border-white/5 flex-col hidden md:flex sticky top-0 h-screen">
-        <div className="p-6">
-          <Link to="/" className="flex items-center space-x-2">
-            <span className="text-2xl">🧠</span>
-            <span className="font-display font-bold text-xl tracking-tight gradient-text">NeuroLearn</span>
+    <div className="min-h-screen bg-[#FAF9F5] text-slate-800 flex font-sans selection:bg-emerald-100 selection:text-emerald-900">
+      <aside className="w-64 bg-white border-r border-slate-200/80 flex-col hidden md:flex sticky top-0 h-screen shadow-xs">
+        <div className="p-6 border-b border-slate-100">
+          <Link to="/" className="flex items-center">
+            <img src="/logo.png" alt="Pragya Logo" className="h-11 md:h-12 w-auto object-contain" />
           </Link>
         </div>
 
-        <nav className="flex-1 px-4 py-6 space-y-2">
+        <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
           {navItems.map((item, i) => (
             <button
               key={i}
               onClick={() => (item.onClick ? item.onClick() : navigate(item.path))}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl transition-all font-medium text-sm ${
                 item.active
-                  ? 'bg-primary/20 text-white border border-primary/30'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  ? 'bg-emerald-50 text-emerald-900 font-bold border border-emerald-200 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
               <span className="flex items-center space-x-3">
-                <item.icon className={`w-5 h-5 ${item.active ? 'text-primary' : ''}`} />
-                <span className="font-medium">{item.label}</span>
+                <item.icon className={`w-5 h-5 ${item.active ? 'text-emerald-600' : 'text-slate-400'}`} />
+                <span>{item.label}</span>
               </span>
               {!!item.badge && (
-                <span className="bg-accent text-dark text-[10px] font-bold rounded-full px-1.5 py-0.5">
+                <span className="bg-amber-100 text-amber-800 text-[11px] font-bold rounded-full px-2 py-0.5 border border-amber-200">
                   {item.badge}
                 </span>
               )}
@@ -67,21 +60,21 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ navItems, childr
           ))}
         </nav>
 
-        <div className="p-4 border-t border-white/10">
-          <div className="flex items-center space-x-3 mb-4 px-2">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-bold">
-              {user?.name?.charAt(0) || 'U'}
+        <div className="p-4 border-t border-slate-100 bg-[#FAF9F5]/50">
+          <div className="flex items-center space-x-3 mb-3 px-2">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center border border-emerald-200 shrink-0">
+              {user?.name?.charAt(0).toUpperCase() || 'U'}
             </div>
-            <div>
-              <p className="font-medium text-sm text-white truncate max-w-[120px]">{user?.name || 'User'}</p>
-              <p className="text-xs text-gray-500 truncate max-w-[120px]">{user?.email || ''}</p>
+            <div className="overflow-hidden">
+              <p className="font-bold text-sm text-slate-900 truncate max-w-[130px]">{user?.name || 'User'}</p>
+              <p className="text-xs text-slate-500 truncate max-w-[130px]">{user?.email || ''}</p>
             </div>
           </div>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center space-x-3 px-4 py-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"
+            className="w-full flex items-center space-x-3 px-4 py-2.5 text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-2xl transition-colors font-medium text-sm"
           >
-            <LogOut className="w-5 h-5" />
+            <LogOut className="w-4 h-4" />
             <span>Logout</span>
           </button>
         </div>
@@ -93,3 +86,4 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ navItems, childr
 };
 
 export default DashboardShell;
+
