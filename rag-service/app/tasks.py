@@ -100,7 +100,7 @@ def _update_job(job_id: str, **fields) -> None:
 
 
 @celery_app.task(name="app.tasks.generate_curriculum", bind=True)
-def generate_curriculum(self, job_id: str, unit_id: int) -> None:
+def generate_curriculum(self, job_id: str, unit_id: int, grade_level: str | None = None) -> None:
     """The real pipeline TODO.md Phases 2-4 describe: plan the WHOLE document
     into lessons (count derived from content, not hardcoded), generate each
     lesson's text grounded only in its own chunk range, generate a picture
@@ -118,7 +118,7 @@ def generate_curriculum(self, job_id: str, unit_id: int) -> None:
             return
 
         _update_job(job_id, stage="PLANNING", progressPercent=15)
-        plan = engine.plan_curriculum(unit_id)
+        plan = engine.plan_curriculum(unit_id, grade_level)
         lesson_plans = plan["lessons"]
         total = len(lesson_plans) or 1
 
@@ -128,7 +128,7 @@ def generate_curriculum(self, job_id: str, unit_id: int) -> None:
             if i > 0:
                 time.sleep(LLM_CALL_SPACING_SECONDS)
             content = engine.generate_lesson_content(
-                unit_id, lesson_plan["title"], lesson_plan["chunk_start"], lesson_plan["chunk_end"]
+                unit_id, lesson_plan["title"], lesson_plan["chunk_start"], lesson_plan["chunk_end"], grade_level
             )
             lessons.append({**lesson_plan, **content, "order": i})
             _update_job(job_id, stage="GENERATING_TEXT", progressPercent=30 + int(30 * (i + 1) / total))
@@ -168,7 +168,7 @@ def generate_curriculum(self, job_id: str, unit_id: int) -> None:
 
         _update_job(job_id, stage="GENERATING_QUESTIONS", progressPercent=88)
         time.sleep(LLM_CALL_SPACING_SECONDS)
-        final_questions = engine.generate_final_assessment([l["title"] for l in lessons])
+        final_questions = engine.generate_final_assessment([l["title"] for l in lessons], grade_level)
 
         _update_job(job_id, stage="FINALIZING", progressPercent=95)
         payload = {

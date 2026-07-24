@@ -3,6 +3,7 @@ import axios from 'axios';
 import prisma from '../lib/prisma';
 import { requireAuth, requireRole, requireApprovedTeacher } from '../middleware/auth';
 import { awardXp } from '../lib/progress';
+import { computeMark } from '../lib/marking';
 import { LearningMode } from '@prisma/client';
 
 const router = Router();
@@ -204,6 +205,13 @@ router.get('/:id/analytics', requireApprovedTeacher, async (req: Request, res: R
       const latestFinal = finalAttempts.find((a) => a.studentId === student.id) || null;
       const progress = progresses.find((p) => p.studentId === student.id) || null;
 
+      const mark = computeMark({
+        finalPercent: latestFinal && latestFinal.scoreTotal > 0 ? (latestFinal.scoreCorrect / latestFinal.scoreTotal) * 100 : null,
+        kcAccuracy: myKc.length > 0 ? (kcCorrect / myKc.length) * 100 : null,
+        focus: overallAvgFocus,
+        completed: !!progress?.completed
+      });
+
       return {
         id: student.id,
         name: student.name,
@@ -212,6 +220,8 @@ router.get('/:id/analytics', requireApprovedTeacher, async (req: Request, res: R
         preferredMode: progress?.preferredMode ?? null,
         knowledgeChecks: { correct: kcCorrect, total: myKc.length },
         finalScore: latestFinal ? { correct: latestFinal.scoreCorrect, total: latestFinal.scoreTotal } : null,
+        mark: mark.percent,
+        grade: mark.grade,
         lessons: perLesson,
         overallAvgFocus
       };

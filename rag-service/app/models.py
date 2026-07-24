@@ -23,6 +23,10 @@ class TutorialRequest(BaseModel):
         default="TEXT",
         description="Shapes the output: AUDIO puts the teaching in the narration, VISUAL leads with the diagram.",
     )
+    grade_level: str | None = Field(
+        default=None,
+        description="Admin-set target education level (e.g. 'Nursery', 'Grade 3') - steers vocabulary and examples.",
+    )
 
 
 class QuizItem(BaseModel):
@@ -69,6 +73,10 @@ class GenerateVisualRequest(BaseModel):
 class GenerateCurriculumRequest(BaseModel):
     job_id: str = Field(..., min_length=1, description="The TutorialGenerationJob id to report progress against")
     unit_id: int = Field(..., ge=1, description="Which unit's indexed document to build a curriculum from")
+    grade_level: str | None = Field(
+        default=None,
+        description="Admin-set target education level (e.g. 'Nursery', 'Grade 3') - steers vocabulary and examples.",
+    )
 
 
 class GenerateYoutubeQuizRequest(BaseModel):

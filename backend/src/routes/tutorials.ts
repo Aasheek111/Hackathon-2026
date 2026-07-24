@@ -3,6 +3,7 @@ import axios from 'axios';
 import prisma from '../lib/prisma';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { awardXp } from '../lib/progress';
+import { getGradeLevel } from '../lib/appConfig';
 import { LearningMode } from '@prisma/client';
 
 const router = Router();
@@ -92,12 +93,14 @@ router.get('/:id/tutorial', requireRole('STUDENT'), async (req: Request, res: Re
         )}%. Attention span score: ${latestAttempt.attentionSpanScore.toFixed(0)}%.`
       : undefined;
 
+    const gradeLevel = await getGradeLevel();
     const ragResponse = await axios.post(
       `${RAG_SERVICE_URL}/generate-tutorial`,
       {
         unit_id: unit.ragUnitId,
         student_diagnosis: diagnosis,
-        learning_mode: learningMode
+        learning_mode: learningMode,
+        grade_level: gradeLevel
       },
       { timeout: 60000 }
     );

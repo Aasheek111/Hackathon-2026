@@ -157,7 +157,7 @@ def generate_curriculum_endpoint(request: GenerateCurriculumRequest) -> dict:
     if not engine.unit_is_processed(request.unit_id):
         raise HTTPException(status_code=404, detail="Unit not processed yet")
 
-    task = generate_curriculum.delay(request.job_id, request.unit_id)
+    task = generate_curriculum.delay(request.job_id, request.unit_id, request.grade_level)
     return {"status": "queued", "celery_task_id": task.id}
 
 
@@ -198,7 +198,7 @@ def generate_tutorial(request: TutorialRequest) -> TutorialResponse:
 
     try:
         payload = engine.generate_tutorial(
-            request.unit_id, request.student_diagnosis, request.learning_mode
+            request.unit_id, request.student_diagnosis, request.learning_mode, request.grade_level
         )
     except ValueError as failure:  # the model returned something that was not JSON
         raise HTTPException(

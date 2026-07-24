@@ -6,6 +6,7 @@ import axios from 'axios';
 import FormData from 'form-data';
 import prisma from '../lib/prisma';
 import { requireAuth, requireApprovedTeacher } from '../middleware/auth';
+import { getGradeLevel } from '../lib/appConfig';
 
 const router = Router();
 router.use(requireAuth);
@@ -121,9 +122,10 @@ async function queueCurriculumGeneration(
   });
 
   try {
+    const gradeLevel = await getGradeLevel();
     await axios.post(
       `${RAG_SERVICE_URL}/generate-curriculum`,
-      { job_id: job.id, unit_id: ragUnitId },
+      { job_id: job.id, unit_id: ragUnitId, grade_level: gradeLevel },
       { timeout: 15000 }
     );
   } catch (error: any) {
