@@ -759,8 +759,8 @@ export const CurriculumPlayerPage: React.FC = () => {
                 onClick={() => changeMode(m.key)}
                 className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border transition-all ${
                   active
-                    ? "bg-primary/20 text-primary-light border-primary/50"
-                    : "bg-dark-card text-gray-400 border-white/10 hover:border-white/30 hover:text-white"
+                    ? "bg-primary/30 text-white border-primary shadow-[0_0_12px_rgba(108,61,231,0.35)]"
+                    : "bg-white/5 text-gray-300 border-white/15 hover:border-white/30 hover:bg-white/10 hover:text-white"
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" /> {m.label}
