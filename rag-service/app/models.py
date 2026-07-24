@@ -83,6 +83,16 @@ class GenerateCurriculumRequest(BaseModel):
     )
 
 
+class GenerateStorybookRequest(BaseModel):
+    storybook_id: str = Field(..., min_length=1, description="The TutorialStorybook id to report progress against")
+    unit_id: int = Field(..., ge=1, description="Which unit's indexed document to build the story from")
+    curriculum_title: str = Field(..., min_length=1, description="The curriculum's own title, grounds the story's topic")
+    grade_level: str | None = Field(
+        default=None,
+        description="Admin-set target education level (e.g. 'Nursery', 'Grade 3') - steers vocabulary and tone.",
+    )
+
+
 class GenerateYoutubeQuizRequest(BaseModel):
     quiz_id: str = Field(..., min_length=1, description="The YoutubeQuiz id to report progress against")
     video_id: str = Field(..., min_length=1, description="The extracted YouTube video id")
