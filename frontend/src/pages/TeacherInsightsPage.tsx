@@ -1,7 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, BarChart3, Users, Loader2, ArrowLeft, Activity, Award, Eye, Settings, Video } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Users,
+  Settings,
+  Video,
+  BarChart3,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  ChevronLeft,
+  ArrowLeft,
+  Activity,
+  Award,
+  Eye
+} from 'lucide-react';
+import { getTeacherNavItems } from "../lib/nav";
 import DashboardShell, { NavItem } from '../components/DashboardShell';
 import api from '../lib/api';
 
@@ -80,13 +96,7 @@ function focusColor(focus: number | null): string {
   return `hsl(${hue}, 65%, ${focus > 55 ? 42 : 48}%)`;
 }
 
-const navItems: NavItem[] = [
-  { icon: LayoutDashboard, label: 'Classroom', path: '/teacher' },
-  { icon: Users, label: 'Students', path: '/teacher' },
-  { icon: Settings, label: 'Admission Criteria', path: '/teacher' },
-  { icon: Video, label: 'YouTube Quiz', path: '/teacher' },
-  { icon: BarChart3, label: 'Insights', path: '/teacher/insights', active: true }
-];
+const navItems: NavItem[] = getTeacherNavItems("/teacher/insights");
 
 const StatPill: React.FC<{ label: string; value: string; tone?: string }> = ({ label, value, tone }) => (
   <div className="bg-white border border-slate-200/80 rounded-2xl px-4 py-3 shadow-xs">

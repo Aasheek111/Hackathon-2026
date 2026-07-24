@@ -12,6 +12,7 @@ import {
   Trophy,
   RotateCcw,
 } from "lucide-react";
+import { getStudentNavItems } from "../../lib/nav";
 import DashboardShell, { NavItem } from "../../components/DashboardShell";
 import SignSymbol from "../../components/SignSymbol";
 import { handshapeFor } from "../../data/handshapes";
@@ -71,20 +72,15 @@ function buildQuiz(): SignQuestion[] {
 
 export const SignQuizPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [questions, setQuestions] = useState<SignQuestion[]>(() => buildQuiz());
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [score, setScore] = useState(0);
   const [finished, setFinished] = useState(false);
 
-  const navItems: NavItem[] = [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard/visual" },
-    { icon: Hand, label: "Sign Language", path: "/dashboard/visual/sign-language" },
-    { icon: ClipboardList, label: "Sign Quiz", path: "/dashboard/visual/sign-quiz", active: true },
-    { icon: BookOpen, label: "My Classroom", path: "/classroom" },
-    { icon: TrendingUp, label: "My Progress", path: "/progress" },
-    { icon: SettingsIcon, label: "Settings", path: "/settings" },
-  ];
+  const isDeafUser = user?.disabilityType === "DEAFNESS" || user?.disabilityType === null;
+  const navItems: NavItem[] = getStudentNavItems(isDeafUser, "/dashboard/visual/sign-quiz");
 
   const question = questions[index];
   const correct = selected !== null && selected === question?.sign.id;

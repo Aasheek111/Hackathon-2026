@@ -15,6 +15,7 @@ import {
   ArrowRight,
   Loader2,
 } from "lucide-react";
+import { getStudentNavItems } from "../../lib/nav";
 import DashboardShell, { NavItem } from "../../components/DashboardShell";
 import AiAssistantPanel from "../../components/AiAssistantPanel";
 import { useAuth } from "../../contexts/AuthContext";
@@ -64,16 +65,7 @@ export const VisualDashboardPage: React.FC = () => {
   );
 
   const showSignLanguage = user?.disabilityType === 'DEAFNESS' || user?.disabilityType === null;
-
-  const navItems: NavItem[] = [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard/visual", active: true },
-    ...(showSignLanguage ? [
-      { icon: Hand, label: "Sign Language", path: "/dashboard/visual/sign-language" },
-      { icon: ClipboardList, label: "Sign Quiz", path: "/dashboard/visual/sign-quiz" },
-    ] : []),
-    { icon: BookOpen, label: "My Classroom", path: "/classroom" },
-    { icon: TrendingUp, label: "My Progress", path: "/progress" },
-  ];
+  const navItems: NavItem[] = getStudentNavItems(showSignLanguage, "/dashboard/visual");
 
   const stats = [
     { label: "XP", value: progress?.xp ?? 0, icon: Zap, tone: "text-amber-600 bg-amber-50 border-amber-200" },

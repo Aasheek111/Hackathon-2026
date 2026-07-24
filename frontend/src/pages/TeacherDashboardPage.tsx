@@ -471,7 +471,7 @@ const NotificationBell: React.FC<{ onOpenUnit: (unitId: string) => void }> = ({ 
     setOpen(false);
     if (n.unitId) onOpenUnit(n.unitId);
     if (!n.read) {
-      await api.patch(`/notifications/${n.id}/read`).catch(() => {});
+      await api.patch(`/notifications/${n.id}/read`).catch(() => { });
       load();
     }
   };
@@ -556,7 +556,7 @@ const UnitPreviewBadge: React.FC<{ unitId: string; ready: boolean }> = ({
       .then(({ data }) => {
         if (!cancelled) setPreview(data.preview);
       })
-      .catch(() => {});
+      .catch(() => { });
     return () => {
       cancelled = true;
     };
@@ -901,11 +901,10 @@ const ContentTab: React.FC<{
               <div
                 key={unit.id}
                 ref={(node) => { unitRefs.current[unit.id] = node; }}
-                className={`bg-[#FAF9F5] border rounded-2xl p-4 flex flex-col gap-2 transition-colors duration-500 ${
-                  flashUnitId === unit.id
+                className={`bg-[#FAF9F5] border rounded-2xl p-4 flex flex-col gap-2 transition-colors duration-500 ${flashUnitId === unit.id
                     ? "border-emerald-400 ring-2 ring-emerald-300"
                     : "border-slate-200/70"
-                }`}
+                  }`}
               >
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                   <div className="flex items-center gap-3">
@@ -1002,11 +1001,11 @@ interface YoutubeQuiz {
   id: string;
   sourceUrl: string;
   status:
-    | "QUEUED"
-    | "FETCHING_TRANSCRIPT"
-    | "GENERATING_QUESTIONS"
-    | "READY"
-    | "FAILED";
+  | "QUEUED"
+  | "FETCHING_TRANSCRIPT"
+  | "GENERATING_QUESTIONS"
+  | "READY"
+  | "FAILED";
   errorMessage: string | null;
   title: string | null;
   questions: YoutubeQuizQuestion[];
@@ -1119,19 +1118,18 @@ const YoutubeQuizTab: React.FC<{ classroom: Classroom }> = ({ classroom }) => {
                 </span>
               </div>
               <span
-                className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 ${
-                  quiz.status === "READY"
+                className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 ${quiz.status === "READY"
                     ? "bg-emerald-50 text-emerald-800 border-emerald-200"
                     : quiz.status === "FAILED"
                       ? "bg-rose-50 text-rose-800 border-rose-200"
                       : "bg-amber-50 text-amber-800 border-amber-200"
-                }`}
+                  }`}
               >
                 {(quiz.status === "QUEUED" ||
                   quiz.status === "FETCHING_TRANSCRIPT" ||
                   quiz.status === "GENERATING_QUESTIONS") && (
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                )}
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  )}
                 {YOUTUBE_QUIZ_STATUS_LABEL[quiz.status]}
               </span>
             </div>
@@ -1295,89 +1293,89 @@ const RequestsTab: React.FC<{
 const RosterTab: React.FC<{ classroom: Classroom }> = ({ classroom }) => {
   const navigate = useNavigate();
   return (
-  <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
-    <table className="w-full text-left border-collapse">
-      <thead>
-        <tr className="bg-[#FAF9F5] border-b border-slate-200 text-xs font-bold text-slate-600 uppercase tracking-wider">
-          <th className="p-4">Name</th>
-          <th className="p-4">Latest score</th>
-          <th className="p-4">Attention span</th>
-          <th className="p-4">Preferred mode</th>
-          <th className="p-4">XP</th>
-          <th className="p-4">Streak</th>
-          <th className="p-4">Badges</th>
-          <th className="p-4">Joined</th>
-          <th className="p-4 sr-only">View details</th>
-        </tr>
-      </thead>
-      <tbody className="text-sm">
-        {classroom.enrolments.map((e) => {
-          const attempt = e.student.attempts[0];
-          const progress = e.student.progress;
-          return (
-            <tr
-              key={e.id}
-              onClick={() => navigate(`/teacher/students/${e.student.id}`)}
-              onKeyDown={(ev) => {
-                if (ev.key === "Enter" || ev.key === " ") {
-                  ev.preventDefault();
-                  navigate(`/teacher/students/${e.student.id}`);
-                }
-              }}
-              tabIndex={0}
-              role="link"
-              aria-label={`View full details for ${e.student.name}`}
-              className="border-b border-slate-100 hover:bg-[#FAF9F5] cursor-pointer focus:outline-none focus:bg-emerald-50 focus:ring-2 focus:ring-inset focus:ring-emerald-400"
-            >
-              <td className="p-4">
-                <div className="font-bold text-slate-900">{e.student.name}</div>
-                <div className="text-xs text-slate-500">{e.student.email}</div>
-              </td>
-              <td className="p-4">
-                {attempt ? (
-                  <span
-                    className={`font-bold ${attempt.scorePercent >= 70 ? "text-emerald-700" : attempt.scorePercent >= 40 ? "text-amber-700" : "text-rose-700"}`}
-                  >
-                    {Math.round(attempt.scorePercent)}%
-                  </span>
-                ) : (
-                  <span className="text-slate-400 text-xs">No attempt</span>
-                )}
-              </td>
-              <td className="p-4 text-slate-700 font-medium">
-                {attempt ? `${Math.round(attempt.attentionSpanScore)}%` : "—"}
-              </td>
-              <td className="p-4 text-slate-700 font-medium">
-                {attempt?.preferredMode || "—"}
-              </td>
-              <td className="p-4 text-slate-700 font-medium">
-                {progress?.xp ?? 0}
-              </td>
-              <td className="p-4 text-slate-700 font-medium">
-                {progress?.streakDays ?? 0}d
-              </td>
-              <td className="p-4 text-slate-700 font-medium">
-                {progress?.badges.length ?? 0}
-              </td>
-              <td className="p-4 text-slate-500 text-xs font-medium">
-                {new Date(e.joinedAt).toLocaleDateString()}
-              </td>
-              <td className="p-4 text-right">
-                <ChevronRight className="w-4 h-4 text-slate-300 inline-block" aria-hidden="true" />
+    <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+      <table className="w-full text-left border-collapse">
+        <thead>
+          <tr className="bg-[#FAF9F5] border-b border-slate-200 text-xs font-bold text-slate-600 uppercase tracking-wider">
+            <th className="p-4">Name</th>
+            <th className="p-4">Latest score</th>
+            <th className="p-4">Attention span</th>
+            <th className="p-4">Preferred mode</th>
+            <th className="p-4">XP</th>
+            <th className="p-4">Streak</th>
+            <th className="p-4">Badges</th>
+            <th className="p-4">Joined</th>
+            <th className="p-4 sr-only">View details</th>
+          </tr>
+        </thead>
+        <tbody className="text-sm">
+          {classroom.enrolments.map((e) => {
+            const attempt = e.student.attempts[0];
+            const progress = e.student.progress;
+            return (
+              <tr
+                key={e.id}
+                onClick={() => navigate(`/teacher/students/${e.student.id}`)}
+                onKeyDown={(ev) => {
+                  if (ev.key === "Enter" || ev.key === " ") {
+                    ev.preventDefault();
+                    navigate(`/teacher/students/${e.student.id}`);
+                  }
+                }}
+                tabIndex={0}
+                role="link"
+                aria-label={`View full details for ${e.student.name}`}
+                className="border-b border-slate-100 hover:bg-[#FAF9F5] cursor-pointer focus:outline-none focus:bg-emerald-50 focus:ring-2 focus:ring-inset focus:ring-emerald-400"
+              >
+                <td className="p-4">
+                  <div className="font-bold text-slate-900">{e.student.name}</div>
+                  <div className="text-xs text-slate-500">{e.student.email}</div>
+                </td>
+                <td className="p-4">
+                  {attempt ? (
+                    <span
+                      className={`font-bold ${attempt.scorePercent >= 70 ? "text-emerald-700" : attempt.scorePercent >= 40 ? "text-amber-700" : "text-rose-700"}`}
+                    >
+                      {Math.round(attempt.scorePercent)}%
+                    </span>
+                  ) : (
+                    <span className="text-slate-400 text-xs">No attempt</span>
+                  )}
+                </td>
+                <td className="p-4 text-slate-700 font-medium">
+                  {attempt ? `${Math.round(attempt.attentionSpanScore)}%` : "—"}
+                </td>
+                <td className="p-4 text-slate-700 font-medium">
+                  {attempt?.preferredMode || "—"}
+                </td>
+                <td className="p-4 text-slate-700 font-medium">
+                  {progress?.xp ?? 0}
+                </td>
+                <td className="p-4 text-slate-700 font-medium">
+                  {progress?.streakDays ?? 0}d
+                </td>
+                <td className="p-4 text-slate-700 font-medium">
+                  {progress?.badges.length ?? 0}
+                </td>
+                <td className="p-4 text-slate-500 text-xs font-medium">
+                  {new Date(e.joinedAt).toLocaleDateString()}
+                </td>
+                <td className="p-4 text-right">
+                  <ChevronRight className="w-4 h-4 text-slate-300 inline-block" aria-hidden="true" />
+                </td>
+              </tr>
+            );
+          })}
+          {classroom.enrolments.length === 0 && (
+            <tr>
+              <td colSpan={9} className="p-8 text-center text-slate-400 text-xs">
+                No students enrolled in this classroom yet.
               </td>
             </tr>
-          );
-        })}
-        {classroom.enrolments.length === 0 && (
-          <tr>
-            <td colSpan={9} className="p-8 text-center text-slate-400 text-xs">
-              No students enrolled in this classroom yet.
-            </td>
-          </tr>
-        )}
-      </tbody>
-    </table>
-  </div>
+          )}
+        </tbody>
+      </table>
+    </div>
   );
 };
 
@@ -1393,10 +1391,10 @@ const CriteriaTab: React.FC<{
     maxScorePercent: c.maxScorePercent ?? "",
     preferredModes: (c.preferredModes
       ? JSON.parse(
-          typeof c.preferredModes === "string"
-            ? c.preferredModes
-            : JSON.stringify(c.preferredModes),
-        )
+        typeof c.preferredModes === "string"
+          ? c.preferredModes
+          : JSON.stringify(c.preferredModes),
+      )
       : []) as string[],
     arRecommendedOnly: c.arRecommendedOnly ?? null,
   });

@@ -13,6 +13,7 @@ import {
   Headphones,
   Check,
 } from "lucide-react";
+import { getStudentNavItems } from "../lib/nav";
 import DashboardShell, { NavItem } from "../components/DashboardShell";
 import { useAuth } from "../contexts/AuthContext";
 import { useAccessibility, FontSize } from "../contexts/AccessibilityContext";
@@ -97,17 +98,8 @@ export const AccessibilitySettingsPage: React.FC = () => {
       `Reduced motion is ${prefs.reducedMotion ? "on" : "off"}.`,
   );
 
-  const isDeafUser = user?.disabilityType === "DEAFNESS";
-
-  const navItems: NavItem[] = [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
-    { icon: BookOpen, label: "My Classroom", path: "/classroom" },
-    { icon: TrendingUp, label: "My Progress", path: "/progress" },
-    ...(isDeafUser
-      ? [{ icon: Hand, label: "Sign Practice", path: "/practice/signs" }]
-      : []),
-    { icon: SettingsIcon, label: "Settings", path: "/settings", active: true },
-  ];
+  const isDeafUser = user?.disabilityType === "DEAFNESS" || user?.disabilityType === null;
+  const navItems: NavItem[] = getStudentNavItems(isDeafUser, "/settings");
 
   return (
     <DashboardShell navItems={navItems}>

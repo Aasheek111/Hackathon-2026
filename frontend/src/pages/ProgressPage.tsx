@@ -26,6 +26,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import DashboardShell, { NavItem } from "../components/DashboardShell";
+import { getStudentNavItems } from "../lib/nav";
 import api from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useAccessibility } from "../contexts/AccessibilityContext";
@@ -130,15 +131,7 @@ export const ProgressPage: React.FC = () => {
   const { user } = useAuth();
   const isDeafUser = user?.disabilityType === "DEAFNESS";
 
-  const navItems: NavItem[] = [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
-    { icon: BookOpen, label: "My Classroom", path: "/classroom" },
-    { icon: TrendingUp, label: "My Progress", path: "/progress", active: true },
-    ...(isDeafUser
-      ? [{ icon: Hand, label: "Sign Practice", path: "/practice/signs" }]
-      : []),
-    { icon: SettingsIcon, label: "Settings", path: "/settings" },
-  ];
+  const navItems: NavItem[] = getStudentNavItems(isDeafUser, "/progress");
 
   if (loading) {
     return (

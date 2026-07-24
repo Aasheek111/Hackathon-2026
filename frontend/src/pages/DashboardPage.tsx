@@ -27,6 +27,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { getStudentNavItems } from "../lib/nav";
 import DashboardShell, { NavItem } from "../components/DashboardShell";
 import api from "../lib/api";
 import { usePageAudio } from "../contexts/AudioNavigationContext";
@@ -109,24 +110,8 @@ export const DashboardPage: React.FC = () => {
     );
   });
 
-  const isDeafUser = user?.disabilityType === "DEAFNESS";
-
-  const navItems: NavItem[] = [
-    {
-      icon: LayoutDashboard,
-      label: "Dashboard",
-      path: "/dashboard",
-      active: true,
-    },
-    { icon: Play, label: "Adaptive Quiz", path: "/consent" },
-    { icon: BookOpen, label: "My Classroom", path: "/classroom" },
-    { icon: TrendingUp, label: "My Progress", path: "/progress" },
-    { icon: Gamepad2, label: "AR Game", path: "/ar-game" },
-    ...(isDeafUser
-      ? [{ icon: Hand, label: "Sign Practice", path: "/practice/signs" }]
-      : []),
-    { icon: SettingsIcon, label: "Settings", path: "/settings" },
-  ];
+  const isDeafUser = user?.disabilityType === "DEAFNESS" || user?.disabilityType === null;
+  const navItems: NavItem[] = getStudentNavItems(isDeafUser, "/dashboard");
 
   const latest = history[0];
   const chartData = [...history]

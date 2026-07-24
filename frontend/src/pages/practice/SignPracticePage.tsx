@@ -13,6 +13,7 @@ import {
   Eye,
   Keyboard,
 } from "lucide-react";
+import { getStudentNavItems } from "../../lib/nav";
 import DashboardShell, { NavItem } from "../../components/DashboardShell";
 import SignSymbol from "../../components/SignSymbol";
 import { useAuth } from "../../contexts/AuthContext";
@@ -105,13 +106,8 @@ export const SignPracticePage: React.FC = () => {
         }`,
   );
 
-  const navItems: NavItem[] = [
-    { icon: LayoutDashboard, label: "Dashboard", path: homePathFor(user) },
-    { icon: Hand, label: "Sign Practice", path: "/practice/signs", active: true },
-    { icon: BookOpen, label: "My Classroom", path: "/classroom" },
-    { icon: TrendingUp, label: "My Progress", path: "/progress" },
-    { icon: SettingsIcon, label: "Settings", path: "/settings" },
-  ];
+  const isDeafUserNav = user?.disabilityType === "DEAFNESS" || user?.disabilityType === null;
+  const navItems: NavItem[] = getStudentNavItems(isDeafUserNav, "/practice/signs");
 
   const startQuiz = useCallback(
     (nextDeck: Deck = deck, nextDirection: Direction = direction) => {

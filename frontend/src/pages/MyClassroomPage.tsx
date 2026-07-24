@@ -14,6 +14,7 @@ import {
   Settings as SettingsIcon,
   Hand,
 } from "lucide-react";
+import { getStudentNavItems } from "../lib/nav";
 import DashboardShell, { NavItem } from "../components/DashboardShell";
 import { CustomPlanSubjectCard } from "../components/CustomPlanSubjectCard";
 import api from "../lib/api";
@@ -74,15 +75,7 @@ export const MyClassroomPage: React.FC = () => {
   const { user } = useAuth();
   const isDeafUser = user?.disabilityType === "DEAFNESS";
 
-  const navItems: NavItem[] = [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
-    { icon: BookOpen, label: "My Classroom", path: "/classroom", active: true },
-    { icon: TrendingUp, label: "My Progress", path: "/progress" },
-    ...(isDeafUser
-      ? [{ icon: Hand, label: "Sign Practice", path: "/practice/signs" }]
-      : []),
-    { icon: SettingsIcon, label: "Settings", path: "/settings" },
-  ];
+  const navItems: NavItem[] = getStudentNavItems(isDeafUser, "/classroom");
 
   if (loading) {
     return (

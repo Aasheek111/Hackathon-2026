@@ -12,6 +12,7 @@ import {
   Info,
   ArrowRight,
 } from "lucide-react";
+import { getStudentNavItems } from "../../lib/nav";
 import DashboardShell, { NavItem } from "../../components/DashboardShell";
 import AiAssistantPanel from "../../components/AiAssistantPanel";
 import SignSymbol from "../../components/SignSymbol";
@@ -102,13 +103,8 @@ export const SignLanguagePage: React.FC = () => {
   const [systemId, setSystemId] = useState<SignSystemId>("ASL");
   const system = SIGN_SYSTEMS.find((s) => s.id === systemId)!;
 
-  const navItems: NavItem[] = [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard/visual" },
-    { icon: Hand, label: "Sign Language", path: "/dashboard/visual/sign-language", active: true },
-    { icon: ClipboardList, label: "Sign Quiz", path: "/dashboard/visual/sign-quiz" },
-    { icon: BookOpen, label: "My Classroom", path: "/classroom" },
-    { icon: TrendingUp, label: "My Progress", path: "/progress" },
-  ];
+  const isDeafUser = user?.disabilityType === "DEAFNESS" || user?.disabilityType === null;
+  const navItems: NavItem[] = getStudentNavItems(isDeafUser, "/dashboard/visual/sign-language");
 
   // Search wins over the category tabs when there's a query - a learner
   // typing a word wants it found wherever it lives, not filtered to the tab

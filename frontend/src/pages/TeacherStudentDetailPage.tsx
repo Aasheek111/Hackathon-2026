@@ -17,6 +17,7 @@ import {
   BookOpen,
   Clock,
 } from "lucide-react";
+import { getTeacherNavItems } from "../lib/nav";
 import DashboardShell, { NavItem } from "../components/DashboardShell";
 import api from "../lib/api";
 import { disabilityLabel } from "../data/disabilityProfiles";
@@ -265,10 +266,7 @@ export const TeacherStudentDetailPage: React.FC = () => {
     setSelectedMonthLabel(rangeStart.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }));
   }, []);
 
-  const navItems: NavItem[] = [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/teacher" },
-    { icon: BarChart3, label: "Insights", path: "/teacher/insights" },
-  ];
+  const navItems: NavItem[] = getTeacherNavItems(`/teacher/students/${id}`);
 
   if (loading) {
     return (
