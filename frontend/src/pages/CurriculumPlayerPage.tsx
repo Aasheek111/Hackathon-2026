@@ -27,55 +27,8 @@ import {
   useConcentrationTracking,
   hasCameraConsent,
 } from "../hooks/useConcentrationTracking";
-
-/**
- * Gemini TTS (rag-service `/generate-speech`, cached by content hash) with a
- * fallback to the browser's own speechSynthesis if the call fails (no key,
- * quota, network) - never goes silent, matching this app's established
- * offline-degrades-gracefully contract for its other AI features.
- */
-function useSpeech() {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [loading, setLoading] = useState(false);
-  const synth = window.speechSynthesis;
-
-  const playUrl = async (url: string) => {
-    if (!audioRef.current) audioRef.current = new Audio();
-    audioRef.current.src = `${RAG_SERVICE_URL}${url}`;
-    await audioRef.current.play();
-  };
-
-  // preGeneratedUrl: the lesson's own audioUrl, produced on the queue worker
-  // when the teacher uploaded the document (instant playback, no round-trip).
-  // Falls through to a live /tts call, then to the browser's own voice, so
-  // "Listen" always makes sound even if the clip was never pre-generated.
-  const speak = async (text: string, preGeneratedUrl?: string | null) => {
-    const trimmed = text.trim();
-    if (!trimmed && !preGeneratedUrl) return;
-    synth.cancel();
-    audioRef.current?.pause();
-    setLoading(true);
-    try {
-      if (preGeneratedUrl) {
-        await playUrl(preGeneratedUrl);
-        return;
-      }
-      const { data } = await api.post("/tts", { text: trimmed });
-      await playUrl(data.audioUrl);
-    } catch {
-      if (trimmed) synth.speak(new SpeechSynthesisUtterance(trimmed));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const stop = () => {
-    audioRef.current?.pause();
-    synth.cancel();
-  };
-
-  return { speak, stop, loading };
-}
+import { useAccessibility, FONT_SCALE_PX } from "../contexts/AccessibilityContext";
+import { useSpeech } from "../hooks/useSpeech";
 
 /** A small floating "Listen" button that appears over a text selection. */
 const SelectionListenButton: React.FC<{
@@ -465,6 +418,7 @@ export const CurriculumPlayerPage: React.FC = () => {
   const { unitId } = useParams<{ unitId: string }>();
   const navigate = useNavigate();
   const { speak, stop: stopSpeaking, loading: ttsLoading } = useSpeech();
+  const { prefs } = useAccessibility();
   const lessonContentRef = useRef<HTMLDivElement>(null);
 
   const [curriculum, setCurriculum] = useState<Curriculum | null>(null);
@@ -574,18 +528,27 @@ export const CurriculumPlayerPage: React.FC = () => {
     }
   };
 
-  // AUDIO mode auto-narrates each lesson as you land on it (the pre-generated
-  // clip when available, else live TTS, else the browser voice) - same
-  // canonical content, just read aloud. Mirrors the legacy TutorialPage.
+  // Auto-narrates each lesson as you land on it (the pre-generated clip when
+  // available, else live TTS, else the browser voice) - same canonical
+  // content, just read aloud. Always on in AUDIO mode; also on in any mode
+  // when the student's "Always narrate lessons" accessibility pref is set
+  // (blind/low-vision students shouldn't have to switch modes to get audio).
+  // With "Audiobook mode" on too, finishing a clip auto-advances to the next
+  // lesson - hands-free playback across the whole unit.
   useEffect(() => {
-    if (!curriculum || view !== "lesson" || mode !== "AUDIO") return;
+    if (!curriculum || view !== "lesson") return;
+    if (mode === "AR" || mode === "STORY") return;
+    if (mode !== "AUDIO" && !prefs.alwaysNarrate) return;
     const activeLesson = curriculum.lessons[lessonIndex];
     if (!activeLesson) return;
+    const isLastLesson = lessonIndex >= curriculum.lessons.length - 1;
+    const onEnded = prefs.audiobookMode && !isLastLesson ? () => goTo(lessonIndex + 1) : undefined;
     speak(
       `${activeLesson.title}. ${activeLesson.explanation} ${activeLesson.example || ""}`,
       activeLesson.audioUrl,
+      onEnded,
     );
-  }, [curriculum, lessonIndex, view, mode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [curriculum, lessonIndex, view, mode, prefs.alwaysNarrate, prefs.audiobookMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
@@ -697,6 +660,19 @@ export const CurriculumPlayerPage: React.FC = () => {
   // Adaptive presentation (PLAN §23): a low attention-span score gets larger,
   // less dense text - same canonical lesson, not a different one.
   const isSimplified = (personalization?.attentionSpanScore ?? 100) < 50;
+  // Accessibility prefs (Settings page) - scoped to this lesson card only,
+  // same "local literal classes, never touch shared CSS" convention as the
+  // light/dark theme toggle. fontSize wins over the mode/attention-based
+  // Tailwind text-size classes via inline style; highContrast swaps the
+  // card's palette; reducedMotion drops the page-turn slide animation.
+  const hc = prefs.highContrast;
+  // Only override when the student picked something other than Medium, so
+  // nobody who's never touched Settings sees a different size than before.
+  const contentFontStyle =
+    prefs.fontSize !== "MEDIUM" ? { fontSize: FONT_SCALE_PX[prefs.fontSize] } : undefined;
+  const cardMotionProps = prefs.reducedMotion
+    ? { initial: false as const, animate: { opacity: 1, x: 0 }, exit: { opacity: 1, x: 0 }, transition: { duration: 0 } }
+    : { initial: { opacity: 0, x: 20 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: -20 } };
 
   return (
     <div className="min-h-screen bg-[#FAF9F5] dark:bg-dark pb-20">
@@ -816,12 +792,14 @@ export const CurriculumPlayerPage: React.FC = () => {
             <AnimatePresence mode="wait">
               <motion.div
                 key={lesson.id}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="bg-white border border-slate-200/80 shadow-xs dark:bg-white/[0.09] dark:backdrop-blur-2xl dark:border-white/[0.14] dark:shadow-none p-6 sm:p-10 rounded-3xl mb-6"
+                {...cardMotionProps}
+                className={`p-6 sm:p-10 rounded-3xl mb-6 ${
+                  hc
+                    ? "bg-black text-yellow-300 border-2 border-yellow-400"
+                    : "bg-white border border-slate-200/80 shadow-xs dark:bg-white/[0.09] dark:backdrop-blur-2xl dark:border-white/[0.14] dark:shadow-none"
+                }`}
               >
-                <h2 className="text-2xl font-display font-bold mb-4 text-slate-800 dark:text-white">
+                <h2 className={`text-2xl font-display font-bold mb-4 ${hc ? "text-yellow-300" : "text-slate-800 dark:text-white"}`}>
                   {lesson.title}
                 </h2>
 
@@ -846,16 +824,24 @@ export const CurriculumPlayerPage: React.FC = () => {
 
                 <div ref={lessonContentRef}>
                   <p
-                    className={`text-slate-700 dark:text-gray-200 leading-relaxed mb-4 ${
+                    className={`leading-relaxed mb-4 ${
                       isSimplified || mode === "VISUAL" ? "text-xl" : "text-lg"
-                    }`}
+                    } ${hc ? "text-yellow-200" : "text-slate-700 dark:text-gray-200"}`}
+                    style={contentFontStyle}
                   >
                     {lesson.explanation}
                   </p>
 
                   {lesson.example && (
-                    <div className="bg-slate-50 border border-slate-100 dark:bg-dark/50 dark:border-transparent rounded-xl p-4 text-sm text-slate-500 dark:text-gray-400 mb-4">
-                      <span className="text-primary font-medium">
+                    <div
+                      className={`rounded-xl p-4 mb-4 text-sm ${
+                        hc
+                          ? "bg-yellow-950/40 border border-yellow-700 text-yellow-100"
+                          : "bg-slate-50 border border-slate-100 dark:bg-dark/50 dark:border-transparent text-slate-500 dark:text-gray-400"
+                      }`}
+                      style={contentFontStyle}
+                    >
+                      <span className={hc ? "text-yellow-300 font-medium" : "text-primary font-medium"}>
                         Example:{" "}
                       </span>
                       {lesson.example}

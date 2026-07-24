@@ -11,8 +11,18 @@ import {
   BookOpen,
   ArrowRight,
   ShieldCheck,
+  Puzzle,
+  Ear,
+  Accessibility,
 } from "lucide-react";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth, DisabilityType } from "../contexts/AuthContext";
+
+const DISABILITY_OPTIONS: { value: DisabilityType | null; label: string; icon: React.ReactNode }[] = [
+  { value: null, label: "Not now / N/A", icon: <Accessibility className="w-3.5 h-3.5" /> },
+  { value: "AUTISM", label: "Autism", icon: <Puzzle className="w-3.5 h-3.5" /> },
+  { value: "BLINDNESS", label: "Blind / low vision", icon: <Eye className="w-3.5 h-3.5" /> },
+  { value: "DEAFNESS", label: "Deaf / hard of hearing", icon: <Ear className="w-3.5 h-3.5" /> },
+];
 
 export const RegisterPage: React.FC = () => {
   const [name, setName] = useState("");
@@ -21,6 +31,7 @@ export const RegisterPage: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<"STUDENT" | "TEACHER">("STUDENT");
+  const [disabilityType, setDisabilityType] = useState<DisabilityType | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -56,7 +67,7 @@ export const RegisterPage: React.FC = () => {
 
     setLoading(true);
     try {
-      await register(name, email, password, role);
+      await register(name, email, password, role, role === "STUDENT" ? disabilityType : null);
       navigate(role === "TEACHER" ? "/teacher" : "/consent");
     } catch (err: any) {
       setError(
@@ -172,6 +183,39 @@ export const RegisterPage: React.FC = () => {
                 </p>
               )}
             </div>
+
+            {/* Disability / Accessibility profile - students only. This only
+                seeds sensible DEFAULTS for the accessibility panel later
+                (font size, narration, sign language) - it never gates or
+                changes what content is offered, and every default can be
+                changed anytime from Settings. */}
+            {role === "STUDENT" && (
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Accessibility profile (optional)
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {DISABILITY_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      onClick={() => setDisabilityType(opt.value)}
+                      className={`flex items-center justify-center gap-1 p-2 rounded-xl border-2 transition-all text-[10px] font-bold text-center ${
+                        disabilityType === opt.value
+                          ? "border-emerald-500 bg-emerald-50 text-emerald-900 shadow-xs"
+                          : "border-slate-200 bg-[#FAF9F5] text-slate-600 hover:border-slate-300"
+                      }`}
+                    >
+                      {opt.icon}
+                      <span>{opt.label}</span>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1.5">
+                  Helps us pick good starting defaults - like larger text, narration, or sign language support. You can change this anytime in Settings.
+                </p>
+              </div>
+            )}
 
             {/* 2-Column Grid for Name & Email */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
