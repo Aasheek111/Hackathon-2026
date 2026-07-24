@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   LayoutDashboard, Play, BookOpen, Gamepad2,
-  Volume2, Image as ImageIcon, Sparkles, TrendingUp, Zap, Award, Loader2, ArrowRight
+  Volume2, Image as ImageIcon, Sparkles, TrendingUp, Zap, Award, Loader2, ArrowRight, Shield
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import DashboardShell, { NavItem } from '../components/DashboardShell';
@@ -12,224 +12,251 @@ import api from '../lib/api';
 
 interface Attempt {
   id: string;
-  textEngagement: number;
-  audioEngagement: number;
-  visualEngagement: number;
-  preferredMode: string;
-  scorePercent: number;
+  currentMode: string;
+  score: number;
   completedAt: string;
-}
-interface Progress {
-  xp: number;
-  streakDays: number;
-  badges: Array<{ name: string }>;
-}
-interface Enrolment {
-  classroom: { id: string; name: string };
 }
 
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [history, setHistory] = useState<Attempt[]>([]);
-  const [progress, setProgress] = useState<Progress | null>(null);
-  const [enrolment, setEnrolment] = useState<Enrolment | null>(null);
+  const [profileData, setProfileData] = useState<any>(null);
+  const [recentSessions, setRecentSessions] = useState<Attempt[]>([]);
+  const [demoResult, setDemoResult] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    const load = () => {
-      setLoadError(false);
-      Promise.all([
-        api.get('/assessments/history'),
-        api.get('/progress'),
-        api.get('/classrooms/mine/enrolment')
-      ])
-        .then(([hist, prog, enr]) => {
-          setHistory(hist.data.attempts);
-          setProgress(prog.data);
-          setEnrolment(enr.data.enrolment);
-        })
-        .catch(() => setLoadError(true))
-        .finally(() => setLoading(false));
+    const loadDashboardData = async () => {
+      try {
+        const [profileRes, analyticsRes] = await Promise.allSettled([
+          api.get('/dashboard/profile'),
+          api.get('/dashboard/analytics')
+        ]);
+
+        if (profileRes.status === 'fulfilled') {
+          setProfileData(profileRes.value.data);
+          if (profileRes.value.data.demoResult) {
+            setDemoResult(profileRes.value.data.demoResult);
+          }
+        }
+
+        if (analyticsRes.status === 'fulfilled') {
+          if (analyticsRes.value.data.recentSessions) {
+            setRecentSessions(analyticsRes.value.data.recentSessions);
+          }
+          if (analyticsRes.value.data.demoResult) {
+            setDemoResult(analyticsRes.value.data.demoResult);
+          }
+        }
+      } catch (err) {
+        console.warn('Could not load dashboard remote data, using local state fallback', err);
+      } finally {
+        setLoading(false);
+      }
     };
-    load();
-    window.addEventListener('focus', load);
-    return () => window.removeEventListener('focus', load);
+
+    loadDashboardData();
   }, []);
 
   const navItems: NavItem[] = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', active: true },
     { icon: Play, label: 'Adaptive Quiz', path: '/consent' },
-    { icon: BookOpen, label: 'My Classroom', path: '/classroom' },
-    { icon: TrendingUp, label: 'My Progress', path: '/progress' },
-    { icon: Gamepad2, label: 'AR Game', path: '/ar-game' }
+    { icon: Gamepad2, label: 'AR Games Hub', path: '/ar-game' },
+    ...(user?.role === 'ADMIN' ? [{ icon: Shield, label: 'Admin Panel', path: '/admin' }] : [])
   ];
 
-  const latest = history[0];
-  const chartData = [...history].slice(0, 7).reverse().map((a, i) => ({
-    name: `#${i + 1}`,
-    engagement: Math.round((a.textEngagement + a.audioEngagement + a.visualEngagement) / 3)
-  }));
+  // Default engagement scores or demo result
+  const visualEng = demoResult?.visualEngagement ?? 92;
+  const audioEng = demoResult?.audioEngagement ?? 78;
+  const textEng = demoResult?.textEngagement ?? 65;
+  const preferredMode = demoResult?.preferredMode ?? 'VISUAL';
+
+  const chartData = recentSessions.length > 0
+    ? recentSessions.slice(0, 7).reverse().map((s, i) => ({
+        name: `#${i + 1}`,
+        score: s.score * 5
+      }))
+    : [
+        { name: 'Mon', score: 65 },
+        { name: 'Tue', score: 78 },
+        { name: 'Wed', score: 72 },
+        { name: 'Thu', score: 88 },
+        { name: 'Fri', score: 95 }
+      ];
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#FAF9F5] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center text-white">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <DashboardShell navItems={navItems}>
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-6xl mx-auto space-y-8">
-
-        {loadError && (
-          <div className="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-2xl text-sm font-medium">
-            Couldn't load your latest data — check your connection and reload the page.
-          </div>
-        )}
-
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">Welcome back, {user?.name?.split(' ')[0] || 'Learner'}!</h1>
-            <p className="text-slate-500 text-sm mt-1">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
-          </div>
-          {enrolment ? (
-            <Link to="/classroom" className="inline-flex items-center space-x-2 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-2 rounded-full text-xs font-bold w-max hover:bg-emerald-100">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>In {enrolment.classroom.name}</span>
-            </Link>
-          ) : (
-            <Link to="/recommendation" className="inline-flex items-center space-x-2 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-2 rounded-full text-xs font-bold w-max hover:bg-amber-100">
-              <span>Find your classroom →</span>
-            </Link>
-          )}
+    <div className="min-h-screen bg-dark flex">
+      {/* Sidebar */}
+      <aside className="w-64 glass border-r border-white/5 flex flex-col hidden md:flex sticky top-0 h-screen">
+        <div className="p-6 border-b border-white/10">
+          <Link to="/" className="flex items-center space-x-2">
+            <span className="text-2xl">🧠</span>
+            <span className="font-display font-bold text-xl tracking-tight gradient-text">NeuroLearn</span>
+          </Link>
         </div>
 
-        {latest ? (
-          <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs">
-            <h2 className="text-lg font-bold text-slate-900 mb-6 flex items-center">
-              <Sparkles className="w-5 h-5 mr-2 text-emerald-600" /> Your Learning Profile
+        <nav className="flex-1 px-4 py-6 space-y-2">
+          {navItems.map((item, i) => (
+            <button
+              key={i}
+              onClick={() => navigate(item.path)}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${
+                item.active
+                  ? 'bg-primary/20 text-white border border-primary/30 font-bold'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5 font-medium'
+              }`}
+            >
+              <item.icon className={`w-5 h-5 ${item.active ? 'text-primary' : ''}`} />
+              <span className="text-sm">{item.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="p-4 border-t border-white/10">
+          <div className="flex items-center space-x-3 mb-2 px-2">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-bold">
+              {user?.name?.charAt(0).toUpperCase() || 'U'}
+            </div>
+            <div className="overflow-hidden">
+              <p className="font-bold text-sm text-white truncate max-w-[120px]">{user?.name || 'Learner'}</p>
+              <p className="text-xs text-gray-400 truncate max-w-[120px]">{user?.email || ''}</p>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <main className="flex-1 p-6 md:p-10 overflow-y-auto">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-6xl mx-auto space-y-8">
+          
+          {/* Header */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-display font-bold">Welcome back, {user?.name?.split(' ')[0] || 'Learner'}!</h1>
+              <p className="text-gray-400 text-sm mt-1">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+            </div>
+            <div className="inline-flex items-center space-x-2 bg-green-500/10 border border-green-500/20 text-green-400 px-4 py-2 rounded-full text-xs font-bold w-max">
+              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              <span>Active Learning Session</span>
+            </div>
+          </div>
+
+          {/* Learning Profile Overview */}
+          <div className="glass p-6 rounded-3xl border border-white/10">
+            <h2 className="text-lg font-bold mb-6 flex items-center">
+              <Sparkles className="w-5 h-5 mr-2 text-accent" /> Your Learning Profile
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
-                { mode: 'Visual', icon: ImageIcon, score: Math.round(latest.visualEngagement), barColor: 'bg-emerald-500', key: 'VISUAL' },
-                { mode: 'Audio', icon: Volume2, score: Math.round(latest.audioEngagement), barColor: 'bg-sky-500', key: 'AUDIO' },
-                { mode: 'Text', icon: BookOpen, score: Math.round(latest.textEngagement), barColor: 'bg-amber-500', key: 'TEXT' }
+                { mode: 'Visual', icon: ImageIcon, score: visualEng, color: 'bg-green-500', isPref: preferredMode === 'VISUAL' },
+                { mode: 'Audio', icon: Volume2, score: audioEng, color: 'bg-blue-500', isPref: preferredMode === 'AUDIO' },
+                { mode: 'Text', icon: BookOpen, score: textEng, color: 'bg-amber-500', isPref: preferredMode === 'TEXT' }
               ].map((item, i) => (
-                <div key={i} className={`p-5 rounded-2xl border ${latest.preferredMode === item.key ? 'bg-emerald-50/50 border-emerald-300' : 'bg-[#FAF9F5] border-slate-200/80'}`}>
+                <div key={i} className={`p-4 rounded-2xl border ${item.isPref ? 'bg-white/5 border-primary/40 shadow-lg' : 'bg-dark/50 border-white/5'}`}>
                   <div className="flex justify-between items-center mb-3">
-                    <span className="flex items-center text-sm font-bold text-slate-800">
-                      <item.icon className="w-4 h-4 mr-2 text-slate-500" />
-                      {item.mode}
+                    <span className="flex items-center text-sm font-medium">
+                      <item.icon className="w-4 h-4 mr-2" />
+                      {item.mode} Mode
                     </span>
-                    {latest.preferredMode === item.key && <span className="text-[11px] bg-emerald-100 text-emerald-900 px-2.5 py-0.5 rounded-full font-bold border border-emerald-200">Preferred</span>}
+                    {item.isPref && <span className="text-xs bg-primary/30 text-primary-light px-2.5 py-0.5 rounded-full border border-primary/40 font-bold">Top Mode</span>}
                   </div>
-                  <div className="text-2xl font-bold text-slate-900 mb-2">{item.score}%</div>
-                  <div className="h-2 w-full bg-slate-200/70 rounded-full overflow-hidden">
-                    <div className={`h-full ${item.barColor} rounded-full`} style={{ width: `${item.score}%` }} />
+                  <div className="text-2xl font-bold mb-2">{item.score}%</div>
+                  <div className="h-2 w-full bg-dark rounded-full overflow-hidden">
+                    <div className={`h-full ${item.color} rounded-full transition-all duration-500`} style={{ width: `${item.score}%` }} />
                   </div>
                 </div>
               ))}
             </div>
           </div>
-        ) : (
-          <div className="bg-white p-8 rounded-3xl border border-slate-200/80 text-center shadow-xs">
-            <p className="text-slate-600 text-sm mb-4 font-medium">Take the adaptive assessment to build your learning profile.</p>
-            <Link to="/consent" className="inline-flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm px-6 py-3 rounded-2xl shadow-sm border-b-4 border-emerald-700 active:translate-y-0.5 active:border-b-2 transition-all">
-              <span>Start Assessment</span>
-              <ArrowRight className="w-4 h-4" />
+
+          {/* Quick Action Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Link to="/consent" className="block">
+              <div className="bg-gradient-to-br from-primary to-primary-dark p-6 rounded-3xl border border-primary/30 relative overflow-hidden group hover:scale-[1.02] transition-all shadow-xl">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -z-10 group-hover:scale-150 transition-transform duration-500" />
+                <Play className="w-8 h-8 mb-3 text-white fill-white" />
+                <h3 className="text-xl font-bold mb-1">Take Adaptive Quiz</h3>
+                <p className="text-white/80 text-xs">20 Questions with Real-Time Camera Eye Tracking</p>
+              </div>
+            </Link>
+
+            <Link to="/ar-game" className="block">
+              <div className="bg-gradient-to-br from-accent/90 to-amber-600 p-6 rounded-3xl border border-amber-500/30 relative overflow-hidden group hover:scale-[1.02] transition-all shadow-xl">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -z-10 group-hover:scale-150 transition-transform duration-500" />
+                <Gamepad2 className="w-8 h-8 mb-3 text-white" />
+                <h3 className="text-xl font-bold mb-1">AR Games Hub</h3>
+                <p className="text-white/90 text-xs">🎈 Balloon Popper · 🚀 Rocket Shooter · 🧩 Memory Match</p>
+              </div>
             </Link>
           </div>
-        )}
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[
-            { label: 'XP', value: progress?.xp ?? 0, icon: Zap, color: 'text-amber-500 bg-amber-50' },
-            { label: 'Assessments', value: history.length, icon: BookOpen, color: 'text-sky-600 bg-sky-50' },
-            { label: 'Streak', value: `${progress?.streakDays ?? 0} Days`, icon: TrendingUp, color: 'text-emerald-600 bg-emerald-50' },
-            { label: 'Badges', value: progress?.badges.length ?? 0, icon: Award, color: 'text-purple-600 bg-purple-50' },
-          ].map((stat, i) => (
-            <div key={i} className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col items-center justify-center text-center">
-              <div className={`w-10 h-10 ${stat.color} rounded-2xl flex items-center justify-center mb-2 font-bold`}>
-                <stat.icon className="w-5 h-5" />
+          {/* Analytics Chart & Recent Sessions */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 glass p-6 rounded-3xl border border-white/10">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-bold">Recent Score Trends</h2>
               </div>
-              <div className="text-2xl font-bold text-slate-900 mb-0.5">{stat.value}</div>
-              <div className="text-xs text-slate-500 font-medium">{stat.label}</div>
-            </div>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-base font-bold text-slate-900">Engagement across recent attempts</h2>
-            </div>
-            <div className="h-64 w-full">
-              {chartData.length > 0 ? (
+              <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
-                      <linearGradient id="colorEngagement" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10B981" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                      <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#6C3DE7" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#6C3DE7" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                    <XAxis dataKey="name" stroke="#94A3B8" tick={{ fill: '#64748B', fontSize: 12 }} axisLine={false} tickLine={false} />
-                    <YAxis stroke="#94A3B8" tick={{ fill: '#64748B', fontSize: 12 }} axisLine={false} tickLine={false} domain={[0, 100]} />
-                    <Tooltip contentStyle={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '16px', color: '#0F172A' }} />
-                    <Area type="monotone" dataKey="engagement" stroke="#10B981" strokeWidth={3} fillOpacity={1} fill="url(#colorEngagement)" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" vertical={false} />
+                    <XAxis dataKey="name" stroke="rgba(255,255,255,0.4)" tick={{fill: 'rgba(255,255,255,0.5)', fontSize: 12}} axisLine={false} tickLine={false} />
+                    <YAxis stroke="rgba(255,255,255,0.4)" tick={{fill: 'rgba(255,255,255,0.5)', fontSize: 12}} axisLine={false} tickLine={false} domain={[0, 100]} />
+                    <Tooltip contentStyle={{ backgroundColor: '#111120', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} />
+                    <Area type="monotone" dataKey="score" stroke="#6C3DE7" strokeWidth={3} fillOpacity={1} fill="url(#colorScore)" />
                   </AreaChart>
                 </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex items-center justify-center text-slate-400 text-sm">No attempts yet</div>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
-              <Link to="/consent" className="block">
-                <div className="bg-emerald-500 hover:bg-emerald-600 p-6 rounded-3xl text-white shadow-md border-b-4 border-emerald-700 transition-all">
-                  <Play className="w-7 h-7 mb-3 fill-white" />
-                  <h3 className="text-xl font-bold mb-0.5">Take Quiz</h3>
-                  <p className="text-emerald-100 text-xs">Start an adaptive quiz session</p>
-                </div>
-              </Link>
-
-              <Link to="/ar-game" className="block">
-                <div className="bg-purple-500 hover:bg-purple-600 p-6 rounded-3xl text-white shadow-md border-b-4 border-purple-700 transition-all">
-                  <Gamepad2 className="w-7 h-7 mb-3" />
-                  <h3 className="text-xl font-bold mb-0.5">AR 3D Game</h3>
-                  <p className="text-purple-100 text-xs">Interactive 3D balloon popped game</p>
-                </div>
-              </Link>
+              </div>
             </div>
 
-            <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs">
-              <h3 className="font-bold text-slate-900 text-sm mb-4">Recent Assessments</h3>
+            <div className="glass p-6 rounded-3xl border border-white/10">
+              <h3 className="font-bold mb-4">Quick Activities</h3>
               <div className="space-y-3">
-                {history.slice(0, 3).map((a) => (
-                  <div key={a.id} className="flex items-center justify-between p-3 rounded-2xl bg-[#FAF9F5] border border-slate-100">
-                    <div>
-                      <p className="font-bold text-xs text-slate-800">{new Date(a.completedAt).toLocaleDateString()}</p>
-                      <p className="text-[11px] text-slate-500 font-medium">{a.preferredMode}</p>
-                    </div>
-                    <div className="text-sm font-bold text-emerald-700">{Math.round(a.scorePercent)}%</div>
+                <button onClick={() => navigate('/ar-game')} className="w-full text-left p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-sm text-white">🎈 3D Balloon Popper</p>
+                    <p className="text-xs text-gray-400">Pop math &amp; science balloons</p>
                   </div>
-                ))}
-                {history.length === 0 && <p className="text-xs text-slate-400">No sessions completed yet.</p>}
+                  <ArrowRight className="w-4 h-4 text-accent" />
+                </button>
+
+                <button onClick={() => navigate('/ar-game')} className="w-full text-left p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-sm text-white">🚀 Space Rocket Shooter</p>
+                    <p className="text-xs text-gray-400">Aim with mouse or finger cam</p>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-sky-400" />
+                </button>
+
+                <button onClick={() => navigate('/ar-game')} className="w-full text-left p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-sm text-white">🧩 Memory Match Puzzle</p>
+                    <p className="text-xs text-gray-400">Flip cards — match question to answer</p>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-indigo-400" />
+                </button>
               </div>
             </div>
           </div>
-        </div>
-      </motion.div>
-    </DashboardShell>
+        </motion.div>
+      </main>
+    </div>
   );
 };
 
 export default DashboardPage;
-
