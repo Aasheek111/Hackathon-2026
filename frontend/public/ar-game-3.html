@@ -149,7 +149,7 @@
     <div class="gl sbox"><div class="slbl">Question</div><div class="sval" id="qn">1 <span class="ssub">/ 10</span></div></div>
   </div>
 
-  <div id="hint">🎯 Mouse/click to aim &amp; shoot — or 📷 hold hand over asteroid 2.5s to fire!</div>
+  <div id="hint">🎯 Tap/click asteroid to shoot — or hold finger/hand over it 2.5s to fire!</div>
 
   <div id="qwrap">
     <div id="qcard" class="gl">
@@ -201,7 +201,10 @@ let curQ=0,score=0,answered=false;
 let camStream=null, camActive=false, frameId=null;
 let stars=[], asteroids=[], shots=[], sparks=[];
 let prevFrame=null;         // previous video frame pixel data
-let ptrX=0, ptrY=0;        // aim position
+let ptrX=0, ptrY=0;        // aim position (raw / mouse)
+let camPtrX=0, camPtrY=0;  // smoothed camera pointer (EMA)
+const CAM_SMOOTH=0.18;      // 0=no movement, 1=instant — tweak for feel
+let camHasSignal=false;     // whether camera has ever detected motion
 let rocketX=0;
 // Dwell state
 let dwellAstIdx=-1;         // which asteroid is being dwelled on
@@ -236,6 +239,67 @@ GC.addEventListener('click',e=>{
   }
 });
 
+// ── Touch support (mobile / tablet) ──────────────────────────────────────────
+let touchDwellTimer=null;
+function getTouchPos(e){
+  const r=GC.getBoundingClientRect();
+  const t=e.touches[0]||e.changedTouches[0];
+  return {x:t.clientX-r.left, y:t.clientY-r.top};
+}
+function touchHitAsteroid(tx,ty){
+  for(let i=0;i<asteroids.length;i++){
+    const a=asteroids[i]; if(!a.alive||a.boom)continue;
+    const ay=a.baseY+Math.sin(Date.now()*0.001+a.phase)*10;
+    if(Math.hypot(tx-a.x,ty-ay)<=a.r*1.6) return i;
+  }
+  return -1;
+}
+GC.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  const {x,y}=getTouchPos(e);
+  ptrX=x; ptrY=y;
+  if(answered) return;
+  const hitIdx=touchHitAsteroid(x,y);
+  if(hitIdx>=0){
+    // Start dwell for touch-hold
+    dwellAstIdx=hitIdx; dwellStart=Date.now(); dwellProgress=0;
+    if(touchDwellTimer) clearInterval(touchDwellTimer);
+    touchDwellTimer=setInterval(()=>{
+      if(answered||dwellAstIdx<0){clearInterval(touchDwellTimer);return;}
+      const elapsed=Date.now()-dwellStart;
+      dwellProgress=Math.min(elapsed/DWELL_MS,1);
+      if(dwellProgress>=1){
+        clearInterval(touchDwellTimer);
+        const idx=dwellAstIdx;
+        dwellAstIdx=-1; dwellProgress=0;
+        selectAnswer(idx);
+      }
+    },30);
+  }
+},{passive:false});
+GC.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  const {x,y}=getTouchPos(e);
+  ptrX=x; ptrY=y;
+  if(answered) return;
+  const hitIdx=touchHitAsteroid(x,y);
+  if(hitIdx!==dwellAstIdx){
+    clearInterval(touchDwellTimer);
+    dwellAstIdx=-1; dwellStart=0; dwellProgress=0;
+  }
+},{passive:false});
+GC.addEventListener('touchend',e=>{
+  e.preventDefault();
+  clearInterval(touchDwellTimer);
+  // Quick tap (< 300ms) = instant fire
+  if(!answered && dwellAstIdx>=0 && (Date.now()-dwellStart)<300){
+    const {x,y}=getTouchPos(e);
+    const hitIdx=touchHitAsteroid(x,y);
+    if(hitIdx>=0) selectAnswer(hitIdx);
+  }
+  dwellAstIdx=-1; dwellStart=0; dwellProgress=0;
+},{passive:false});
+
 // ── Motion tracking (frame difference) ───────────────────────────────────────
 const TV=document.getElementById('tv');
 const TC=document.getElementById('tc');
@@ -247,19 +311,21 @@ const PIPC=document.getElementById('pip-cv');
 const pCtx=PIPC.getContext('2d');
 const TW=200, TH=150;
 
+// Set canvas sizes once (not every frame — resetting size clears the canvas unnecessarily)
+TC.width=TW; TC.height=TH;
+PIPC.width=170; PIPC.height=115;
+
 function processMotion(){
   if(!camActive)return;
 
-  TC.width=TW; TC.height=TH;
-  // Draw mirrored frame
+  // Draw mirrored frame into tracking canvas
   tCtx.save(); tCtx.translate(TW,0); tCtx.scale(-1,1);
   tCtx.drawImage(TV,0,0,TW,TH);
   tCtx.restore();
 
   const cur=tCtx.getImageData(0,0,TW,TH);
 
-  // Draw PiP
-  PIPC.width=170; PIPC.height=115;
+  // Draw PiP preview
   pCtx.drawImage(TC,0,0,170,115);
 
   let motionX=0, motionY=0, motionCount=0;
@@ -269,11 +335,13 @@ function processMotion(){
     for(let y=0;y<TH;y++){
       for(let x=0;x<TW;x++){
         const i=(y*TW+x)*4;
-        const dr=Math.abs(cd[i]-pd[i]);
-        const dg=Math.abs(cd[i+1]-pd[i+1]);
-        const db=Math.abs(cd[i+2]-pd[i+2]);
-        const diff=(dr+dg+db)/3;
-        if(diff>25){ // motion threshold
+        // Use max channel diff — more stable than average
+        const diff=Math.max(
+          Math.abs(cd[i  ]-pd[i  ]),
+          Math.abs(cd[i+1]-pd[i+1]),
+          Math.abs(cd[i+2]-pd[i+2])
+        );
+        if(diff>35){ // raised threshold: ignores lighting noise
           motionX+=x; motionY+=y; motionCount++;
         }
       }
@@ -281,28 +349,42 @@ function processMotion(){
   }
   prevFrame=cur;
 
-  if(motionCount>150){
-    const mx=motionX/motionCount;
-    const my=motionY/motionCount;
+  if(motionCount>200){
+    const rawX=motionX/motionCount;
+    const rawY=motionY/motionCount;
 
-    // Draw motion dot on PiP
-    pCtx.beginPath(); pCtx.arc(mx*(170/TW),my*(115/TH),10,0,Math.PI*2);
+    // ── EMA smoothing — eliminates the jitter ─────────────────────────────
+    if(!camHasSignal){
+      // First detection: jump instantly so there's no slow drift-in
+      camPtrX=rawX/TW*GC.width;
+      camPtrY=rawY/TH*GC.height;
+      camHasSignal=true;
+    } else {
+      const targetX=rawX/TW*GC.width;
+      const targetY=rawY/TH*GC.height;
+      camPtrX+=(targetX-camPtrX)*CAM_SMOOTH;
+      camPtrY+=(targetY-camPtrY)*CAM_SMOOTH;
+    }
+    ptrX=camPtrX; ptrY=camPtrY;
+
+    // Draw motion dot on PiP at the smoothed position
+    const pipDotX=(camPtrX/GC.width)*170;
+    const pipDotY=(camPtrY/GC.height)*115;
+    pCtx.beginPath(); pCtx.arc(pipDotX,pipDotY,10,0,Math.PI*2);
     pCtx.fillStyle='rgba(56,189,248,0.8)'; pCtx.fill();
     pCtx.strokeStyle='#fff'; pCtx.lineWidth=2; pCtx.stroke();
-
-    // Map to game canvas
-    ptrX=mx/TW*GC.width;
-    ptrY=my/TH*GC.height;
 
     // Check dwell on asteroid
     updateDwell();
   } else {
-    // No significant motion - reset dwell
-    dwellAstIdx=-1; dwellProgress=0;
-    // Motion prompt on pip
-    pCtx.fillStyle='rgba(0,0,0,0.35)'; pCtx.fillRect(0,0,170,115);
-    pCtx.fillStyle='rgba(125,211,252,0.8)'; pCtx.font='10px Segoe UI'; pCtx.textAlign='center';
-    pCtx.fillText('Move hand to aim',85,62);
+    // No significant motion — keep dwell alive (allows stationary hold)
+    updateDwell();
+    // Show hint in PiP only when not dwelling
+    if(dwellAstIdx<0){
+      pCtx.fillStyle='rgba(0,0,0,0.4)'; pCtx.fillRect(0,0,170,115);
+      pCtx.fillStyle='rgba(125,211,252,0.85)'; pCtx.font='bold 10px Segoe UI'; pCtx.textAlign='center';
+      pCtx.fillText('Move hand to aim',85,62);
+    }
   }
 
   frameId=requestAnimationFrame(processMotion);
