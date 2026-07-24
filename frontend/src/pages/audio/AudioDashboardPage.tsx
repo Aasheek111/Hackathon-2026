@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import {
   BookOpen,
   ClipboardList,
@@ -9,6 +9,10 @@ import {
   Sparkles,
   Loader2,
   Volume2,
+  Zap,
+  Award,
+  Flame,
+  Gamepad2,
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import {
@@ -22,37 +26,51 @@ import api from "../../lib/api";
 /**
  * Audio-first dashboard.
  *
- * The first version of this page was a wall of large yellow buttons, which is
- * a LOW VISION design - genuinely useful if you have some sight, useless if
- * you have none: you cannot press "Read screen" if you cannot find it. That
- * was the core mistake.
+ * CONTENT PARITY IS THE POINT
+ * ---------------------------
+ * An earlier version of this page was a five-item menu. Everyone else's
+ * dashboard showed XP, streak, badges, a learning profile and assessment
+ * history - so a blind learner was quietly given LESS of their own data than
+ * a sighted classmate. On a platform about inclusive education that is the
+ * exact failure mode to avoid: accessible must not mean abridged.
  *
- * What actually makes this usable without sight now lives app-wide (see
- * AudioNavigationContext + AudioControlBar): every route announces itself, the
- * microphone is already on for a blind learner, and one Tab press from
- * anywhere reaches "Read this screen".
- *
- * What this page adds on top:
- *   - a NUMBERED menu. Saying "one" is far more reliable than saying "open
- *     lessons" - shorter utterances survive noisy rooms and accents better -
- *     and pressing the 1 key works with no microphone at all.
- *   - the same options as visible, high-contrast, large-target controls,
- *     because low-vision learners land here too and they are not the same
- *     people as blind learners.
+ * So this now renders the same information as DashboardPage, from the same
+ * three endpoints. What differs is presentation, not content:
+ *   - high contrast and large targets (which serve LOW VISION - a different
+ *     group from blind learners, who are served by the audio layer)
+ *   - a numbered menu, because saying "one" is far more reliable than saying
+ *     "open lessons", and the same number works as a keypress with no mic
+ *   - the engagement chart becomes a spoken/written comparison, since a
+ *     line chart carries nothing to a screen reader
+ *   - every figure is in the page description, so "read screen" reads the
+ *     real numbers rather than a summary of them
  */
 
+interface Attempt {
+  id: string;
+  textEngagement: number;
+  audioEngagement: number;
+  visualEngagement: number;
+  preferredMode: string;
+  scorePercent: number;
+  completedAt: string;
+}
 interface ProgressSummary {
   xp: number;
   streakDays: number;
   badges: Array<{ name: string }>;
 }
+interface Enrolment {
+  classroom: { id: string; name: string };
+}
 
 const OPTIONS = [
   { key: "1", label: "Lessons", detail: "Your classroom units, with every lesson read aloud.", path: "/classroom", icon: BookOpen },
   { key: "2", label: "Quiz", detail: "A voice quiz. Questions and options are read aloud.", path: "/dashboard/audio/quiz", icon: ClipboardList },
-  { key: "3", label: "My progress", detail: "Your scores, streak and badges.", path: "/progress", icon: TrendingUp },
+  { key: "3", label: "My progress", detail: "Your full report card, subject by subject.", path: "/progress", icon: TrendingUp },
   { key: "4", label: "Sign practice", detail: "Learn the sign language alphabet.", path: "/practice/signs", icon: Hand },
   { key: "5", label: "Settings", detail: "Change your profile, text size and narration.", path: "/settings", icon: SettingsIcon },
+  { key: "6", label: "AR game", detail: "The 3D balloon game, using this unit's own questions.", path: "/ar-game", icon: Gamepad2 },
 ] as const;
 
 const SPOKEN_NUMBERS: Record<string, string[]> = {
@@ -61,6 +79,7 @@ const SPOKEN_NUMBERS: Record<string, string[]> = {
   "3": ["three", "number three", "third"],
   "4": ["four", "number four", "fourth"],
   "5": ["five", "number five", "fifth"],
+  "6": ["six", "number six", "sixth"],
 };
 
 export const AudioDashboardPage: React.FC = () => {
@@ -74,17 +93,55 @@ export const AudioDashboardPage: React.FC = () => {
     listening,
   } = useAudioNavigation();
 
+  const [history, setHistory] = useState<Attempt[]>([]);
   const [progress, setProgress] = useState<ProgressSummary | null>(null);
+  const [enrolment, setEnrolment] = useState<Enrolment | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [asking, setAsking] = useState(false);
 
+  // The same three endpoints DashboardPage uses - same data, same freshness.
   useEffect(() => {
-    api
-      .get("/progress")
-      .then(({ data }) => setProgress(data))
-      .catch(() => setProgress(null));
+    Promise.all([
+      api.get("/assessments/history"),
+      api.get("/progress"),
+      api.get("/classrooms/mine/enrolment"),
+    ])
+      .then(([hist, prog, enr]) => {
+        setHistory(hist.data.attempts || []);
+        setProgress(prog.data);
+        setEnrolment(enr.data.enrolment);
+      })
+      .catch(() => setLoadError(true))
+      .finally(() => setLoading(false));
   }, []);
+
+  const latest = history[0];
+
+  const stats = useMemo(
+    () => [
+      { label: "Experience points", short: "XP", value: progress?.xp ?? 0, icon: Zap },
+      { label: "Assessments taken", short: "Assessments", value: history.length, icon: BookOpen },
+      { label: "Day streak", short: "Streak", value: progress?.streakDays ?? 0, icon: Flame },
+      { label: "Badges earned", short: "Badges", value: progress?.badges?.length ?? 0, icon: Award },
+    ],
+    [progress, history.length],
+  );
+
+  const modes = useMemo(
+    () =>
+      latest
+        ? [
+            { key: "VISUAL", label: "Visual", score: Math.round(latest.visualEngagement) },
+            { key: "AUDIO", label: "Audio", score: Math.round(latest.audioEngagement) },
+            { key: "TEXT", label: "Text", score: Math.round(latest.textEngagement) },
+          ]
+        : [],
+    [latest],
+  );
 
   const menuScript = useMemo(
     () =>
@@ -94,12 +151,31 @@ export const AudioDashboardPage: React.FC = () => {
     [],
   );
 
+  // Everything a sighted learner can see, in words - not a shortened version.
   usePageAudio("Audio dashboard", () => {
-    const name = user?.name ? `, ${user.name}` : "";
-    const stats = progress
-      ? `You have ${progress.xp} experience points, a ${progress.streakDays} day streak, and ${progress.badges?.length ?? 0} badges.`
-      : "";
-    return `Welcome back${name}. ${stats} ${menuScript}`;
+    const name = user?.name ? `, ${user.name.split(" ")[0]}` : "";
+    const parts = [`Welcome back${name}.`];
+
+    if (loadError) parts.push("Your latest data could not be loaded. Check your connection and reload.");
+    parts.push(enrolment ? `You are in the classroom ${enrolment.classroom.name}.` : "You have not joined a classroom yet.");
+    parts.push(
+      `You have ${progress?.xp ?? 0} experience points, a ${progress?.streakDays ?? 0} day streak, ` +
+        `${progress?.badges?.length ?? 0} badges, and you have taken ${history.length} assessments.`,
+    );
+
+    if (latest) {
+      parts.push(
+        `Your learning profile: ` +
+          modes.map((m) => `${m.label} ${m.score} percent`).join(", ") +
+          `. You engage best in ${latest.preferredMode} mode.`,
+      );
+      parts.push(`Your most recent assessment scored ${Math.round(latest.scorePercent)} percent.`);
+    } else {
+      parts.push("You have not taken the adaptive assessment yet, so you have no learning profile.");
+    }
+
+    parts.push(menuScript);
+    return parts.join(" ");
   });
 
   // Number keys work with no microphone at all - the reliable path.
@@ -149,10 +225,16 @@ export const AudioDashboardPage: React.FC = () => {
           navigate(o.path);
         },
       })),
+      { phrases: ["menu", "options", "what are my choices", "read menu"], description: "Read the menu again", run: () => announce(menuScript) },
       {
-        phrases: ["menu", "options", "what are my choices", "read menu"],
-        description: "Read the menu again",
-        run: () => announce(menuScript),
+        phrases: ["my stats", "my scores", "how am i doing"],
+        description: "Read your stats",
+        run: () =>
+          announce(
+            `You have ${progress?.xp ?? 0} experience points, a ${progress?.streakDays ?? 0} day streak, ` +
+              `${progress?.badges?.length ?? 0} badges, and ${history.length} assessments taken.` +
+              (latest ? ` You engage best in ${latest.preferredMode} mode.` : ""),
+          ),
       },
       {
         phrases: ["ask ", "explain ", "what is ", "tell me about "],
@@ -164,9 +246,18 @@ export const AudioDashboardPage: React.FC = () => {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [navigate, announce, menuScript],
+    [navigate, announce, menuScript, progress, history.length, latest],
   );
   usePageVoiceCommands(pageCommands);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <Loader2 className="w-10 h-10 animate-spin text-yellow-300" aria-hidden="true" />
+        <span className="sr-only">Loading your dashboard</span>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black text-white font-sans pb-32">
@@ -180,16 +271,27 @@ export const AudioDashboardPage: React.FC = () => {
       <header className="border-b-2 border-yellow-400/40 px-5 py-4">
         <h1 className="text-3xl font-bold text-yellow-300">Audio Dashboard</h1>
         <p className="text-lg text-gray-200 mt-1">
-          {user?.name ? `Welcome back, ${user.name}.` : "Welcome back."}{" "}
-          Press a number key, or say the number. Tab reaches the audio controls.
+          Welcome back, {user?.name?.split(" ")[0] || "Learner"}. Press a number key, or say the
+          number. Tab reaches the audio controls.
+        </p>
+        <p className="text-base text-gray-300 mt-1">
+          {enrolment ? (
+            <>In <strong className="text-yellow-200">{enrolment.classroom.name}</strong></>
+          ) : (
+            <Link to="/recommendation" className="text-yellow-300 underline font-bold">
+              You have not joined a classroom yet — find one
+            </Link>
+          )}
         </p>
       </header>
 
-      <main id="main" className="max-w-4xl mx-auto px-5 py-6 space-y-6">
-        {/* Also respects an explicit dismissal. One "turn it off" should
-            silence every prompt, not just the floating bar - otherwise
-            turning it off on this page immediately re-offers it here, which
-            is exactly the nagging the dismissal was meant to stop. */}
+      <main id="main" className="max-w-4xl mx-auto px-5 py-6 space-y-8">
+        {loadError && (
+          <p role="alert" className="text-lg text-red-100 bg-red-950/60 border-2 border-red-700 rounded-xl p-4">
+            Couldn&apos;t load your latest data — check your connection and reload the page.
+          </p>
+        )}
+
         {!audioNavOn && !audioDismissed && (
           <div className="rounded-2xl border-2 border-yellow-500 bg-yellow-950/50 p-5">
             <p className="text-lg text-yellow-100 font-bold mb-3">
@@ -203,6 +305,84 @@ export const AudioDashboardPage: React.FC = () => {
             </button>
           </div>
         )}
+
+        {/* Same four figures as everyone else's dashboard. */}
+        <section aria-labelledby="stats-heading">
+          <h2 id="stats-heading" className="text-2xl font-bold text-yellow-300 mb-3">
+            Your progress so far
+          </h2>
+          <ul className="grid grid-cols-2 sm:grid-cols-4 gap-3 list-none p-0">
+            {stats.map((stat) => {
+              const Icon = stat.icon;
+              return (
+                <li
+                  key={stat.label}
+                  className="p-5 rounded-2xl bg-gray-900 border-4 border-gray-700 text-center"
+                >
+                  <Icon className="w-7 h-7 text-yellow-300 mx-auto mb-2" aria-hidden="true" />
+                  <div className="text-3xl font-bold text-white">{stat.value}</div>
+                  <div className="text-base text-gray-300 mt-0.5">{stat.short}</div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+
+        {/* The learning profile, as numbers and text rather than a chart -
+            a line chart conveys nothing through a screen reader. */}
+        <section aria-labelledby="profile-heading">
+          <h2 id="profile-heading" className="text-2xl font-bold text-yellow-300 mb-3">
+            Your learning profile
+          </h2>
+          {latest ? (
+            <>
+              <ul className="space-y-3 list-none p-0">
+                {modes.map((m) => {
+                  const preferred = latest.preferredMode === m.key;
+                  return (
+                    <li
+                      key={m.key}
+                      className={`p-4 rounded-2xl border-4 ${
+                        preferred ? "border-yellow-400 bg-yellow-950/40" : "border-gray-700 bg-gray-900"
+                      }`}
+                    >
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-xl font-bold text-white">
+                          {m.label}
+                          {preferred && (
+                            <span className="ml-2 text-sm font-bold text-yellow-300">
+                              — you engage best here
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-2xl font-bold text-yellow-300">{m.score}%</span>
+                      </div>
+                      {/* Decorative: the number above is the real content. */}
+                      <div className="h-3 w-full bg-black/60 rounded-full overflow-hidden mt-2" aria-hidden="true">
+                        <div className="h-full bg-yellow-400 rounded-full" style={{ width: `${m.score}%` }} />
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="text-lg text-gray-200 mt-3">
+                Most recent assessment: <strong className="text-yellow-200">{Math.round(latest.scorePercent)}%</strong>
+              </p>
+            </>
+          ) : (
+            <div className="p-5 rounded-2xl bg-gray-900 border-4 border-gray-700">
+              <p className="text-lg text-gray-200 mb-3">
+                You haven&apos;t taken the adaptive assessment yet, so there&apos;s no profile to show.
+              </p>
+              <button
+                onClick={() => navigate("/dashboard/audio/quiz")}
+                className="px-5 py-3 rounded-xl bg-yellow-400 text-black text-lg font-bold hover:bg-yellow-300 focus:outline-none focus:ring-4 focus:ring-white"
+              >
+                Take the voice quiz
+              </button>
+            </div>
+          )}
+        </section>
 
         <section aria-labelledby="menu-heading">
           <h2 id="menu-heading" className="text-2xl font-bold text-yellow-300 mb-3">
@@ -218,7 +398,7 @@ export const AudioDashboardPage: React.FC = () => {
                       announce(`Opening ${option.label}`);
                       navigate(option.path);
                     }}
-                    className="w-full text-left p-5 rounded-2xl bg-gray-900 border-4 border-gray-700 hover:border-yellow-300 focus:outline-none focus:border-yellow-300"
+                    className="w-full h-full text-left p-5 rounded-2xl bg-gray-900 border-4 border-gray-700 hover:border-yellow-300 focus:outline-none focus:border-yellow-300"
                   >
                     <span className="flex items-center gap-3 text-2xl font-bold text-yellow-300">
                       <span
@@ -236,6 +416,32 @@ export const AudioDashboardPage: React.FC = () => {
               );
             })}
           </ul>
+        </section>
+
+        {/* Same "Recent Assessments" list as the standard dashboard. */}
+        <section aria-labelledby="recent-heading">
+          <h2 id="recent-heading" className="text-2xl font-bold text-yellow-300 mb-3">
+            Recent assessments
+          </h2>
+          {history.length > 0 ? (
+            <ul className="space-y-2 list-none p-0">
+              {history.slice(0, 5).map((a) => (
+                <li
+                  key={a.id}
+                  className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-gray-900 border-2 border-gray-700"
+                >
+                  <span className="text-lg text-gray-200">
+                    {new Date(a.completedAt).toLocaleDateString()} · {a.preferredMode} mode
+                  </span>
+                  <span className="text-xl font-bold text-yellow-300">
+                    {Math.round(a.scorePercent)}%
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-lg text-gray-300">No sessions completed yet.</p>
+          )}
         </section>
 
         <section aria-labelledby="assistant-heading" className="space-y-3">
@@ -269,11 +475,13 @@ export const AudioDashboardPage: React.FC = () => {
               Ask
             </button>
           </form>
-          {answer && (
-            <div className="p-5 rounded-2xl bg-gray-900 border-4 border-gray-700">
-              <p className="text-xl text-white leading-relaxed">{answer}</p>
-            </div>
-          )}
+          <div aria-live="polite" aria-atomic="true">
+            {answer && (
+              <div className="p-5 rounded-2xl bg-gray-900 border-4 border-gray-700">
+                <p className="text-xl text-white leading-relaxed">{answer}</p>
+              </div>
+            )}
+          </div>
         </section>
 
         <section aria-labelledby="say-heading">
@@ -286,10 +494,10 @@ export const AudioDashboardPage: React.FC = () => {
                 <strong className="text-white">&ldquo;{o.key}&rdquo;</strong> — {o.label}
               </li>
             ))}
+            <li><strong className="text-white">&ldquo;my stats&rdquo;</strong> — read your progress</li>
             <li><strong className="text-white">&ldquo;read screen&rdquo;</strong> — read this page</li>
             <li><strong className="text-white">&ldquo;menu&rdquo;</strong> — repeat the choices</li>
             <li><strong className="text-white">&ldquo;help&rdquo;</strong> — list every command</li>
-            <li><strong className="text-white">&ldquo;log out&rdquo;</strong> — sign out</li>
           </ul>
         </section>
       </main>
