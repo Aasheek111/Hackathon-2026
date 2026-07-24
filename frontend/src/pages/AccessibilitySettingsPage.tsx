@@ -16,6 +16,7 @@ import {
 import DashboardShell, { NavItem } from "../components/DashboardShell";
 import { useAuth } from "../contexts/AuthContext";
 import { useAccessibility, FontSize } from "../contexts/AccessibilityContext";
+import { DISABILITY_PROFILES } from "../data/disabilityProfiles";
 
 const FONT_SIZE_OPTIONS: { value: FontSize; label: string; sample: string }[] = [
   { value: "SMALL", label: "Small", sample: "text-sm" },
@@ -23,12 +24,6 @@ const FONT_SIZE_OPTIONS: { value: FontSize; label: string; sample: string }[] = 
   { value: "LARGE", label: "Large", sample: "text-lg" },
   { value: "XLARGE", label: "Extra Large", sample: "text-xl" },
 ];
-
-const DISABILITY_LABEL: Record<string, string> = {
-  AUTISM: "Autism",
-  BLINDNESS: "Blind / low vision",
-  DEAFNESS: "Deaf / hard of hearing",
-};
 
 interface ToggleRowProps {
   icon: React.ElementType;
@@ -70,6 +65,7 @@ const ToggleRow: React.FC<ToggleRowProps> = ({ icon: Icon, title, description, c
 export const AccessibilitySettingsPage: React.FC = () => {
   const { user } = useAuth();
   const { prefs, updatePrefs, loading } = useAccessibility();
+  const [savingProfile, setSavingProfile] = React.useState(false);
 
   const navItems: NavItem[] = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
@@ -92,15 +88,62 @@ export const AccessibilitySettingsPage: React.FC = () => {
           </p>
         </div>
 
-        {user?.disabilityType && (
-          <div className="flex items-center gap-2 text-xs font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3">
-            <Check className="w-4 h-4 shrink-0" />
-            <span>
-              Your accessibility profile is set to <strong>{DISABILITY_LABEL[user.disabilityType] || user.disabilityType}</strong>{" "}
-              — we used it to pick starting defaults below. Every setting is yours to change anytime.
-            </span>
+        {/* Accessibility profile - editable here, not just at registration.
+            Changing it switches which dashboard you land on AND re-applies
+            that profile's sensible defaults (see the backend route), so it's
+            confirmed before saving rather than firing on a stray click. */}
+        <section className="p-5 rounded-3xl border border-slate-200/80 bg-white shadow-xs">
+          <div className="flex items-center gap-2 mb-1">
+            <Check className="w-4.5 h-4.5 text-emerald-600" />
+            <h2 className="font-bold text-slate-900 text-sm">Accessibility profile</h2>
           </div>
-        )}
+          <p className="text-xs text-slate-500 mb-3">
+            Changing this switches your dashboard and turns on the settings that profile usually
+            needs. You can still adjust everything below afterwards.
+          </p>
+          <div role="radiogroup" aria-label="Accessibility profile" className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {DISABILITY_PROFILES.map((opt) => {
+              const current = (user?.disabilityType ?? null) === opt.value;
+              return (
+                <button
+                  key={opt.label}
+                  type="button"
+                  role="radio"
+                  aria-checked={current}
+                  disabled={loading || savingProfile}
+                  onClick={() => {
+                    if (current) return;
+                    if (
+                      !window.confirm(
+                        `Switch your profile to "${opt.label}"?\n\nThis opens the ${opt.dashboard} and turns on the settings that profile usually needs.`,
+                      )
+                    )
+                      return;
+                    setSavingProfile(true);
+                    updatePrefs({ disabilityType: opt.value }).finally(() => setSavingProfile(false));
+                  }}
+                  className={`text-left p-3 rounded-xl border-2 transition-all disabled:opacity-60 ${
+                    current
+                      ? "border-emerald-500 bg-emerald-50 shadow-xs"
+                      : "border-slate-200 bg-[#FAF9F5] hover:border-slate-300"
+                  }`}
+                >
+                  <span className="flex items-center justify-between gap-2">
+                    <span className={`text-xs font-bold ${current ? "text-emerald-900" : "text-slate-700"}`}>
+                      {opt.label}
+                    </span>
+                    {current && (
+                      <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide shrink-0">
+                        Current
+                      </span>
+                    )}
+                  </span>
+                  <span className="block text-[11px] text-slate-500 mt-1 leading-snug">{opt.blurb}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
 
         {/* Font size */}
         <section className="p-5 rounded-3xl border border-slate-200/80 bg-white shadow-xs">

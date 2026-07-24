@@ -36,7 +36,7 @@ router.post('/register', async (req: Request, res: Response) => {
     // disabilityType is student-only and optional - a teacher who somehow
     // sends one is silently ignored rather than rejected, and an unrecognized
     // value falls back to unset rather than failing registration outright.
-    const validDisabilityTypes = ['AUTISM', 'BLINDNESS', 'DEAFNESS'];
+    const validDisabilityTypes = ['AUTISM', 'ADHD', 'BLINDNESS', 'DEAFNESS'];
     const resolvedDisabilityType =
       !isTeacher && validDisabilityTypes.includes(disabilityType) ? disabilityType : null;
 

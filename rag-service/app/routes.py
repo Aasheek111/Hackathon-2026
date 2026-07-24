@@ -19,6 +19,8 @@ from . import rag_engine as engine
 from . import youtube_quiz as yt
 from .celery_app import celery_app
 from .models import (
+    AiAssistRequest,
+    AiAssistResponse,
     ExtractYoutubeIdRequest,
     ExtractYoutubeIdResponse,
     GenerateCurriculumRequest,
@@ -203,6 +205,27 @@ def generate_speech_endpoint(request: GenerateSpeechRequest) -> GenerateSpeechRe
     if not audio_url:
         raise HTTPException(status_code=502, detail="Could not generate speech right now")
     return GenerateSpeechResponse(status="success", audio_url=audio_url)
+
+
+@router.post("/ai-assist", response_model=AiAssistResponse, tags=["generate"])
+def ai_assist(request: AiAssistRequest) -> AiAssistResponse:
+    """The learner-facing tutor assistant behind the blind and deaf dashboards.
+
+    Synchronous like /generate-speech - one chat completion is fast enough not
+    to need the queue, and a learner waiting on an answer wants it now.
+    """
+    try:
+        answer = engine.generate_assistant_reply(
+            request.question, request.context, request.profile, request.grade_level
+        )
+    except RuntimeError as failure:  # no key configured, or Groq rate-limited
+        raise HTTPException(status_code=502, detail=str(failure)) from failure
+    except Exception as failure:
+        raise HTTPException(status_code=500, detail=f"Assistant failed: {failure}") from failure
+
+    if not answer:
+        raise HTTPException(status_code=502, detail="The assistant returned an empty answer")
+    return AiAssistResponse(answer=answer)
 
 
 @router.post("/generate-tutorial", response_model=TutorialResponse, tags=["generate"])

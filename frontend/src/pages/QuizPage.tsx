@@ -13,6 +13,8 @@ import {
   ArrowRight,
 } from "lucide-react";
 import api from "../lib/api";
+import { useAuth } from "../contexts/AuthContext";
+import { homePathFor } from "../lib/homePath";
 
 type LearningMode = "TEXT" | "AUDIO" | "VISUAL";
 
@@ -35,6 +37,14 @@ const TRACKING_INTERVAL_MS = 250;
 const LOW_EYE_CONTACT_THRESHOLD = 40;
 const LOW_EYE_CONTACT_SAMPLES = 8;
 const MODE_CONFIDENCE_SAMPLES = 3;
+// How long the "Adapting Learning Mode…" screen stays up before the next
+// question replaces it. Long enough to actually read what changed and why -
+// at under a second it read as a flicker and the question just jumped.
+const MODE_TRANSITION_MS = 3500;
+// How long the correct/incorrect feedback stays on screen after answering
+// before advancing. Learners need time to register the result, especially
+// when the answer was wrong.
+const ANSWER_FEEDBACK_MS = 3000;
 
 const demo20Questions = [
   {
@@ -227,6 +237,7 @@ const demo20Questions = [
 
 export const QuizPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [questions, setQuestions] = useState(demo20Questions);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [currentMode, setCurrentMode] = useState<LearningMode>("TEXT");
@@ -502,7 +513,7 @@ export const QuizPage: React.FC = () => {
       window.setTimeout(() => {
         adaptationLockedRef.current = false;
       }, 1800);
-    }, 900);
+    }, MODE_TRANSITION_MS);
   }, [
     completeAssessment,
     findNextQuestionIndex,
@@ -733,7 +744,7 @@ export const QuizPage: React.FC = () => {
           },
         );
       }
-    }, 1200);
+    }, ANSWER_FEEDBACK_MS);
   };
 
   const formatTime = (seconds: number) => {
@@ -831,7 +842,7 @@ export const QuizPage: React.FC = () => {
             <span className="hidden sm:inline">Skip Demo</span>
           </button>
           <button
-            onClick={() => navigate("/dashboard")}
+            onClick={() => navigate(homePathFor(user))}
             className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-3.5 py-2 rounded-2xl transition-all"
           >
             <LogOut className="w-4 h-4" />

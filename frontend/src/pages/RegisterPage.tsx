@@ -11,18 +11,9 @@ import {
   BookOpen,
   ArrowRight,
   ShieldCheck,
-  Puzzle,
-  Ear,
-  Accessibility,
 } from "lucide-react";
 import { useAuth, DisabilityType } from "../contexts/AuthContext";
-
-const DISABILITY_OPTIONS: { value: DisabilityType | null; label: string; icon: React.ReactNode }[] = [
-  { value: null, label: "Not now / N/A", icon: <Accessibility className="w-3.5 h-3.5" /> },
-  { value: "AUTISM", label: "Autism", icon: <Puzzle className="w-3.5 h-3.5" /> },
-  { value: "BLINDNESS", label: "Blind / low vision", icon: <Eye className="w-3.5 h-3.5" /> },
-  { value: "DEAFNESS", label: "Deaf / hard of hearing", icon: <Ear className="w-3.5 h-3.5" /> },
-];
+import { DISABILITY_PROFILES } from "../data/disabilityProfiles";
 
 export const RegisterPage: React.FC = () => {
   const [name, setName] = useState("");
@@ -68,7 +59,11 @@ export const RegisterPage: React.FC = () => {
     setLoading(true);
     try {
       await register(name, email, password, role, role === "STUDENT" ? disabilityType : null);
-      navigate(role === "TEACHER" ? "/teacher" : "/consent");
+      if (role === "TEACHER") navigate("/teacher");
+      // A blind student takes the voice quiz as their trial rather than the
+      // webcam consent flow - same reasoning as ProtectedRoute's trialPath.
+      else if (disabilityType === "BLINDNESS") navigate("/dashboard/blind/quiz");
+      else navigate("/consent");
     } catch (err: any) {
       setError(
         err.response?.data?.error ||
@@ -184,35 +179,49 @@ export const RegisterPage: React.FC = () => {
               )}
             </div>
 
-            {/* Disability / Accessibility profile - students only. This only
-                seeds sensible DEFAULTS for the accessibility panel later
-                (font size, narration, sign language) - it never gates or
-                changes what content is offered, and every default can be
-                changed anytime from Settings. */}
+            {/* Accessibility profile - students only. Picks which dashboard
+                you land on and seeds sensible defaults (narration, sign
+                language, reduced motion). It never restricts what you can
+                reach, and everything is changeable later from Settings. */}
             {role === "STUDENT" && (
               <div>
                 <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                   Accessibility profile (optional)
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {DISABILITY_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.label}
-                      type="button"
-                      onClick={() => setDisabilityType(opt.value)}
-                      className={`flex items-center justify-center gap-1 p-2 rounded-xl border-2 transition-all text-[10px] font-bold text-center ${
-                        disabilityType === opt.value
-                          ? "border-emerald-500 bg-emerald-50 text-emerald-900 shadow-xs"
-                          : "border-slate-200 bg-[#FAF9F5] text-slate-600 hover:border-slate-300"
-                      }`}
-                    >
-                      {opt.icon}
-                      <span>{opt.label}</span>
-                    </button>
-                  ))}
+                <div
+                  role="radiogroup"
+                  aria-label="Accessibility profile"
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-2"
+                >
+                  {DISABILITY_PROFILES.map((opt) => {
+                    const selected = disabilityType === opt.value;
+                    return (
+                      <button
+                        key={opt.label}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => setDisabilityType(opt.value)}
+                        className={`text-left p-2.5 rounded-xl border-2 transition-all ${
+                          selected
+                            ? "border-emerald-500 bg-emerald-50 shadow-xs"
+                            : "border-slate-200 bg-[#FAF9F5] hover:border-slate-300"
+                        }`}
+                      >
+                        <span
+                          className={`block text-[11px] font-bold ${selected ? "text-emerald-900" : "text-slate-700"}`}
+                        >
+                          {opt.label}
+                        </span>
+                        <span className="block text-[10px] text-slate-500 mt-0.5 leading-snug">
+                          {opt.blurb}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
                 <p className="text-[10px] text-slate-500 mt-1.5">
-                  Helps us pick good starting defaults - like larger text, narration, or sign language support. You can change this anytime in Settings.
+                  You can change this anytime in Settings.
                 </p>
               </div>
             )}
