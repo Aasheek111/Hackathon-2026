@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 
 import requests
 
@@ -56,6 +57,13 @@ PLACEHOLDER_KEYS = {"", "your-key-here", "changeme"}
 # transcript from producing an unbounded prompt.
 MAX_TRANSCRIPT_CHARS = 20000
 
+# Observed live: a transient Docker/DNS blip (NameResolutionError reaching
+# serpapi.com) failed a quiz job outright even though the network recovered
+# seconds later. A couple of retries turns that into a few-second delay
+# instead of a permanent failure the teacher has to notice and retry by hand.
+TRANSCRIPT_FETCH_ATTEMPTS = 3
+TRANSCRIPT_FETCH_RETRY_DELAY_SECONDS = 3
+
 
 def serpapi_key_present() -> bool:
     return os.getenv("SERPAPI_API_KEY", "").strip().strip('"') not in PLACEHOLDER_KEYS
@@ -81,18 +89,33 @@ def fetch_transcript(video_id: str) -> str:
     if not serpapi_key_present():
         raise RuntimeError("SERPAPI_API_KEY is not set. Copy .env.example to .env and add your key.")
 
-    response = requests.get(
-        SERPAPI_BASE_URL,
-        params={
-            "engine": "youtube_video_transcript",
-            "v": video_id,
-            "language_code": "en",
-            "api_key": os.getenv("SERPAPI_API_KEY"),
-        },
-        timeout=30,
-    )
-    response.raise_for_status()
-    data = response.json()
+    data = None
+    last_error: Exception | None = None
+    for attempt in range(TRANSCRIPT_FETCH_ATTEMPTS):
+        try:
+            response = requests.get(
+                SERPAPI_BASE_URL,
+                params={
+                    "engine": "youtube_video_transcript",
+                    "v": video_id,
+                    "language_code": "en",
+                    "api_key": os.getenv("SERPAPI_API_KEY"),
+                },
+                timeout=30,
+            )
+            response.raise_for_status()
+            data = response.json()
+            break
+        except requests.exceptions.RequestException as exc:
+            last_error = exc
+            if attempt < TRANSCRIPT_FETCH_ATTEMPTS - 1:
+                time.sleep(TRANSCRIPT_FETCH_RETRY_DELAY_SECONDS)
+
+    if data is None:
+        raise RuntimeError(
+            f"Could not reach SerpApi after {TRANSCRIPT_FETCH_ATTEMPTS} attempts "
+            f"(likely a transient network/DNS issue): {last_error}"
+        )
 
     segments = data.get("transcript") or data.get("transcripts") or data.get("segments")
     if not isinstance(segments, list) or not segments:

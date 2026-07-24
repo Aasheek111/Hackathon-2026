@@ -18,19 +18,31 @@ function useSpeech() {
   const [loading, setLoading] = useState(false);
   const synth = window.speechSynthesis;
 
-  const speak = async (text: string) => {
+  const playUrl = async (url: string) => {
+    if (!audioRef.current) audioRef.current = new Audio();
+    audioRef.current.src = `${RAG_SERVICE_URL}${url}`;
+    await audioRef.current.play();
+  };
+
+  // preGeneratedUrl: the lesson's own audioUrl, produced on the queue worker
+  // when the teacher uploaded the document (instant playback, no round-trip).
+  // Falls through to a live /tts call, then to the browser's own voice, so
+  // "Listen" always makes sound even if the clip was never pre-generated.
+  const speak = async (text: string, preGeneratedUrl?: string | null) => {
     const trimmed = text.trim();
-    if (!trimmed) return;
+    if (!trimmed && !preGeneratedUrl) return;
     synth.cancel();
     audioRef.current?.pause();
     setLoading(true);
     try {
+      if (preGeneratedUrl) {
+        await playUrl(preGeneratedUrl);
+        return;
+      }
       const { data } = await api.post('/tts', { text: trimmed });
-      if (!audioRef.current) audioRef.current = new Audio();
-      audioRef.current.src = `${RAG_SERVICE_URL}${data.audioUrl}`;
-      await audioRef.current.play();
+      await playUrl(data.audioUrl);
     } catch {
-      synth.speak(new SpeechSynthesisUtterance(trimmed));
+      if (trimmed) synth.speak(new SpeechSynthesisUtterance(trimmed));
     } finally {
       setLoading(false);
     }
@@ -348,7 +360,10 @@ export const CurriculumPlayerPage: React.FC = () => {
     if (!curriculum || view !== 'lesson' || personalization?.preferredMode !== 'AUDIO') return;
     const activeLesson = curriculum.lessons[lessonIndex];
     if (!activeLesson) return;
-    speak(`${activeLesson.title}. ${activeLesson.explanation} ${activeLesson.example || ''}`);
+    speak(
+      `${activeLesson.title}. ${activeLesson.explanation} ${activeLesson.example || ''}`,
+      activeLesson.audioUrl
+    );
   }, [curriculum, lessonIndex, view, personalization]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
@@ -496,12 +511,12 @@ export const CurriculumPlayerPage: React.FC = () => {
             </div>
 
             <button
-              onClick={() => speak(`${lesson.title}. ${lesson.explanation} ${lesson.example || ''}`)}
+              onClick={() => speak(`${lesson.title}. ${lesson.explanation} ${lesson.example || ''}`, lesson.audioUrl)}
               disabled={ttsLoading}
               className="flex items-center gap-2 text-sm text-blue-300 hover:text-blue-200 disabled:opacity-60"
             >
               {ttsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Volume2 className="w-4 h-4" />}
-              {ttsLoading ? 'Generating audio…' : 'Listen to this lesson'}
+              {ttsLoading ? 'Loading audio…' : 'Listen to this lesson'}
             </button>
           </motion.div>
         </AnimatePresence>
