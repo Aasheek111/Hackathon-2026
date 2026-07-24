@@ -10,6 +10,7 @@ import {
   PlayCircle,
   ArrowRight,
   FileText,
+  Video,
 } from "lucide-react";
 import DashboardShell, { NavItem } from "../components/DashboardShell";
 import api from "../lib/api";
@@ -19,6 +20,7 @@ interface Unit {
   title: string;
   order: number;
   indexStatus: string;
+  youtubeQuizzes?: Array<{ id: string }>;
 }
 interface Subject {
   id: string;
@@ -153,8 +155,9 @@ export const MyClassroomPage: React.FC = () => {
                       )}
                     </div>
                     {ready && (
-                      <div className="flex gap-2">
-                        {/* Two doors: our adaptive tutorial, or the teacher's raw PDF. */}
+                      <div className="flex flex-wrap gap-2">
+                        {/* Doors: our adaptive tutorial, the teacher's raw PDF,
+                            and (when assigned) a video-based quiz. */}
                         <button
                           onClick={() =>
                             navigate(`/classroom/units/${unit.id}/tutorial`)
@@ -172,6 +175,18 @@ export const MyClassroomPage: React.FC = () => {
                         >
                           <FileText className="w-4 h-4" /> Read Original
                         </button>
+                        {(unit.youtubeQuizzes?.length ?? 0) > 0 && (
+                          <button
+                            onClick={() =>
+                              navigate(
+                                `/classroom/units/${unit.id}/youtube-quiz`,
+                              )
+                            }
+                            className="flex-1 flex items-center justify-center gap-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 font-bold py-2.5 px-3 rounded-xl text-xs transition-all"
+                          >
+                            <Video className="w-4 h-4" /> Video Quiz
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

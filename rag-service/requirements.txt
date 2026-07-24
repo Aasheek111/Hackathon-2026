@@ -8,16 +8,22 @@ python-dotenv>=1.0
 numpy<2,>=1.26.2               # pinned - langchain-community and faiss-cpu disagree otherwise
 langchain>=0.3,<0.4
 langchain-community>=0.3,<0.4  # FAISS vector store lives here
-langchain-google-genai>=2.0,<3.0
 langchain-text-splitters>=0.3,<0.4
 faiss-cpu>=1.8                 # no wheels for Python 3.13+ yet - use 3.11 or 3.12
-google-genai>=1.0,<2.0          # image generation (gemini-2.5-flash-image) - langchain-google-genai is text-only
-requests>=2.31,<3.0             # pollinations.ai fallback when Gemini's image models are unavailable
+fastembed>=0.4,<1.0            # LOCAL embeddings (ONNX) - no API key, no quota, replaces Gemini embeddings
+requests>=2.31,<3.0            # Groq (text/TTS) + Unsplash (visuals)
 
 # Files
 pypdf>=4.2
+python-docx>=1.1               # teacher uploads in Word format
 pillow>=10.3
 
 # Background job queue (full-curriculum generation, YouTube quiz, TTS)
 celery>=5.3,<6.0
 redis>=5.0,<6.0
+
+# YouTube transcript fetch for the YouTube-quiz feature - free, no API key
+# (talks directly to YouTube's own public caption endpoint), replacing an
+# earlier SerpApi-based implementation that was both a paid/metered
+# dependency and hit a live DNS failure during testing.
+youtube-transcript-api>=1.0,<2.0

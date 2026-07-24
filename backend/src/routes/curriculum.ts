@@ -94,6 +94,78 @@ router.get('/:id/ar-game', async (req: Request, res: Response) => {
 });
 
 /**
+ * The unit's assigned YouTube quiz (teacher forwarded it via
+ * PATCH /youtube-quiz/:id/assign), stripped of `correct` - answers only come
+ * back after POST .../submit, so a student can't just read them off the
+ * network tab before attempting it.
+ */
+router.get('/:id/youtube-quiz', async (req: Request, res: Response) => {
+  try {
+    const { unit, allowed } = await unitAccess(req.user!.id, req.params['id'] as string);
+    if (!unit) return res.status(404).json({ error: 'Unit not found' });
+    if (!allowed) return res.status(403).json({ error: 'Not allowed to view this unit' });
+
+    const quiz = await prisma.youtubeQuiz.findFirst({
+      where: { unitId: unit.id, status: 'READY' },
+      orderBy: { createdAt: 'desc' },
+      include: { questions: { orderBy: { order: 'asc' }, select: { id: true, order: true, question: true, options: true } } }
+    });
+    if (!quiz) return res.status(404).json({ error: 'No YouTube quiz assigned to this unit yet' });
+
+    const isStudent = req.user!.role === 'STUDENT';
+    const latestAttempt = isStudent
+      ? await prisma.youtubeQuizAttempt.findFirst({
+          where: { quizId: quiz.id, studentId: req.user!.id },
+          orderBy: { completedAt: 'desc' }
+        })
+      : null;
+
+    res.json({
+      quiz: { id: quiz.id, title: quiz.title, sourceUrl: quiz.sourceUrl, questions: quiz.questions },
+      latestAttempt
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch YouTube quiz' });
+  }
+});
+
+/** Score a YouTube quiz attempt server-side (never trust a client-reported score) and award XP. */
+router.post('/:id/youtube-quiz/submit', requireRole('STUDENT'), async (req: Request, res: Response) => {
+  try {
+    const studentId = req.user!.id;
+    const { unit, allowed } = await unitAccess(studentId, req.params['id'] as string);
+    if (!unit) return res.status(404).json({ error: 'Unit not found' });
+    if (!allowed) return res.status(403).json({ error: 'Not allowed to view this unit' });
+
+    const quiz = await prisma.youtubeQuiz.findFirst({
+      where: { unitId: unit.id, status: 'READY' },
+      include: { questions: true }
+    });
+    if (!quiz) return res.status(404).json({ error: 'No YouTube quiz assigned to this unit yet' });
+
+    const { answers } = req.body as { answers?: Array<{ questionId: string; answer: string }> };
+    const questionMap = new Map(quiz.questions.map((q) => [q.id, q]));
+    const answerLog = (answers || []).map((a) => {
+      const question = questionMap.get(a.questionId);
+      return { questionId: a.questionId, answer: a.answer, correct: !!question && a.answer === question.correct };
+    });
+    const scoreCorrect = answerLog.filter((a) => a.correct).length;
+    const scoreTotal = quiz.questions.length;
+
+    const attempt = await prisma.youtubeQuizAttempt.create({
+      data: { quizId: quiz.id, studentId, scoreCorrect, scoreTotal, answerLog }
+    });
+
+    const { newlyEarned: newBadges } = await awardXp(studentId, 10);
+    const correctAnswers = Object.fromEntries(quiz.questions.map((q) => [q.id, q.correct]));
+
+    res.status(201).json({ attempt, newBadges, correctAnswers });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to submit quiz' });
+  }
+});
+
+/**
  * Concentration ingestion from the tutorial player's webcam/CV loop. Stored
  * as running sums per (student, unit, lesson) so this is a single cheap
  * upsert-increment - no per-frame rows, no external AI (the CV compute is
@@ -425,10 +497,10 @@ router.post('/:id/curriculum/final-assessment', requireRole('STUDENT'), async (r
 
 /**
  * Regenerates every lesson's picture from its own text - fast and doesn't
- * touch Gemini's text-generation quota at all, unlike a full regenerate:
- * image generation goes through generate_visual_image() (Gemini image model,
- * falling back to pollinations.ai), a completely separate call from the
- * lesson-planning/writing pipeline that actually hits the daily text quota.
+ * touch the text-generation quota at all, unlike a full regenerate: images
+ * go through generate_visual_image(), which is an Unsplash photo search
+ * (hotlinked, sub-second) rather than any part of the lesson-planning/writing
+ * pipeline that actually hits the daily text quota.
  * Fire-and-forget, same pattern as the rest of this pipeline's background work.
  */
 router.post('/:id/regenerate-visuals', requireApprovedTeacher, async (req: Request, res: Response) => {

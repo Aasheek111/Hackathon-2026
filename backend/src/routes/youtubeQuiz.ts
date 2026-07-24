@@ -76,4 +76,41 @@ router.get('/:id', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Forward a ready quiz to one of the teacher's own units, so enrolled
+ * students can take it (GET/POST /units/:id/youtube-quiz). Pass unitId: null
+ * to unassign. Verifies the unit actually belongs to this teacher's
+ * classroom - a quiz can't be pointed at someone else's unit.
+ */
+router.patch('/:id/assign', async (req: Request, res: Response) => {
+  try {
+    const quiz = await prisma.youtubeQuiz.findFirst({
+      where: { id: req.params['id'] as string, teacherId: req.user!.id }
+    });
+    if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
+    if (quiz.status !== 'READY') {
+      return res.status(400).json({ error: 'Only a ready quiz can be assigned to a unit' });
+    }
+
+    const unitId = req.body?.unitId as string | null;
+    if (unitId) {
+      const unit = await prisma.unit.findUnique({
+        where: { id: unitId },
+        include: { subject: { include: { classroom: true } } }
+      });
+      if (!unit || unit.subject.classroom.teacherId !== req.user!.id) {
+        return res.status(404).json({ error: 'Unit not found or not yours' });
+      }
+    }
+
+    const updated = await prisma.youtubeQuiz.update({
+      where: { id: quiz.id },
+      data: { unitId: unitId || null }
+    });
+    res.json({ quiz: updated });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to assign quiz' });
+  }
+});
+
 export default router;

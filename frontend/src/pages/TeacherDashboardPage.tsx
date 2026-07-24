@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import DashboardShell, { NavItem } from "../components/DashboardShell";
-import api from "../lib/api";
+import api, { resolveMediaUrl } from "../lib/api";
 
 interface Unit {
   id: string;
@@ -302,7 +302,7 @@ export const TeacherDashboardPage: React.FC = () => {
         {activeTab === "criteria" && (
           <CriteriaTab classroom={classroom} onChanged={load} />
         )}
-        {activeTab === "youtube" && <YoutubeQuizTab />}
+        {activeTab === "youtube" && <YoutubeQuizTab classroom={classroom} />}
       </motion.div>
     </DashboardShell>
   );
@@ -497,7 +497,7 @@ const UnitPreviewBadge: React.FC<{ unitId: string; ready: boolean }> = ({
   if (preview.status === "READY" && preview.imageUrl) {
     return (
       <img
-        src={`${RAG_SERVICE_URL}${preview.imageUrl}`}
+        src={resolveMediaUrl(preview.imageUrl)}
         alt="Auto-generated preview"
         className="w-8 h-8 rounded-lg object-cover border border-white/10"
       />
@@ -841,10 +841,10 @@ const ContentTab: React.FC<{
                   ) : (
                     <label className="cursor-pointer text-xs font-bold px-4 py-2 rounded-xl border border-slate-200 bg-white hover:border-emerald-500 text-slate-700 flex items-center gap-2 transition-all">
                       <Upload className="w-4 h-4 text-emerald-600" />
-                      Upload PDF
+                      Upload document
                       <input
                         type="file"
-                        accept="application/pdf"
+                        accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
                         className="hidden"
                         onChange={(e) => {
                           const file = e.target.files?.[0];
@@ -914,6 +914,7 @@ interface YoutubeQuiz {
   errorMessage: string | null;
   title: string | null;
   questions: YoutubeQuizQuestion[];
+  unitId: string | null;
   createdAt: string;
 }
 
@@ -930,11 +931,12 @@ const YOUTUBE_QUIZ_STATUS_LABEL: Record<YoutubeQuiz["status"], string> = {
  * generates a quiz from it. Polls rather than blocking, same pattern as
  * generation-job status elsewhere.
  */
-const YoutubeQuizTab: React.FC = () => {
+const YoutubeQuizTab: React.FC<{ classroom: Classroom }> = ({ classroom }) => {
   const [url, setUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [quizzes, setQuizzes] = useState<YoutubeQuiz[]>([]);
+  const [assigning, setAssigning] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const { data } = await api.get("/youtube-quiz");
@@ -960,6 +962,16 @@ const YoutubeQuizTab: React.FC = () => {
       setError(err.response?.data?.error || "Could not start quiz generation");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const assign = async (quizId: string, unitId: string) => {
+    setAssigning(quizId);
+    try {
+      await api.patch(`/youtube-quiz/${quizId}/assign`, { unitId: unitId || null });
+      await load();
+    } finally {
+      setAssigning(null);
     }
   };
 
@@ -1030,6 +1042,36 @@ const YoutubeQuizTab: React.FC = () => {
 
             {quiz.status === "FAILED" && quiz.errorMessage && (
               <p className="text-xs text-rose-700 mt-2">{quiz.errorMessage}</p>
+            )}
+
+            {quiz.status === "READY" && (
+              <div className="flex items-center gap-2 mb-3">
+                <label className="text-xs font-bold text-slate-600">
+                  Send to classroom:
+                </label>
+                <select
+                  value={quiz.unitId || ""}
+                  disabled={assigning === quiz.id}
+                  onChange={(e) => assign(quiz.id, e.target.value)}
+                  className="text-xs font-medium border border-slate-200 rounded-xl px-2.5 py-1.5 bg-[#FAF9F5] focus:outline-none focus:border-emerald-500 disabled:opacity-60"
+                >
+                  <option value="">Not assigned (draft)</option>
+                  {classroom.subjects.map((subject) => (
+                    <optgroup key={subject.id} label={subject.name}>
+                      {subject.units.map((unit) => (
+                        <option key={unit.id} value={unit.id}>
+                          {unit.title}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+                {quiz.unitId && (
+                  <span className="text-[11px] font-bold text-emerald-700">
+                    ✓ Students can take this
+                  </span>
+                )}
+              </div>
             )}
 
             {quiz.status === "READY" && (
