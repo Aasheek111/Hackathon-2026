@@ -1,39 +1,27 @@
-<<<<<<< Updated upstream
-import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X } from 'lucide-react';
-import Button from './ui/Button';
-=======
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, ArrowRight, LayoutDashboard, LogOut } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
->>>>>>> Stashed changes
 
 export const Navbar: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-<<<<<<< Updated upstream
-  const location = useLocation();
-=======
   const { user, logout } = useAuth();
->>>>>>> Stashed changes
 
   useEffect(() => {
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
+      setIsScrolled(window.scrollY > 15);
     };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   const navLinks = [
-    { name: 'About', href: '/#about' },
-    { name: 'Features', href: '/#features' },
-    { name: 'Pricing', href: '/#pricing' },
-    { name: 'Contact', href: '/#contact' },
+    { name: "About", href: "/#about" },
+    { name: "Features", href: "/#features" },
+    { name: "Pricing", href: "/#pricing" },
+    { name: "Contact", href: "/#contact" },
   ];
 
   return (
@@ -41,16 +29,19 @@ export const Navbar: React.FC = () => {
       initial={{ y: -100 }}
       animate={{ y: 0 }}
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        isScrolled ? 'glass py-3' : 'bg-transparent py-5'
+        isScrolled
+          ? "bg-white/95 backdrop-blur-md shadow-xs py-2 border-b border-slate-200/80"
+          : "bg-transparent py-1"
       }`}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between">
-          <Link to="/" className="flex items-center space-x-2">
-            <span className="text-3xl">🧠</span>
-            <span className="font-display font-bold text-2xl tracking-tight gradient-text">
-              NeuroLearn
-            </span>
+          <Link to="/" className="flex items-center group py-0.5">
+            <img
+              src="/logo.png"
+              alt="Pragya Logo"
+              className="h-12 sm:h-14 md:h-20 w-auto object-contain transition-all duration-300 hover:scale-[1.02]"
+            />
           </Link>
 
           {/* Desktop Nav */}
@@ -60,21 +51,12 @@ export const Navbar: React.FC = () => {
                 <a
                   key={link.name}
                   href={link.href}
-                  className="text-gray-300 hover:text-white text-sm font-medium transition-colors"
+                  className="text-slate-600 hover:text-slate-900 text-xs font-bold transition-colors"
                 >
                   {link.name}
                 </a>
               ))}
             </div>
-<<<<<<< Updated upstream
-            <div className="flex items-center space-x-4">
-              <Link to="/login">
-                <Button variant="ghost" size="sm">Login</Button>
-              </Link>
-              <Link to="/register">
-                <Button variant="primary" size="sm">Get Started</Button>
-              </Link>
-=======
             <div className="flex items-center space-x-3">
               {user ? (
                 <>
@@ -107,7 +89,6 @@ export const Navbar: React.FC = () => {
                   </Link>
                 </>
               )}
->>>>>>> Stashed changes
             </div>
           </div>
 
@@ -115,9 +96,9 @@ export const Navbar: React.FC = () => {
           <div className="md:hidden">
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="text-gray-300 hover:text-white p-2"
+              className="text-slate-700 hover:text-slate-900 p-2"
             >
-              {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+              {isMobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
             </button>
           </div>
         </div>
@@ -128,30 +109,21 @@ export const Navbar: React.FC = () => {
         {isMobileMenuOpen && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
+            animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="md:hidden glass-strong border-t border-white/10 mt-3"
+            className="md:hidden bg-white border-b border-slate-200 shadow-md mt-2"
           >
-            <div className="px-4 py-6 space-y-4 flex flex-col">
+            <div className="px-6 py-6 space-y-4 flex flex-col">
               {navLinks.map((link) => (
                 <a
                   key={link.name}
                   href={link.href}
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="text-gray-300 hover:text-white block py-2 text-lg font-medium"
+                  className="text-slate-700 hover:text-slate-900 py-1.5 text-base font-bold"
                 >
                   {link.name}
                 </a>
               ))}
-<<<<<<< Updated upstream
-              <div className="pt-4 border-t border-white/10 flex flex-col space-y-3">
-                <Link to="/login" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button variant="ghost" className="w-full">Login</Button>
-                </Link>
-                <Link to="/register" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button variant="primary" className="w-full">Get Started</Button>
-                </Link>
-=======
               <div className="pt-4 border-t border-slate-100 flex flex-col space-y-2.5">
                 {user ? (
                   <>
@@ -186,7 +158,6 @@ export const Navbar: React.FC = () => {
                     </Link>
                   </>
                 )}
->>>>>>> Stashed changes
               </div>
             </div>
           </motion.div>
