@@ -48,8 +48,9 @@ const ToggleRow: React.FC<ToggleRowProps> = ({ icon: Icon, title, description, c
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-label={title}
       onClick={() => onChange(!checked)}
-      className={`relative shrink-0 w-11 h-6 rounded-full transition-colors ${
+      className={`relative shrink-0 w-11 h-6 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 ${
         checked ? "bg-emerald-500" : "bg-slate-200"
       }`}
     >

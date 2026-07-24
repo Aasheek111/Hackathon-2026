@@ -94,9 +94,14 @@ export const RegisterPage: React.FC = () => {
               />
             </div>
 
-            <h1 className="text-2xl font-bold text-slate-900 leading-snug mb-3">
+            {/* A marketing tagline, not the page's real heading - this panel
+                is also hidden below the lg breakpoint (`hidden lg:flex`
+                above), so an <h1> here would vanish from the accessibility
+                tree on any narrow viewport. "Create Account" below is the
+                actual single h1, present at every width. */}
+            <p className="text-2xl font-bold text-slate-900 leading-snug mb-3">
               Empowering unique minds, one step at a time.
-            </h1>
+            </p>
 
             <p className="text-slate-600 text-xs leading-relaxed mb-4">
               Join our supportive learning community. Discover custom lesson
@@ -125,16 +130,19 @@ export const RegisterPage: React.FC = () => {
           </div>
 
           <div className="mb-5 text-center lg:text-left">
-            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-0.5">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 mb-0.5">
               Create Account
-            </h2>
+            </h1>
             <p className="text-slate-500 text-xs">
               Join NeuroLearn in less than a minute.
             </p>
           </div>
 
           {error && (
-            <div className="bg-rose-50 border border-rose-200 text-rose-700 p-2.5 rounded-2xl mb-4 text-xs font-medium text-center">
+            <div
+              role="alert"
+              className="bg-rose-50 border border-rose-200 text-rose-700 p-2.5 rounded-2xl mb-4 text-xs font-medium text-center"
+            >
               {error}
             </div>
           )}
@@ -229,12 +237,13 @@ export const RegisterPage: React.FC = () => {
             {/* 2-Column Grid for Name & Email */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
-                <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label htmlFor="register-name" className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Full Name
                 </label>
                 <div className="relative flex items-center">
                   <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <input
+                    id="register-name"
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -246,12 +255,13 @@ export const RegisterPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label htmlFor="register-email" className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Email Address
                 </label>
                 <div className="relative flex items-center">
                   <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <input
+                    id="register-email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -266,12 +276,13 @@ export const RegisterPage: React.FC = () => {
             {/* 2-Column Grid for Password & Confirm Password */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
-                <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label htmlFor="register-password" className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Password
                 </label>
                 <div className="relative flex items-center">
                   <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <input
+                    id="register-password"
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -282,6 +293,8 @@ export const RegisterPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-pressed={showPassword}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 flex items-center justify-center"
                   >
                     {showPassword ? (
@@ -294,12 +307,13 @@ export const RegisterPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label htmlFor="register-confirm-password" className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Confirm Password
                 </label>
                 <div className="relative flex items-center">
                   <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <input
+                    id="register-confirm-password"
                     type={showPassword ? "text" : "password"}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}

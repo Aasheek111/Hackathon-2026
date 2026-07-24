@@ -36,6 +36,10 @@ enum LearningMode {
   VISUAL
   AR
   STORY
+  // Caption-first: the same lesson text, larger and paired with ASL
+  // fingerspelling/handshape diagrams for key words - no audio dependency
+  // anywhere in this mode. See CurriculumPlayerPage's SignModeView.
+  SIGN
 }
 
 // Chosen at registration and editable later from Settings (student only).
@@ -164,6 +168,8 @@ model User {
   generationJobs  TutorialGenerationJob[]
   notifications   Notification[]
   youtubeQuizzes  YoutubeQuiz[]
+
+  signFavourites  SignFavourite[]
 }
 
 // One row per student, created lazily on first read/write (see the route).
@@ -184,6 +190,22 @@ model AccessibilityPrefs {
   audiobookMode  Boolean  @default(false) // continuous cross-lesson playback, see TODO in tutorials
 
   updatedAt      DateTime @updatedAt
+}
+
+// A student's starred signs in the sign-language dictionary. signId matches
+// the `Sign.id` values in frontend/src/data/signLanguage.ts (e.g.
+// "letter-A", "w-hello") - deliberately a loose string reference rather than
+// a foreign key, since the sign catalogue itself lives in static frontend
+// data, not the database. Was localStorage-only; syncing here makes
+// favourites follow the student across devices.
+model SignFavourite {
+  id        String   @id @default(cuid())
+  studentId String
+  student   User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  signId    String
+  createdAt DateTime @default(now())
+
+  @@unique([studentId, signId])
 }
 
 model DemoResult {

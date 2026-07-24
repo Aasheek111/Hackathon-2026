@@ -18,10 +18,14 @@ import {
   Wand2,
   Eye,
   EyeOff,
+  Hand,
+  Mic,
+  MicOff,
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import StorybookView from "../components/StorybookView";
 import ThemeToggle from "../components/ThemeToggle";
+import AslFingerspellingStrip from "../components/AslFingerspellingStrip";
 import api, { resolveMediaUrl } from "../lib/api";
 import {
   useConcentrationTracking,
@@ -29,6 +33,8 @@ import {
 } from "../hooks/useConcentrationTracking";
 import { useAccessibility } from "../contexts/AccessibilityContext";
 import { useSpeech } from "../hooks/useSpeech";
+import { useVoiceCommands, VoiceCommand } from "../hooks/useVoiceCommands";
+import { pickKeyWord } from "../data/aslAlphabet";
 
 /** A small floating "Listen" button that appears over a text selection. */
 const SelectionListenButton: React.FC<{
@@ -125,7 +131,7 @@ interface Progress {
   currentLessonOrder: number;
   completed: boolean;
 }
-type LearningMode = "TEXT" | "AUDIO" | "VISUAL" | "AR" | "STORY";
+type LearningMode = "TEXT" | "AUDIO" | "VISUAL" | "AR" | "STORY" | "SIGN";
 
 interface Personalization {
   preferredMode: LearningMode;
@@ -144,6 +150,7 @@ const MODES: {
   { key: "VISUAL", label: "Visual", icon: ImageIcon },
   { key: "AR", label: "AR Game", icon: Gamepad2 },
   { key: "STORY", label: "Storybook", icon: Wand2 },
+  { key: "SIGN", label: "Sign", icon: Hand },
 ];
 
 /**
@@ -275,7 +282,7 @@ const KnowledgeCheckCard: React.FC<{ unitId: string; lesson: Lesson }> = ({
 
   return (
     <div className="bg-white border border-slate-200/70 dark:bg-white/5 dark:backdrop-blur-xl dark:border-white/[0.08] p-6 rounded-2xl mb-6">
-      <p className="text-xs text-slate-400 dark:text-gray-500 uppercase tracking-wide mb-3">
+      <p className="text-xs text-slate-500 dark:text-gray-400 uppercase tracking-wide mb-3">
         Quick check
       </p>
       <p className="font-medium mb-4 text-slate-800 dark:text-white">{check.question}</p>
@@ -304,6 +311,8 @@ const KnowledgeCheckCard: React.FC<{ unitId: string; lesson: Lesson }> = ({
       </div>
       {result ? (
         <div
+          role="status"
+          aria-live="polite"
           className={`flex items-center gap-2 text-sm ${result.correct ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}`}
         >
           {result.correct ? (
@@ -369,7 +378,10 @@ const FinalAssessmentView: React.FC<{
     <main className="max-w-3xl mx-auto px-4 sm:px-6 pt-8 pb-20">
       <div className="bg-white border border-slate-200/80 shadow-xs dark:bg-white/[0.09] dark:backdrop-blur-2xl dark:border-white/[0.14] dark:shadow-none p-6 sm:p-8 rounded-3xl">
         <div className="flex items-center gap-2 mb-6">
-          <h2 className="text-xl font-bold text-slate-800 dark:text-white">Final assessment</h2>
+          {/* This view has no other heading (its own header above is just a
+              "Back to lessons" link) and, like the "complete" view below,
+              is effectively its own full-page state - so h1, not h2. */}
+          <h1 className="text-xl font-bold text-slate-800 dark:text-white">Final assessment</h1>
         </div>
         <div className="space-y-6">
           {questions.map((q, qi) => (
@@ -528,6 +540,63 @@ export const CurriculumPlayerPage: React.FC = () => {
     }
   };
 
+  // Voice navigation - the same Web Speech API commands as the audio
+  // dashboard, brought into the REAL curriculum player rather than living
+  // only in a separate practice quiz. This is what actually makes a
+  // teacher's uploaded lesson blind-navigable, not just the standalone demo.
+  // An accelerator, never the only way to move: every action here already
+  // has a working button, and this hook self-reports `supported: false` in
+  // browsers without Web Speech.
+  const voiceCommands: VoiceCommand[] = React.useMemo(() => {
+    const currentLesson = () => curriculum?.lessons[lessonIndex];
+    const readCurrent = () => {
+      const l = currentLesson();
+      if (l) speak(`${l.title}. ${l.explanation} ${l.example || ""}`, l.audioUrl);
+    };
+    return [
+      {
+        phrases: ["next lesson", "next"],
+        description: "Next lesson",
+        run: () => {
+          if (view !== "lesson" || !curriculum) return;
+          if (lessonIndex >= curriculum.lessons.length - 1) finishCurriculum();
+          else goTo(lessonIndex + 1);
+        },
+      },
+      {
+        phrases: ["previous lesson", "go back", "previous"],
+        description: "Previous lesson",
+        run: () => {
+          if (view === "lesson" && lessonIndex > 0) goTo(lessonIndex - 1);
+        },
+      },
+      {
+        phrases: ["read lesson", "read this", "read aloud"],
+        description: "Read the lesson aloud",
+        run: readCurrent,
+      },
+      { phrases: ["repeat"], description: "Repeat", run: readCurrent },
+      { phrases: ["stop reading", "stop", "be quiet"], description: "Stop reading", run: () => stopSpeaking() },
+      { phrases: ["text mode", "switch to text"], description: "Switch to Text mode", run: () => changeMode("TEXT") },
+      { phrases: ["audio mode", "switch to audio"], description: "Switch to Audio mode", run: () => changeMode("AUDIO") },
+      { phrases: ["visual mode", "switch to visual"], description: "Switch to Visual mode", run: () => changeMode("VISUAL") },
+      { phrases: ["sign mode", "switch to sign"], description: "Switch to Sign mode", run: () => changeMode("SIGN") },
+      { phrases: ["exit lesson", "leave lesson", "go to classroom"], description: "Back to classroom", run: () => { stopSpeaking(); navigate("/classroom"); } },
+    ];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [curriculum, lessonIndex, view]);
+
+  // enabled=false auto-stops recognition the moment the learner leaves the
+  // lesson view (final assessment, completion screen) - the toggle button
+  // below is the user-driven on/off switch; this is the external kill-switch
+  // so commands like "next lesson" can't fire somewhere they'd be nonsense.
+  const {
+    listening: voiceListening,
+    toggle: toggleVoice,
+    supported: voiceSupported,
+    error: voiceError,
+  } = useVoiceCommands(voiceCommands, view === "lesson");
+
   // Auto-narrates each lesson as you land on it (the pre-generated clip when
   // available, else live TTS, else the browser voice) - same canonical
   // content, just read aloud. Always on in AUDIO mode; also on in any mode
@@ -594,7 +663,7 @@ export const CurriculumPlayerPage: React.FC = () => {
           </h1>
           <p className="text-slate-500 dark:text-gray-400 mb-2">{curriculum.title}</p>
           {isPreview && (
-            <p className="text-sm text-slate-400 dark:text-gray-500 mb-4">
+            <p className="text-sm text-slate-500 dark:text-gray-400 mb-4">
               This is what a student sees after finishing every lesson -
               knowledge checks and the final assessment aren't shown here since
               you're viewing as the teacher.
@@ -709,6 +778,25 @@ export const CurriculumPlayerPage: React.FC = () => {
                   : "Focus off"}
               </button>
             )}
+            {voiceSupported && mode !== "AR" && mode !== "STORY" && (
+              <button
+                onClick={toggleVoice}
+                aria-pressed={voiceListening}
+                title={
+                  voiceListening
+                    ? 'Voice control is on - try "next lesson", "read this", "sign mode"'
+                    : "Turn on voice control"
+                }
+                className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border transition-colors ${
+                  voiceListening
+                    ? "bg-rose-500/15 text-rose-600 border-rose-400/40 dark:text-rose-300"
+                    : "bg-slate-100 text-slate-500 border-slate-200 hover:text-slate-700 dark:bg-dark-card dark:text-gray-500 dark:border-white/10 dark:hover:text-gray-300"
+                }`}
+              >
+                {voiceListening ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
+                {voiceListening ? "Listening" : "Voice"}
+              </button>
+            )}
             {progress?.completed && (
               <span className="text-xs px-3 py-1 rounded-full bg-green-500/20 text-green-600 dark:text-green-400 border border-green-500/30">
                 ✓ Completed
@@ -726,7 +814,13 @@ export const CurriculumPlayerPage: React.FC = () => {
           {curriculum.title}
         </h1>
 
-        {/* Presentation modes - the same lessons shown five ways. Switching is
+        {voiceError && (
+          <p role="alert" className="text-xs text-rose-600 dark:text-rose-300 mb-3">
+            {voiceError}
+          </p>
+        )}
+
+        {/* Presentation modes - the same lessons shown six ways. Switching is
             instant (no regeneration) and keeps your place. */}
         <div className="flex flex-wrap gap-2 mb-3">
           {MODES.map((m) => {
@@ -780,7 +874,7 @@ export const CurriculumPlayerPage: React.FC = () => {
                 setFinalScore({ scoreCorrect: score, scoreTotal: total });
               }}
             />
-            <p className="text-center text-xs text-slate-400 dark:text-gray-500 mt-4">
+            <p className="text-center text-xs text-slate-500 dark:text-gray-400 mt-4">
               Pop the balloon with the correct answer. Switch back to Text,
               Audio, or Visual any time — your place is saved.
             </p>
@@ -801,19 +895,20 @@ export const CurriculumPlayerPage: React.FC = () => {
                   {lesson.title}
                 </h2>
 
-                {/* VISUAL mode leads with the picture, larger; other modes show
-                    it as a supporting image when present. */}
-                {lesson.imageUrl ? (
-                  <img
-                    src={resolveMediaUrl(lesson.imageUrl)}
-                    alt={lesson.title}
-                    className={`w-full object-contain rounded-2xl mb-6 bg-slate-100 dark:bg-black/20 ${
-                      mode === "VISUAL" ? "max-h-[32rem]" : "max-h-96"
-                    }`}
-                  />
-                ) : (
-                  mode === "VISUAL" && (
-                    <div className="w-full h-48 rounded-2xl mb-6 bg-slate-100 border border-slate-200 dark:bg-black/20 dark:border-white/10 flex items-center justify-center text-slate-400 dark:text-gray-500 text-sm">
+                {/* VISUAL mode only - previously the image rendered in every
+                    mode whenever one existed, so TEXT/AUDIO/SIGN were showing
+                    "supporting" pictures despite the mode switcher promising
+                    a text-only / audio-only / caption-only presentation. Each
+                    mode should show exactly what it says it shows. */}
+                {mode === "VISUAL" && (
+                  lesson.imageUrl ? (
+                    <img
+                      src={resolveMediaUrl(lesson.imageUrl)}
+                      alt={lesson.title}
+                      className="w-full object-contain rounded-2xl mb-6 bg-slate-100 dark:bg-black/20 max-h-[32rem]"
+                    />
+                  ) : (
+                    <div className="w-full h-48 rounded-2xl mb-6 bg-slate-100 border border-slate-200 dark:bg-black/20 dark:border-white/10 flex items-center justify-center text-slate-500 dark:text-gray-400 text-sm">
                       <ImageIcon className="w-5 h-5 mr-2" /> No picture for this
                       lesson yet
                     </div>
@@ -823,7 +918,7 @@ export const CurriculumPlayerPage: React.FC = () => {
                 <div ref={lessonContentRef}>
                   <p
                     className={`leading-relaxed mb-4 ${
-                      isSimplified || mode === "VISUAL" ? "text-xl" : "text-lg"
+                      isSimplified || mode === "VISUAL" || mode === "SIGN" ? "text-xl" : "text-lg"
                     } ${hc ? "text-yellow-200" : "text-slate-700 dark:text-gray-200"}`}
                   >
                     {lesson.explanation}
@@ -841,6 +936,26 @@ export const CurriculumPlayerPage: React.FC = () => {
                         Example:{" "}
                       </span>
                       {lesson.example}
+                    </div>
+                  )}
+
+                  {/* SIGN mode: caption-first, never plays audio by itself.
+                      Fingerspells key vocabulary from the title and the
+                      explanation - same honest scope as StorybookView's
+                      strip (letter-by-letter guide, not full sentence
+                      translation - see aslAlphabet.ts). */}
+                  {mode === "SIGN" && (
+                    <div className="space-y-3">
+                      {pickKeyWord(lesson.title) && (
+                        <AslFingerspellingStrip word={pickKeyWord(lesson.title) as string} highContrast={hc} />
+                      )}
+                      {pickKeyWord(lesson.explanation) &&
+                        pickKeyWord(lesson.explanation) !== pickKeyWord(lesson.title) && (
+                          <AslFingerspellingStrip
+                            word={pickKeyWord(lesson.explanation) as string}
+                            highContrast={hc}
+                          />
+                        )}
                     </div>
                   )}
                 </div>
@@ -883,7 +998,7 @@ export const CurriculumPlayerPage: React.FC = () => {
             )}
             {isPreview && lesson.knowledgeCheck && (
               <div className="bg-white border border-slate-200/70 dark:bg-white/5 dark:backdrop-blur-xl dark:border-white/[0.08] p-6 rounded-2xl mb-6 opacity-70">
-                <p className="text-xs text-slate-400 dark:text-gray-500 uppercase tracking-wide mb-3">
+                <p className="text-xs text-slate-500 dark:text-gray-400 uppercase tracking-wide mb-3">
                   Quick check (student view only)
                 </p>
                 <p className="font-medium text-slate-800 dark:text-white">{lesson.knowledgeCheck.question}</p>
