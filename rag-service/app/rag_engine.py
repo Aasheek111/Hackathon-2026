@@ -18,7 +18,6 @@ import re
 import struct
 import time
 from pathlib import Path
-from urllib.parse import quote
 
 import requests
 from dotenv import load_dotenv
@@ -518,9 +517,10 @@ def generate_tutorial(
 # --- image generation --------------------------------------------------------
 
 
-#  Gemini returns PNG; pollinations.ai returns JPEG. Saving whatever comes
-#  back under the right extension keeps the static server's guessed
-#  Content-Type (mimetypes, by extension) truthful for either provider.
+#  Only applies to the Gemini fallback, which returns PNG - Unsplash images
+#  are hotlinked, never written to disk. Saving under the right extension
+#  keeps the static server's guessed Content-Type (mimetypes, by extension)
+#  truthful.
 _MIME_EXTENSIONS = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 
 
@@ -550,46 +550,12 @@ def _generate_via_gemini(styled_prompt: str) -> tuple[bytes, str] | None:
     return None
 
 
-def _pollinations_token_present() -> bool:
-    return os.getenv("POLLINATIONS_API_KEY", "").strip().strip('"') not in PLACEHOLDER_KEYS
-
-
-# Anonymous pollinations throttles hard when a whole curriculum's worth of
-# images is requested in a burst (observed live: 1 of 21 succeeded, the rest
-# came back non-200/timeout). It recovers within seconds, so a few backoff
-# retries turn "most lessons have no picture" into "every lesson does, a bit
-# slower". A POLLINATIONS_API_KEY raises the underlying limit; these retries
-# are the free-tier safety net either way.
-POLLINATIONS_ATTEMPTS = 5
-POLLINATIONS_BACKOFF_SECONDS = 3
-
-
-def _generate_via_pollinations(styled_prompt: str) -> tuple[bytes, str] | None:
-    """Free fallback (pollinations.ai) - used whenever Gemini's image models
-    are unavailable, so a picture still generates without requiring a paid
-    Gemini tier. Works anonymously with no key; if POLLINATIONS_API_KEY is
-    set, it's sent for pollinations' higher-priority/rate-limited tier.
-    """
-    url = (
-        f"https://image.pollinations.ai/prompt/{quote(styled_prompt, safe='')}"
-        "?width=768&height=768&nologo=true"
-    )
-    if _pollinations_token_present():
-        url += f"&token={quote(os.getenv('POLLINATIONS_API_KEY', ''))}"
-
-    for attempt in range(POLLINATIONS_ATTEMPTS):
-        try:
-            response = requests.get(url, timeout=45)
-            content_type = response.headers.get("content-type", "")
-            if response.status_code == 200 and content_type.startswith("image/"):
-                return response.content, content_type.split(";")[0].strip()
-            # 429/5xx under burst load - back off and retry rather than
-            # giving this lesson no picture at all
-        except Exception:
-            pass  # timeout / connection blip - same treatment
-        if attempt < POLLINATIONS_ATTEMPTS - 1:
-            time.sleep(POLLINATIONS_BACKOFF_SECONDS * (attempt + 1))
-    return None
+# pollinations.ai was removed here deliberately. It generated each image on
+# demand, which meant waiting on image synthesis per lesson, and it throttled
+# hard under a curriculum-sized burst (observed live: 1 of 21 succeeded, the
+# rest 429/timeout, needing backoff retries that made a full unit take
+# minutes). Unsplash returns a real photo in a single fast search call and is
+# hotlinked, so nothing is generated, downloaded, or stored.
 
 
 UNSPLASH_SEARCH_URL = "https://api.unsplash.com/search/photos"
@@ -655,10 +621,11 @@ def generate_visual_image(prompt: str, unit_id: int) -> str | None:
     """Turn a visual_suggestion (a hint written for a human artist) into an
     actual picture.
 
-    Order: Unsplash (a real photo, one fast call, hotlinked - no storage) ->
-    Gemini -> pollinations. The two generators still run when Unsplash has no
-    key configured or no match for the topic, so nothing regresses if the key
-    is absent.
+    Order: Unsplash (a real photo, one fast search call, hotlinked - nothing
+    downloaded or stored) -> Gemini. pollinations.ai was removed; see the note
+    above _fetch_via_unsplash for why. Gemini stays purely as a last resort
+    for topics Unsplash has no photo for, and is itself a no-op unless the
+    API key's project has image-gen billing enabled.
 
     Returns either an absolute Unsplash CDN URL or our own relative
     /static/images/... path - the frontend's resolveMediaUrl() handles both.
@@ -681,7 +648,7 @@ def generate_visual_image(prompt: str, unit_id: int) -> str | None:
         "into the image itself, high contrast, easy to understand at a glance."
     )
 
-    result = _generate_via_gemini(styled_prompt) or _generate_via_pollinations(styled_prompt)
+    result = _generate_via_gemini(styled_prompt)
     if not result:
         return None
     image_bytes, mime_type = result
