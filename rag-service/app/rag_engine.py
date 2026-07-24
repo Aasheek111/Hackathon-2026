@@ -597,7 +597,16 @@ def _unsplash_search(query: str) -> str | None:
     try:
         response = requests.get(
             UNSPLASH_SEARCH_URL,
-            params={"query": query, "per_page": 1, "orientation": "landscape"},
+            params={
+                "query": query,
+                "per_page": 1,
+                "orientation": "landscape",
+                # These lessons are shown to children, so we ask Unsplash for
+                # its strictest safety filtering. It is not a guarantee - the
+                # teacher preview and "regenerate visuals" control remain the
+                # human check before students ever see a unit.
+                "content_filter": "high",
+            },
             headers={
                 "Authorization": f"Client-ID {os.getenv('UNSPLASH_ACCESS_KEY', '').strip().strip(chr(34))}",
                 "Accept-Version": "v1",
@@ -615,12 +624,39 @@ def _unsplash_search(query: str) -> str | None:
         return None
 
 
-def _fetch_via_unsplash(prompt: str) -> str | None:
-    """Returns a HOTLINKED Unsplash CDN URL (not downloaded bytes).
+def _download_image(url: str, unit_id: int) -> str | None:
+    """Pull the bytes onto our own server and return a local /static path.
 
-    Unsplash's API guidelines require hotlinking their CDN rather than
-    re-hosting copies, and it's also far faster than image synthesis - a real
-    photo arrives in one search call and we store nothing.
+    Prefetching rather than hotlinking is deliberate for this deployment: a
+    lesson opened in a Nepali classroom on a slow or intermittent connection
+    should not depend on a third-party CDN round-trip per image, and the
+    picture must still appear if that CDN is unreachable. Downloading once at
+    generation time means every student afterwards is served locally.
+    """
+    try:
+        response = requests.get(url, timeout=30)
+        if response.status_code != 200:
+            return None
+        content_type = response.headers.get("content-type", "").split(";")[0].strip()
+        if not content_type.startswith("image/"):
+            return None
+
+        IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+        # Hash the source URL so the same photo is never stored twice.
+        digest = hashlib.sha1(url.encode()).hexdigest()[:12]
+        extension = _MIME_EXTENSIONS.get(content_type, ".jpg")
+        filename = f"visual_{unit_id}_{digest}{extension}"
+        (IMAGE_DIR / filename).write_bytes(response.content)
+        return f"/static/images/{filename}"
+    except Exception:
+        return None
+
+
+def _fetch_via_unsplash(prompt: str) -> str | None:
+    """Finds a safe, on-topic photo and returns its Unsplash CDN URL.
+
+    Callers should pass the result through _download_image() - see
+    generate_visual_image().
     """
     if not unsplash_key_present():
         return None
@@ -642,16 +678,23 @@ def generate_visual_image(prompt: str, unit_id: int) -> str | None:
     broadening (see _unsplash_queries) means every lesson resolves to a photo,
     which is what fixes lessons rendering "No picture for this lesson yet".
 
-    Returns an absolute Unsplash CDN URL; the frontend's resolveMediaUrl()
-    also still handles the relative /static/images/... paths of anything
-    generated before this change.
+    The photo is PREFETCHED onto our server at generation time and the local
+    /static/images/... path is what gets stored on the lesson - so opening a
+    lesson never waits on a third-party CDN, which matters on the slow and
+    intermittent connections this is built for. If the download itself fails
+    we fall back to the remote URL rather than losing the picture; the
+    frontend's resolveMediaUrl() renders either shape.
 
     Never raises - if it comes back empty the caller just shows text, same
     contract as `offline_tutorial`. A dead demo helps nobody.
     """
     if not (prompt or "").strip():
         return None
-    return _fetch_via_unsplash(prompt)
+
+    remote_url = _fetch_via_unsplash(prompt)
+    if not remote_url:
+        return None
+    return _download_image(remote_url, unit_id) or remote_url
 
 
 # --- full-document curriculum generation --------------------------------------
