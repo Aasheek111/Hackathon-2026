@@ -360,7 +360,15 @@ export const AudioNavigationProvider: React.FC<{ children: React.ReactNode }> = 
       { phrases: ['open lessons', 'my lessons', 'open classroom', 'classroom'], description: 'Open your classroom', run: () => navigate('/classroom') },
       { phrases: ['my progress', 'open progress'], description: 'Open your progress', run: () => navigate('/progress') },
       { phrases: ['open settings', 'settings'], description: 'Open settings', run: () => navigate('/settings') },
-      { phrases: ['sign practice', 'practice signs', 'open sign practice'], description: 'Open sign practice', run: () => navigate('/practice/signs') },
+      {
+        phrases: ['sign practice', 'practice signs', 'open sign practice'],
+        description: 'Open sign practice',
+        run: () => {
+          if (user?.disabilityType === 'DEAFNESS') {
+            navigate('/practice/signs');
+          }
+        },
+      },
       { phrases: ['read screen', 'read this page', 'where am i', 'what is on the screen'], description: 'Read this screen aloud', run: readPage },
       { phrases: ['repeat that', 'repeat'], description: 'Repeat the last thing said', run: () => speak(announcement) },
       { phrases: ['stop talking', 'stop reading', 'be quiet', 'stop'], description: 'Stop reading', run: () => stopSpeech() },

@@ -27,6 +27,8 @@ import {
 } from "recharts";
 import DashboardShell, { NavItem } from "../components/DashboardShell";
 import api from "../lib/api";
+import { useAuth } from "../contexts/AuthContext";
+import { useAccessibility } from "../contexts/AccessibilityContext";
 import { usePageAudio } from "../contexts/AudioNavigationContext";
 import { LearningActivityGraph } from "../components/LearningActivityGraph";
 
@@ -125,11 +127,16 @@ export const ProgressPage: React.FC = () => {
     return parts.length ? parts.join(" ") : "Your progress will appear here once you complete some work.";
   });
 
+  const { user } = useAuth();
+  const isDeafUser = user?.disabilityType === "DEAFNESS";
+
   const navItems: NavItem[] = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
     { icon: BookOpen, label: "My Classroom", path: "/classroom" },
     { icon: TrendingUp, label: "My Progress", path: "/progress", active: true },
-    { icon: Hand, label: "Sign Practice", path: "/practice/signs" },
+    ...(isDeafUser
+      ? [{ icon: Hand, label: "Sign Practice", path: "/practice/signs" }]
+      : []),
     { icon: SettingsIcon, label: "Settings", path: "/settings" },
   ];
 
