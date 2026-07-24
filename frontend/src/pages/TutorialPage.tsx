@@ -14,7 +14,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import TutorialAssistant from "../components/TutorialAssistant";
-import api from "../lib/api";
+import api, { resolveMediaUrl } from "../lib/api";
 
 const RAG_SERVICE_URL =
   import.meta.env.VITE_RAG_SERVICE_URL || "http://localhost:8100";
@@ -291,7 +291,7 @@ export const TutorialPage: React.FC = () => {
               </p>
               {tutorial.imageUrl || unitPreviewImageUrl ? (
                 <img
-                  src={`${RAG_SERVICE_URL}${tutorial.imageUrl || unitPreviewImageUrl}`}
+                  src={resolveMediaUrl(tutorial.imageUrl || unitPreviewImageUrl)}
                   alt={tutorial.visualSuggestion}
                   className="w-full max-h-96 object-contain rounded-xl mb-3 bg-black/20"
                 />

@@ -31,4 +31,19 @@ api.interceptors.response.use(
   }
 );
 
+const RAG_SERVICE_URL = import.meta.env.VITE_RAG_SERVICE_URL || 'http://localhost:8100';
+
+/**
+ * Generated-image URLs come in two shapes: our own relative /static/images/...
+ * path (Gemini/pollinations, downloaded and re-served locally), or a full
+ * external URL when the source is hotlinked directly (Unsplash - faster and
+ * saves our own storage/bandwidth, per the provider's own guidelines against
+ * re-hosting). Prefixing an already-absolute URL with our host would break
+ * it, so only prefix when it isn't one already.
+ */
+export function resolveMediaUrl(path: string | null | undefined): string {
+  if (!path) return '';
+  return /^https?:\/\//i.test(path) ? path : `${RAG_SERVICE_URL}${path}`;
+}
+
 export default api;

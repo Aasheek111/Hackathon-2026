@@ -31,3 +31,6 @@ uploads/syllabus/*
 *.db
 *.db-journal
 dev.db
+
+# Real secrets belong here, never in git - copy .env.example instead
+.env

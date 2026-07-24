@@ -16,12 +16,12 @@ from . import rag_engine as engine
 from . import youtube_quiz
 from .celery_app import celery_app
 
-# Images and audio are pure I/O waits (HTTP to pollinations / the TTS API),
-# so generating them for every lesson one-at-a-time wastes most of the wall
-# clock idle. A small thread pool overlaps them - deliberately low: the free
-# pollinations endpoint throttles a big burst (each request also retries with
-# backoff internally), so 3-wide plus retries beats 8-wide getting mass-429'd.
-MEDIA_POOL_SIZE = 3
+# Images and audio are pure I/O waits (an Unsplash search / the TTS API), so
+# fetching them one lesson at a time wastes most of the wall clock idle. A
+# small thread pool overlaps them. Kept modest to stay well inside Unsplash's
+# hourly rate limit (50/hr on a demo app, 5,000/hr once approved) rather than
+# for throughput reasons - each call now returns in well under a second.
+MEDIA_POOL_SIZE = 4
 
 # The Node backend is the sole writer to the SQLite DB (see TODO.md Phase 1) -
 # this worker never touches the database directly, it only reports progress
@@ -134,12 +134,12 @@ def generate_curriculum(self, job_id: str, unit_id: int, grade_level: str | None
             _update_job(job_id, stage="GENERATING_TEXT", progressPercent=30 + int(30 * (i + 1) / total))
 
         # A picture for EVERY lesson, not only the ones the planner flagged
-        # needs_visual. Image generation goes Gemini-then-pollinations, and
-        # pollinations is free with no per-day quota (unlike the text model),
-        # so there's no reason to ration visuals - a student in VISUAL mode
-        # should never land on a lesson with no picture. Uses the lesson's own
-        # visual_suggestion when the planner wrote one, otherwise a prompt
-        # built from the lesson title + explanation.
+        # needs_visual. Visuals come from an Unsplash search (fast, hotlinked,
+        # and it doesn't touch the text model's daily quota), so there's no
+        # reason to ration them - a student in VISUAL mode should never land
+        # on a lesson with no picture. Uses the lesson's own visual_suggestion
+        # when the planner wrote one, otherwise a prompt built from the lesson
+        # title + explanation.
         def make_visual(lesson: dict) -> str | None:
             prompt = (lesson.get("visual_suggestion") or "").strip() or _visual_prompt_from_lesson(lesson)
             return engine.generate_visual_image(prompt, unit_id)

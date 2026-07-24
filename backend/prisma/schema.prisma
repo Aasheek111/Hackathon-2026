@@ -128,6 +128,7 @@ model User {
   finalAssessmentAttempts FinalAssessmentAttempt[]
   rawDocProgress          RawDocProgress[]
   engagementSamples       UnitEngagementSample[]
+  youtubeQuizAttempts     YoutubeQuizAttempt[]
 
   // Full-curriculum pipeline (teacher side)
   generationJobs  TutorialGenerationJob[]
@@ -327,6 +328,7 @@ model Unit {
   curriculum       TutorialCurriculum?
   generationJobs   TutorialGenerationJob[]
   engagementSamples UnitEngagementSample[]
+  youtubeQuizzes    YoutubeQuiz[]
 
   ragUnitId   Int?         @unique // the integer id rag-service indexes under
   indexStatus IndexStatus  @default(NOT_INDEXED)
@@ -628,8 +630,30 @@ model YoutubeQuiz {
   errorMessage String?
   title        String?
   questions    YoutubeQuizQuestion[]
+  // Forwarded to a unit once ready, so students in that unit's classroom can
+  // take it - null until the teacher assigns it (a quiz can exist as a draft
+  // the teacher previews before deciding where it belongs).
+  unitId       String?
+  unit         Unit?             @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  attempts     YoutubeQuizAttempt[]
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
+
+  @@index([unitId])
+}
+
+model YoutubeQuizAttempt {
+  id           String      @id @default(cuid())
+  quizId       String
+  quiz         YoutubeQuiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  studentId    String
+  student      User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  scoreCorrect Int         @default(0)
+  scoreTotal   Int         @default(0)
+  answerLog    Json        @default("[]")
+  completedAt  DateTime    @default(now())
+
+  @@index([quizId, studentId])
 }
 
 model YoutubeQuizQuestion {
