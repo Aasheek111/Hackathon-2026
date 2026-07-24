@@ -1,11 +1,39 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { requireAuth, requireAdmin } from '../middleware/auth';
+import { getAppConfig } from '../lib/appConfig';
 import { LearningMode, Role } from '@prisma/client';
 
 const router = Router();
 
 router.use(requireAuth, requireAdmin);
+
+/** Global app settings (admin-only). Currently the target grade/education level. */
+router.get('/config', async (_req: Request, res: Response) => {
+  try {
+    const config = await getAppConfig();
+    res.json({ config });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load settings' });
+  }
+});
+
+router.patch('/config', async (req: Request, res: Response) => {
+  try {
+    const gradeLevel = String(req.body?.gradeLevel ?? '').trim();
+    if (!gradeLevel) return res.status(400).json({ error: 'A grade level is required' });
+    if (gradeLevel.length > 60) return res.status(400).json({ error: 'Grade level is too long' });
+
+    const config = await prisma.appConfig.upsert({
+      where: { id: 'singleton' },
+      create: { id: 'singleton', gradeLevel },
+      update: { gradeLevel }
+    });
+    res.json({ config });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to save settings' });
+  }
+});
 
 router.get('/users', async (req: Request, res: Response) => {
   try {

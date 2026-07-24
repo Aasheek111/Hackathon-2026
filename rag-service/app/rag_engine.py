@@ -467,8 +467,23 @@ def offline_tutorial(unit_id: int, chunks: list[str], learning_mode: str) -> dic
     }
 
 
+def grade_prefix(grade_level: str | None) -> str:
+    """A one-line instruction pinning the target education level, prepended to
+    every generation system prompt. Admin-set (see backend AppConfig) so the
+    whole platform can be retargeted (Nursery -> Grade 5, etc.) without code
+    changes. Empty when no level is configured, leaving prompts unchanged.
+    """
+    grade = (grade_level or "").strip()
+    if not grade:
+        return ""
+    return (
+        f"TARGET LEARNERS: {grade}-level students. Use vocabulary, sentence length, examples, "
+        f"and question difficulty appropriate for {grade}. Never exceed that level.\n\n"
+    )
+
+
 def generate_tutorial(
-    unit_id: int, student_diagnosis: str | None, learning_mode: str = "TEXT"
+    unit_id: int, student_diagnosis: str | None, learning_mode: str = "TEXT", grade_level: str | None = None
 ) -> dict:
     """Retrieve the relevant chunks and turn them into an adapted tutorial."""
     mode = (learning_mode or "TEXT").upper()
@@ -490,7 +505,7 @@ def generate_tutorial(
         "Return only the JSON object, with no commentary."
     )
 
-    raw = invoke_json(SYSTEM_PROMPT, user_prompt)
+    raw = invoke_json(grade_prefix(grade_level) + SYSTEM_PROMPT, user_prompt)
 
     result = _normalise(_coerce_json(raw))
     # useful for the teacher and for debugging retrieval quality
@@ -693,7 +708,7 @@ def all_chunks(unit_id: int) -> list[dict]:
     ]
 
 
-def plan_curriculum(unit_id: int) -> dict:
+def plan_curriculum(unit_id: int, grade_level: str | None = None) -> dict:
     """One LLM call over the WHOLE document, producing an ordered lesson plan
     whose lesson count is derived from actual content (TODO.md Phase 2 - never
     a hardcoded number).
@@ -715,7 +730,7 @@ def plan_curriculum(unit_id: int) -> dict:
         }
 
     numbered = "\n\n".join(f"[chunk {c['position']}] {c['text']}" for c in chunks)
-    plan = _coerce_json(invoke_json(CURRICULUM_PLAN_PROMPT, numbered))
+    plan = _coerce_json(invoke_json(grade_prefix(grade_level) + CURRICULUM_PLAN_PROMPT, numbered))
 
     lessons = []
     for item in plan.get("lessons") or []:
@@ -796,7 +811,9 @@ def _fill_coverage_gaps(lessons: list[dict], chunks: list[dict]) -> list[dict]:
     return sorted(lessons + extra, key=lambda l: l["chunk_start"])
 
 
-def generate_lesson_content(unit_id: int, lesson_title: str, chunk_start: int, chunk_end: int) -> dict:
+def generate_lesson_content(
+    unit_id: int, lesson_title: str, chunk_start: int, chunk_end: int, grade_level: str | None = None
+) -> dict:
     """Content for ONE lesson, grounded only in its own chunk range - keeps
     each generation call small and traceable instead of re-processing the
     whole document per lesson.
@@ -816,7 +833,7 @@ def generate_lesson_content(unit_id: int, lesson_title: str, chunk_start: int, c
         }
 
     user_prompt = f"Lesson title: {lesson_title}\n\nTextbook excerpt:\n{context}\n\nReturn only the JSON object."
-    data = _coerce_json(invoke_json(LESSON_SYSTEM_PROMPT, user_prompt))
+    data = _coerce_json(invoke_json(grade_prefix(grade_level) + LESSON_SYSTEM_PROMPT, user_prompt))
 
     knowledge_check = None
     kc = data.get("knowledge_check")
@@ -835,7 +852,7 @@ def generate_lesson_content(unit_id: int, lesson_title: str, chunk_start: int, c
     }
 
 
-def generate_final_assessment(lesson_titles: list[str]) -> list[dict]:
+def generate_final_assessment(lesson_titles: list[str], grade_level: str | None = None) -> list[dict]:
     """Up to 10 MCQs covering the whole curriculum. Returns [] rather than
     raising when there's no API key - a curriculum without a final assessment
     still has real value; the frontend just won't show that step.
@@ -845,7 +862,10 @@ def generate_final_assessment(lesson_titles: list[str]) -> list[dict]:
 
     context = "\n".join(f"- {title}" for title in lesson_titles)
     data = _coerce_json(
-        invoke_json(FINAL_ASSESSMENT_SYSTEM_PROMPT, f"Curriculum lessons:\n{context}\n\nReturn only the JSON object.")
+        invoke_json(
+            grade_prefix(grade_level) + FINAL_ASSESSMENT_SYSTEM_PROMPT,
+            f"Curriculum lessons:\n{context}\n\nReturn only the JSON object.",
+        )
     )
 
     questions = []

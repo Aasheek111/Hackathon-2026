@@ -50,9 +50,22 @@ interface UnitStudentRow {
   preferredMode: string | null;
   knowledgeChecks: { correct: number; total: number };
   finalScore: { correct: number; total: number } | null;
+  mark: number | null;
+  grade: string;
   lessons: LessonCell[];
   overallAvgFocus: number | null;
 }
+
+const gradeChip = (grade: string): string => {
+  switch (grade) {
+    case 'A': return 'text-emerald-700 bg-emerald-50 border-emerald-200';
+    case 'B': return 'text-sky-700 bg-sky-50 border-sky-200';
+    case 'C': return 'text-amber-700 bg-amber-50 border-amber-200';
+    case 'D': return 'text-orange-700 bg-orange-50 border-orange-200';
+    case 'F': return 'text-rose-700 bg-rose-50 border-rose-200';
+    default: return 'text-slate-400 bg-slate-50 border-slate-200';
+  }
+};
 interface UnitAnalytics {
   unit: { id: string; title: string };
   hasCurriculum: boolean;
@@ -137,6 +150,7 @@ const UnitHeatmap: React.FC<{ unitId: string; onBack: () => void }> = ({ unitId,
                 <th className="text-[10px] font-bold text-slate-400 px-2">Focus</th>
                 <th className="text-[10px] font-bold text-slate-400 px-2">Checks</th>
                 <th className="text-[10px] font-bold text-slate-400 px-2">Exam</th>
+                <th className="text-[10px] font-bold text-slate-400 px-2">Mark</th>
               </tr>
             </thead>
             <tbody>
@@ -173,6 +187,11 @@ const UnitHeatmap: React.FC<{ unitId: string; onBack: () => void }> = ({ unitId,
                   </td>
                   <td className="text-xs text-slate-600 px-2 text-center">
                     {s.finalScore ? `${s.finalScore.correct}/${s.finalScore.total}` : '—'}
+                  </td>
+                  <td className="px-2 text-center">
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${gradeChip(s.grade)}`}>
+                      {s.mark === null ? '—' : `${s.grade} ${s.mark}%`}
+                    </span>
                   </td>
                 </tr>
               ))}

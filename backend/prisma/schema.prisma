@@ -13,6 +13,16 @@ enum Role {
   STUDENT
 }
 
+// Global, admin-only settings. A single row (id = "singleton"). Right now it
+// just holds the target grade/education level that steers AI generation, so
+// the whole app can be retargeted (Nursery -> Grade 5, etc.) without touching
+// code or prompts. Only the ADMIN role can change it; teachers can't.
+model AppConfig {
+  id         String   @id @default("singleton")
+  gradeLevel String   @default("Nursery")
+  updatedAt  DateTime @updatedAt
+}
+
 enum TeacherStatus {
   PENDING
   APPROVED

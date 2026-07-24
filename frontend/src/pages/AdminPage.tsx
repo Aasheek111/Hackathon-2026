@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Users, FileText, Database, CreditCard, Plus, Trash2, GraduationCap, Check, X, ArrowLeft } from 'lucide-react';
+import { Users, FileText, Database, CreditCard, Plus, Trash2, GraduationCap, Check, X, ArrowLeft, SlidersHorizontal, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../lib/api';
 
@@ -62,6 +62,10 @@ export const AdminPage: React.FC = () => {
     subject: '', question: '', optionA: '', optionB: '', optionC: '', optionD: '', answer: '', learningMode: 'TEXT'
   });
 
+  const [gradeLevel, setGradeLevel] = useState('');
+  const [savingGrade, setSavingGrade] = useState(false);
+  const [gradeSaved, setGradeSaved] = useState(false);
+
   const pendingCount = teachers.filter((t) => t.teacherStatus === 'PENDING').length;
 
   const loadOverview = useCallback(async () => {
@@ -89,6 +93,24 @@ export const AdminPage: React.FC = () => {
     setPayments(data);
   }, []);
 
+  const loadConfig = useCallback(async () => {
+    const { data } = await api.get('/admin/config');
+    setGradeLevel(data.config?.gradeLevel || '');
+  }, []);
+
+  const saveGrade = async () => {
+    if (!gradeLevel.trim()) return;
+    setSavingGrade(true);
+    setGradeSaved(false);
+    try {
+      await api.patch('/admin/config', { gradeLevel: gradeLevel.trim() });
+      setGradeSaved(true);
+      setTimeout(() => setGradeSaved(false), 3000);
+    } finally {
+      setSavingGrade(false);
+    }
+  };
+
   useEffect(() => {
     loadTeachers().catch(() => undefined);
   }, [loadTeachers]);
@@ -100,12 +122,13 @@ export const AdminPage: React.FC = () => {
       Users: loadUsers,
       Teachers: loadTeachers,
       Questions: loadQuestions,
-      Payments: loadPayments
+      Payments: loadPayments,
+      Settings: loadConfig
     };
     loaders[activeTab]?.()
       .catch(() => undefined)
       .finally(() => setLoading(false));
-  }, [activeTab, loadOverview, loadUsers, loadTeachers, loadQuestions, loadPayments]);
+  }, [activeTab, loadOverview, loadUsers, loadTeachers, loadQuestions, loadPayments, loadConfig]);
 
   const changeRole = async (userId: string, role: string) => {
     await api.patch(`/admin/users/${userId}`, { role });
@@ -156,7 +179,8 @@ export const AdminPage: React.FC = () => {
     { id: 'Users', icon: Users },
     { id: 'Teachers', icon: GraduationCap, badge: pendingCount },
     { id: 'Questions', icon: FileText },
-    { id: 'Payments', icon: CreditCard }
+    { id: 'Payments', icon: CreditCard },
+    { id: 'Settings', icon: SlidersHorizontal }
   ];
 
   const statusPill = (status: string) => {
@@ -389,6 +413,57 @@ export const AdminPage: React.FC = () => {
     </div>
   );
 
+  const GRADE_PRESETS = ['Nursery', 'LKG', 'UKG', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5'];
+  const renderSettings = () => (
+    <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-8 max-w-2xl">
+      <div className="flex items-center gap-2 mb-2">
+        <SlidersHorizontal className="w-5 h-5 text-emerald-600" />
+        <h2 className="text-lg font-bold text-slate-900">Target grade level</h2>
+      </div>
+      <p className="text-sm text-slate-500 mb-6 leading-relaxed">
+        The education level all AI-generated tutorials, lessons, and quizzes are written for. Changing it
+        steers vocabulary, examples, and difficulty for <strong>newly generated</strong> content — existing
+        curricula are unchanged. Only admins can set this.
+      </p>
+
+      <div className="flex flex-wrap gap-2 mb-4">
+        {GRADE_PRESETS.map((g) => (
+          <button
+            key={g}
+            onClick={() => setGradeLevel(g)}
+            className={`text-xs font-bold px-3 py-1.5 rounded-full border transition-all ${
+              gradeLevel === g
+                ? 'bg-emerald-50 text-emerald-900 border-emerald-500'
+                : 'border-slate-200 bg-[#FAF9F5] text-slate-600 hover:border-slate-300'
+            }`}
+          >
+            {g}
+          </button>
+        ))}
+      </div>
+
+      <label className="block text-xs font-bold text-slate-600 mb-1.5">Grade / education level</label>
+      <div className="flex gap-3">
+        <input
+          value={gradeLevel}
+          onChange={(e) => setGradeLevel(e.target.value)}
+          placeholder="e.g. Grade 3"
+          maxLength={60}
+          className="flex-1 border border-slate-200 rounded-2xl px-4 py-2.5 text-sm focus:border-emerald-500 focus:outline-none"
+        />
+        <button
+          onClick={saveGrade}
+          disabled={savingGrade || !gradeLevel.trim()}
+          className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-5 py-2.5 rounded-2xl text-xs shadow-md border-b-4 border-emerald-700 active:translate-y-0.5 active:border-b-2 transition-all disabled:opacity-50"
+        >
+          {savingGrade ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+          Save
+        </button>
+      </div>
+      {gradeSaved && <p className="text-xs font-bold text-emerald-700 mt-3">Saved. New tutorials will target &ldquo;{gradeLevel}&rdquo;.</p>}
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-[#FAF9F5] text-slate-800 font-sans selection:bg-emerald-100 selection:text-emerald-900 p-6 md:p-10">
       <div className="max-w-7xl mx-auto">
@@ -437,6 +512,7 @@ export const AdminPage: React.FC = () => {
           {activeTab === 'Teachers' && renderTeachers()}
           {activeTab === 'Questions' && renderQuestions()}
           {activeTab === 'Payments' && renderPayments()}
+          {activeTab === 'Settings' && renderSettings()}
         </motion.div>
       </div>
 
