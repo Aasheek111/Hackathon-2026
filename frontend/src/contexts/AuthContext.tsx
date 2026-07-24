@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../lib/api';
 
-export type DisabilityType = 'AUTISM' | 'BLINDNESS' | 'DEAFNESS';
+/** Mirrors the Prisma DisabilityType enum. Drives which dashboard a student lands on (see lib/homePath.ts). */
+export type DisabilityType = 'NONE' | 'AUTISM' | 'ADHD' | 'BLINDNESS' | 'DEAFNESS';
 
 interface User {
   id: string;

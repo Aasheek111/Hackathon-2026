@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, ArrowRight, LayoutDashboard, LogOut } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import LanguageToggle from "./LanguageToggle";
+import { homePathFor } from "../lib/homePath";
 
 export const Navbar: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -62,7 +63,7 @@ export const Navbar: React.FC = () => {
               <LanguageToggle />
               {user ? (
                 <>
-                  <Link to={user.role === 'ADMIN' ? '/admin' : user.role === 'TEACHER' ? '/teacher' : '/dashboard'}>
+                  <Link to={homePathFor(user)}>
                     <button className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-4 py-2 rounded-2xl text-xs shadow-xs border-b-2 border-emerald-700 active:translate-y-0.5 transition-all flex items-center gap-1.5 cursor-pointer">
                       <LayoutDashboard className="w-3.5 h-3.5" />
                       <span>Dashboard</span>
@@ -130,7 +131,7 @@ export const Navbar: React.FC = () => {
               <div className="pt-4 border-t border-slate-100 flex flex-col space-y-2.5">
                 {user ? (
                   <>
-                    <Link to={user.role === 'ADMIN' ? '/admin' : user.role === 'TEACHER' ? '/teacher' : '/dashboard'} onClick={() => setIsMobileMenuOpen(false)}>
+                    <Link to={homePathFor(user)} onClick={() => setIsMobileMenuOpen(false)}>
                       <button className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-2xl shadow-sm border-b-4 border-emerald-700 text-sm flex items-center justify-center gap-2">
                         <LayoutDashboard className="w-4 h-4" />
                         Dashboard

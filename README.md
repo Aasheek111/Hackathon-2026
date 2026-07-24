@@ -1,6 +1,9 @@
-# Pragya — Adaptive Learning Platform
+# Pragya — Inclusive Adaptive Learning Platform
 
-> An adaptive learning platform that personalizes education for autistic students by identifying the learning mode that best maintains engagement.
+> An adaptive learning platform for students with disabilities. Learners choose an accessibility
+> profile and get a dashboard built for how they actually learn — adaptive for autistic and ADHD
+> learners, audio-first and voice-driven for blind learners, visual and caption-first for deaf
+> learners.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-violet.svg)](LICENSE)
 
@@ -8,11 +11,30 @@
 
 ## 🌟 Features
 
+**Shared**
 - **Adaptive Quiz** — 10-minute demo quiz that switches between Text, Audio, and Visual modes based on engagement
 - **Computer Vision** — Optional webcam engagement tracking using OpenCV + MediaPipe Face Mesh
 - **AR Learning Game** — Interactive 3D learning game (WebXR/A-Frame) for low-engagement learners
+- **AI Learning Assistant** — Ask "explain this", "another example", "make it easier"; answers are re-toned per accessibility profile
+- **Accessibility Settings** — Text size, high contrast, always-narrate, reduced motion, sign language, audiobook mode
 - **eSewa Payment** — Nepal-based payment gateway integration for subscriptions
-- **Learning Analytics** — Personalized dashboard with engagement charts and mode recommendations
+- **Learning Analytics** — Personalized dashboard, plus a teacher view of every student's performance
+
+**Autism / ADHD — `/dashboard`**
+- The original adaptive dashboard, engagement charts, and mode recommendations (unchanged)
+
+**Blind / low vision — `/dashboard/blind`**
+- Voice navigation ("start quiz", "read screen", "repeat", "log out") via the Web Speech API
+- Read-aloud of any screen, plus a voice quiz that reads questions and options and accepts spoken answers
+- Keyboard-only operation, skip links, ARIA live regions, high-contrast large-target UI
+
+**Deaf / hard of hearing — `/dashboard/deaf`**
+- Caption-first: no activity anywhere requires hearing
+- Sign language section — ASL alphabet, numbers, and everyday vocabulary, searchable, with favourites
+- Visual sign practice quiz with written feedback
+
+> 📖 See **[docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md)** for the full accessibility
+> documentation, the routing model, and an honest account of the known limitations.
 
 ---
 

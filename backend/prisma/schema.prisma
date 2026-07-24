@@ -38,14 +38,21 @@ enum LearningMode {
   STORY
 }
 
-// Set once at registration (student only), used only to pick sensible
-// DEFAULTS for the accessibility panel below - never to gate features or
-// change what content a student is offered. A student can always override
-// every individual setting regardless of this value (see AccessibilityPrefs'
-// own doc comment on why user-set beats inferred).
+// Chosen at registration and editable later from Settings (student only).
+// Two jobs:
+//   1. Picks which dashboard the student lands on - AUTISM/ADHD/NONE get the
+//      original adaptive dashboard, BLINDNESS gets the audio-first one,
+//      DEAFNESS the visual/sign-language one. It selects a PRESENTATION, it
+//      never restricts what content or features a student may reach: every
+//      dashboard is reachable by URL and the shared pages are unchanged.
+//   2. Seeds sensible DEFAULTS for the accessibility panel below, once.
+// A student can always override every individual setting regardless of this
+// value (see AccessibilityPrefs' own doc comment on why user-set beats
+// inferred).
 enum DisabilityType {
   NONE
   AUTISM
+  ADHD
   BLINDNESS
   DEAFNESS
 }

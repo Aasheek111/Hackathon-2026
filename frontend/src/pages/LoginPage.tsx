@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Mail, Lock, Eye, EyeOff, Heart, ArrowRight } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import Input from "../components/ui/Input";
+import { homePathFor } from "../lib/homePath";
 
 export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState("");
@@ -21,12 +22,13 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
     try {
       const user = await login(email, password, rememberMe);
-      if (user.role === "ADMIN") navigate("/admin");
-      else if (user.role === "TEACHER") navigate("/teacher");
-      else {
+      if (user.role === "ADMIN" || user.role === "TEACHER") {
+        navigate(homePathFor(user));
+      } else {
         if (!user.freeTrialUsed) navigate("/consent");
         else if (!user.hasPaid) navigate("/subscription");
-        else navigate("/dashboard");
+        // Disability profile decides WHICH student dashboard - see homePathFor.
+        else navigate(homePathFor(user));
       }
     } catch (err: any) {
       setError(

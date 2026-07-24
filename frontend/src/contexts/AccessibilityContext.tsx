@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import api from '../lib/api';
-import { useAuth } from './AuthContext';
+import { useAuth, type DisabilityType } from './AuthContext';
 
 export type FontSize = 'SMALL' | 'MEDIUM' | 'LARGE' | 'XLARGE';
 
@@ -12,6 +12,11 @@ export interface AccessibilityPrefs {
   signLanguage: boolean;
   audiobookMode: boolean;
 }
+
+/** What PATCH /me/accessibility accepts - the prefs plus the profile itself. */
+export type AccessibilityPatch = Partial<AccessibilityPrefs> & {
+  disabilityType?: DisabilityType | null;
+};
 
 const DEFAULT_PREFS: AccessibilityPrefs = {
   fontSize: 'MEDIUM',
@@ -37,13 +42,13 @@ export const FONT_SCALE_PX: Record<FontSize, string> = {
 interface AccessibilityContextType {
   prefs: AccessibilityPrefs;
   loading: boolean;
-  updatePrefs: (patch: Partial<AccessibilityPrefs>) => Promise<void>;
+  updatePrefs: (patch: AccessibilityPatch) => Promise<void>;
 }
 
 const AccessibilityContext = createContext<AccessibilityContextType | undefined>(undefined);
 
 export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, token } = useAuth();
+  const { user, token, refreshUser } = useAuth();
   const [prefs, setPrefs] = useState<AccessibilityPrefs>(DEFAULT_PREFS);
   const [loading, setLoading] = useState(false);
 
@@ -81,14 +86,35 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, [token, user?.role]);
 
-  const updatePrefs = useCallback(async (patch: Partial<AccessibilityPrefs>) => {
-    setPrefs((prev) => ({ ...prev, ...patch })); // optimistic - user-set beats inferred, applies instantly
-    try {
-      await api.patch('/me/accessibility', patch);
-    } catch {
-      // Best-effort sync; the local change still stands for this session.
-    }
-  }, []);
+  const updatePrefs = useCallback(
+    async (patch: AccessibilityPatch) => {
+      const { disabilityType, ...prefPatch } = patch;
+      // Optimistic - user-set beats inferred, applies instantly. disabilityType
+      // is a User field, not a pref, so it's kept out of this merge.
+      setPrefs((prev) => ({ ...prev, ...prefPatch }));
+      try {
+        const { data } = await api.patch('/me/accessibility', patch);
+        // Adopt the server's row rather than only the optimistic merge:
+        // changing disabilityType re-seeds that profile's defaults server-side
+        // (see backend/src/routes/accessibility.ts), so the response can
+        // legitimately contain toggles we never sent.
+        setPrefs({
+          fontSize: data.fontSize,
+          highContrast: data.highContrast,
+          alwaysNarrate: data.alwaysNarrate,
+          reducedMotion: data.reducedMotion,
+          signLanguage: data.signLanguage,
+          audiobookMode: data.audiobookMode,
+        });
+        // Pull the new disabilityType into AuthContext so routing (homePathFor)
+        // and any profile display follow immediately, without a reload.
+        if (disabilityType !== undefined) await refreshUser();
+      } catch {
+        // Best-effort sync; the local change still stands for this session.
+      }
+    },
+    [refreshUser]
+  );
 
   return (
     <AccessibilityContext.Provider value={{ prefs, loading, updatePrefs }}>
