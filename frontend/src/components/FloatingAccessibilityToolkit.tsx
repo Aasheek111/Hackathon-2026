@@ -10,7 +10,11 @@ import {
   RotateCcw,
   Sparkles,
 } from "lucide-react";
-import { useAccessibility, FontSize, AppTheme } from "../contexts/AccessibilityContext";
+import {
+  useAccessibility,
+  FontSize,
+  AppTheme,
+} from "../contexts/AccessibilityContext";
 import LanguageToggle from "./LanguageToggle";
 
 export const FloatingAccessibilityToolkit: React.FC = () => {
@@ -24,26 +28,52 @@ export const FloatingAccessibilityToolkit: React.FC = () => {
     { value: "XLARGE", label: "XL", tag: "A++" },
   ];
 
-  const themes: { value: AppTheme; label: string; sub: string; dot: string }[] = [
-    { value: "DEFAULT", label: "Default Warm", sub: "Standard light emerald", dot: "bg-emerald-500" },
-    { value: "DYSLEXIA", label: "Dyslexia Friendly", sub: "Warm cream & high readability", dot: "bg-amber-300 border border-amber-500" },
-    { value: "ADHD", label: "ADHD Focus", sub: "Calm dark slate, low distraction", dot: "bg-slate-800 border border-slate-600" },
-    { value: "SENSORY", label: "Sensory / Autism", sub: "Soft pastel sage green", dot: "bg-emerald-200 border border-emerald-400" },
-    { value: "DARK_CONTRAST", label: "Low Vision Dark", sub: "Dark mode with yellow text", dot: "bg-amber-400 border border-black" },
-  ];
+  const themes: { value: AppTheme; label: string; sub: string; dot: string }[] =
+    [
+      {
+        value: "DEFAULT",
+        label: "Default Warm",
+        sub: "Standard light emerald",
+        dot: "bg-emerald-500",
+      },
+      {
+        value: "DYSLEXIA",
+        label: "Dyslexia Friendly",
+        sub: "Warm cream & high readability",
+        dot: "bg-amber-300 border border-amber-500",
+      },
+      {
+        value: "ADHD",
+        label: "ADHD Focus",
+        sub: "Calm dark slate, low distraction",
+        dot: "bg-slate-800 border border-slate-600",
+      },
+      {
+        value: "SENSORY",
+        label: "Sensory / Autism",
+        sub: "Soft pastel sage green",
+        dot: "bg-emerald-200 border border-emerald-400",
+      },
+      {
+        value: "DARK_CONTRAST",
+        label: "Low Vision Dark",
+        sub: "Dark mode with yellow text",
+        dot: "bg-amber-400 border border-black",
+      },
+    ];
 
   return (
     <>
       {/* Floating Handle Docked on Right Side */}
-      <div className="fixed right-0 top-1/2 -translate-y-1/2 z-50 flex items-center">
+      <div className="fixed right-0 top-1/2 -translate-y-1/2 z-40 flex items-center">
         <button
           onClick={() => setIsOpen(!isOpen)}
           aria-label="Open Accessibility Toolkit"
           title="Accessibility Toolkit"
-          className="group flex items-center gap-2.5 bg-emerald-500 hover:bg-emerald-600 text-white pl-3.5 pr-2.5 py-3 rounded-l-2xl shadow-lg border-y border-l border-emerald-600 hover:-translate-x-1 transition-all cursor-pointer font-bold text-xs"
+          className="group flex items-center h-12 px-3.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-l-2xl shadow-2xl border-y border-l border-emerald-400 cursor-pointer font-bold text-xs transition-colors duration-300 select-none"
         >
-          <Sliders className="w-5 h-5 text-emerald-100 group-hover:rotate-180 transition-transform duration-500 shrink-0" />
-          <span className="hidden sm:inline tracking-wide font-sans">
+          <Sliders className="w-5 h-5 text-emerald-100 group-hover:rotate-90 transition-transform duration-300 shrink-0" />
+          <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 group-hover:max-w-[100px] group-hover:opacity-100 group-hover:ml-2.5 transition-all duration-300 ease-out tracking-wide font-sans text-xs font-bold leading-none">
             Toolkit
           </span>
         </button>
@@ -74,9 +104,6 @@ export const FloatingAccessibilityToolkit: React.FC = () => {
                 {/* Header */}
                 <div className="bg-[#FAF9F5] border-b border-slate-200/80 p-5 text-slate-900 flex items-center justify-between sticky top-0 z-10">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center justify-center shrink-0">
-                      <Sparkles className="w-4.5 h-4.5" />
-                    </div>
                     <div>
                       <h2 className="font-bold text-base leading-tight text-slate-900 font-display">
                         Accessibility Controls
@@ -104,7 +131,8 @@ export const FloatingAccessibilityToolkit: React.FC = () => {
                     </label>
                     <div className="space-y-1.5">
                       {themes.map((t) => {
-                        const active = (prefs.appTheme || "DEFAULT") === t.value;
+                        const active =
+                          (prefs.appTheme || "DEFAULT") === t.value;
                         return (
                           <button
                             key={t.value}
@@ -117,12 +145,18 @@ export const FloatingAccessibilityToolkit: React.FC = () => {
                             }`}
                           >
                             <div className="flex items-center gap-2.5">
-                              <span className={`w-3.5 h-3.5 rounded-full ${t.dot} shrink-0`} />
+                              <span
+                                className={`w-3.5 h-3.5 rounded-full ${t.dot} shrink-0`}
+                              />
                               <div>
-                                <p className={`text-xs font-bold ${active ? "text-emerald-900" : "text-slate-900"}`}>
+                                <p
+                                  className={`text-xs font-bold ${active ? "text-emerald-900" : "text-slate-900"}`}
+                                >
                                   {t.label}
                                 </p>
-                                <p className="text-[10px] text-slate-500 leading-tight mt-0.5">{t.sub}</p>
+                                <p className="text-[10px] text-slate-500 leading-tight mt-0.5">
+                                  {t.sub}
+                                </p>
                               </div>
                             </div>
                             {active && (
@@ -149,7 +183,9 @@ export const FloatingAccessibilityToolkit: React.FC = () => {
                           <button
                             key={item.value}
                             type="button"
-                            onClick={() => updatePrefs({ fontSize: item.value })}
+                            onClick={() =>
+                              updatePrefs({ fontSize: item.value })
+                            }
                             className={`py-2 rounded-xl text-xs transition-all cursor-pointer text-center ${
                               active
                                 ? "bg-emerald-50 text-emerald-900 font-bold border-2 border-emerald-500 shadow-xs"

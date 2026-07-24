@@ -58,9 +58,9 @@ export const AudioControlBar: React.FC = () => {
           // The click is a user gesture, so this first read also unlocks audio.
           setTimeout(readPage, 60);
         }}
-        className="fixed bottom-3 left-3 z-50 flex items-center gap-2 px-3 py-2 rounded-full bg-slate-900/90 text-white text-xs font-bold shadow-lg hover:bg-slate-900 focus:outline-none focus:ring-4 focus:ring-emerald-400"
+        className="fixed bottom-3 right-3 z-50 flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-slate-900/90 text-white text-xs font-bold shadow-xl hover:bg-slate-900 focus:outline-none focus:ring-4 focus:ring-emerald-400 border border-slate-700/80 transition-all"
       >
-        <Headphones className="w-4 h-4" aria-hidden="true" />
+        <Headphones className="w-4 h-4 text-emerald-400" aria-hidden="true" />
         Turn on audio navigation
       </button>
     );

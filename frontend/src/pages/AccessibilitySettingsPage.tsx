@@ -17,14 +17,18 @@ import DashboardShell, { NavItem } from "../components/DashboardShell";
 import { useAuth } from "../contexts/AuthContext";
 import { useAccessibility, FontSize } from "../contexts/AccessibilityContext";
 import { DISABILITY_PROFILES } from "../data/disabilityProfiles";
-import { usePageAudio, useAudioNavigation } from "../contexts/AudioNavigationContext";
+import {
+  usePageAudio,
+  useAudioNavigation,
+} from "../contexts/AudioNavigationContext";
 
-const FONT_SIZE_OPTIONS: { value: FontSize; label: string; sample: string }[] = [
-  { value: "SMALL", label: "Small", sample: "text-sm" },
-  { value: "MEDIUM", label: "Medium", sample: "text-base" },
-  { value: "LARGE", label: "Large", sample: "text-lg" },
-  { value: "XLARGE", label: "Extra Large", sample: "text-xl" },
-];
+const FONT_SIZE_OPTIONS: { value: FontSize; label: string; sample: string }[] =
+  [
+    { value: "SMALL", label: "Small", sample: "text-sm" },
+    { value: "MEDIUM", label: "Medium", sample: "text-base" },
+    { value: "LARGE", label: "Large", sample: "text-lg" },
+    { value: "XLARGE", label: "Extra Large", sample: "text-xl" },
+  ];
 
 interface ToggleRowProps {
   icon: React.ElementType;
@@ -34,7 +38,13 @@ interface ToggleRowProps {
   onChange: (next: boolean) => void;
 }
 
-const ToggleRow: React.FC<ToggleRowProps> = ({ icon: Icon, title, description, checked, onChange }) => (
+const ToggleRow: React.FC<ToggleRowProps> = ({
+  icon: Icon,
+  title,
+  description,
+  checked,
+  onChange,
+}) => (
   <div className="flex items-start justify-between gap-4 p-4 rounded-2xl border border-slate-200/80 bg-white">
     <div className="flex items-start gap-3">
       <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-200 shrink-0">
@@ -42,7 +52,9 @@ const ToggleRow: React.FC<ToggleRowProps> = ({ icon: Icon, title, description, c
       </div>
       <div>
         <p className="font-bold text-sm text-slate-900">{title}</p>
-        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{description}</p>
+        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+          {description}
+        </p>
       </div>
     </div>
     <button
@@ -74,21 +86,26 @@ export const AccessibilitySettingsPage: React.FC = () => {
   } = useAudioNavigation();
   const [savingProfile, setSavingProfile] = React.useState(false);
 
-  usePageAudio("Accessibility Settings", () =>
-    `Change how Pragya works for you. Your accessibility profile is ${user?.disabilityType ?? "not set"}. ` +
-    `Text size is ${prefs.fontSize.toLowerCase()}. ` +
-    `High contrast is ${prefs.highContrast ? "on" : "off"}. ` +
-    `Always narrate is ${prefs.alwaysNarrate ? "on" : "off"}. ` +
-    `Audiobook mode is ${prefs.audiobookMode ? "on" : "off"}. ` +
-    `Sign language mode is ${prefs.signLanguage ? "on" : "off"}. ` +
-    `Reduced motion is ${prefs.reducedMotion ? "on" : "off"}.`
+  usePageAudio(
+    "Accessibility Settings",
+    () =>
+      `Change how Pragya works for you. Your accessibility profile is ${user?.disabilityType ?? "not set"}. ` +
+      `Text size is ${prefs.fontSize.toLowerCase()}. ` +
+      `High contrast is ${prefs.highContrast ? "on" : "off"}. ` +
+      `Audiobook mode is ${prefs.audiobookMode ? "on" : "off"}. ` +
+      `Sign language mode is ${prefs.signLanguage ? "on" : "off"}. ` +
+      `Reduced motion is ${prefs.reducedMotion ? "on" : "off"}.`,
   );
+
+  const isDeafUser = user?.disabilityType === "DEAFNESS";
 
   const navItems: NavItem[] = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
     { icon: BookOpen, label: "My Classroom", path: "/classroom" },
     { icon: TrendingUp, label: "My Progress", path: "/progress" },
-    { icon: Hand, label: "Sign Practice", path: "/practice/signs" },
+    ...(isDeafUser
+      ? [{ icon: Hand, label: "Sign Practice", path: "/practice/signs" }]
+      : []),
     { icon: SettingsIcon, label: "Settings", path: "/settings", active: true },
   ];
 
@@ -100,9 +117,12 @@ export const AccessibilitySettingsPage: React.FC = () => {
         className="max-w-3xl mx-auto space-y-6"
       >
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Accessibility Settings</h1>
+          <h1 className="text-3xl font-bold text-slate-900">
+            Accessibility Settings
+          </h1>
           <p className="text-slate-500 text-sm mt-1">
-            Make Pragya fit the way you learn best. Changes apply instantly and are saved to your account.
+            Make Pragya fit the way you learn best. Changes apply instantly and
+            are saved to your account.
           </p>
         </div>
 
@@ -113,13 +133,20 @@ export const AccessibilitySettingsPage: React.FC = () => {
         <section className="p-5 rounded-3xl border border-slate-200/80 bg-white shadow-xs">
           <div className="flex items-center gap-2 mb-1">
             <Check className="w-4.5 h-4.5 text-emerald-600" />
-            <h2 className="font-bold text-slate-900 text-sm">Accessibility profile</h2>
+            <h2 className="font-bold text-slate-900 text-sm">
+              Accessibility profile
+            </h2>
           </div>
           <p className="text-xs text-slate-500 mb-3">
-            Changing this switches your dashboard and turns on the settings that profile usually
-            needs. You can still adjust everything below afterwards.
+            Changing this switches your dashboard and turns on the settings that
+            profile usually needs. You can still adjust everything below
+            afterwards.
           </p>
-          <div role="radiogroup" aria-label="Accessibility profile" className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div
+            role="radiogroup"
+            aria-label="Accessibility profile"
+            className="grid grid-cols-1 sm:grid-cols-2 gap-2.5"
+          >
             {DISABILITY_PROFILES.map((opt) => {
               const current = (user?.disabilityType ?? null) === opt.value;
               return (
@@ -138,7 +165,9 @@ export const AccessibilitySettingsPage: React.FC = () => {
                     )
                       return;
                     setSavingProfile(true);
-                    updatePrefs({ disabilityType: opt.value }).finally(() => setSavingProfile(false));
+                    updatePrefs({ disabilityType: opt.value }).finally(() =>
+                      setSavingProfile(false),
+                    );
                   }}
                   className={`text-left p-3 rounded-xl border-2 transition-all disabled:opacity-60 ${
                     current
@@ -147,7 +176,9 @@ export const AccessibilitySettingsPage: React.FC = () => {
                   }`}
                 >
                   <span className="flex items-center justify-between gap-2">
-                    <span className={`text-xs font-bold ${current ? "text-emerald-900" : "text-slate-700"}`}>
+                    <span
+                      className={`text-xs font-bold ${current ? "text-emerald-900" : "text-slate-700"}`}
+                    >
                       {opt.label}
                     </span>
                     {current && (
@@ -156,7 +187,9 @@ export const AccessibilitySettingsPage: React.FC = () => {
                       </span>
                     )}
                   </span>
-                  <span className="block text-[11px] text-slate-500 mt-1 leading-snug">{opt.blurb}</span>
+                  <span className="block text-[11px] text-slate-500 mt-1 leading-snug">
+                    {opt.blurb}
+                  </span>
                 </button>
               );
             })}
@@ -183,61 +216,12 @@ export const AccessibilitySettingsPage: React.FC = () => {
                 }`}
               >
                 <span className={`block font-bold ${opt.sample}`}>Aa</span>
-                <span className="block text-[10px] font-bold mt-1 uppercase tracking-wide">{opt.label}</span>
+                <span className="block text-[10px] font-bold mt-1 uppercase tracking-wide">
+                  {opt.label}
+                </span>
               </button>
             ))}
           </div>
-        </section>
-
-        {/* Toggles */}
-        <section className="space-y-3">
-          {/* The permanent home for audio navigation. The floating bar hides
-              itself once dismissed (and never appears for a deaf profile), so
-              this is the reliable way to find it again. */}
-          {audioApplicable && (
-            <ToggleRow
-              icon={Headphones}
-              title="Audio navigation"
-              description="Read any screen aloud, navigate by voice, and use Alt+R / Alt+S / Alt+V. Adds a control bar at the bottom of every page."
-              checked={audioEnabled}
-              onChange={setAudioEnabled}
-            />
-          )}
-          <ToggleRow
-            icon={Contrast}
-            title="High contrast mode"
-            description="Bolder colors and stronger borders throughout your lessons, for easier reading."
-            checked={prefs.highContrast}
-            onChange={(v) => updatePrefs({ highContrast: v })}
-          />
-          <ToggleRow
-            icon={Volume2}
-            title="Always narrate lessons"
-            description="Auto-play audio narration as soon as a lesson or storybook page opens, in any mode."
-            checked={prefs.alwaysNarrate}
-            onChange={(v) => updatePrefs({ alwaysNarrate: v })}
-          />
-          <ToggleRow
-            icon={Headphones}
-            title="Audiobook mode"
-            description="Play a unit's lessons back-to-back like an audiobook, hands-free, instead of tapping Next every time."
-            checked={prefs.audiobookMode}
-            onChange={(v) => updatePrefs({ audiobookMode: v })}
-          />
-          <ToggleRow
-            icon={Hand}
-            title="Sign language mode"
-            description="Show an ASL fingerspelling guide alongside key words in Storybook mode."
-            checked={prefs.signLanguage}
-            onChange={(v) => updatePrefs({ signLanguage: v })}
-          />
-          <ToggleRow
-            icon={Wind}
-            title="Reduced motion"
-            description="Turn off page and reward animations that could be distracting or overwhelming."
-            checked={prefs.reducedMotion}
-            onChange={(v) => updatePrefs({ reducedMotion: v })}
-          />
         </section>
       </motion.div>
     </DashboardShell>

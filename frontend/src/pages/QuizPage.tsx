@@ -1108,27 +1108,48 @@ export const QuizPage: React.FC = () => {
     return () => clearInterval(timer);
   }, [timeLeft, navigate, score, completeAssessment]);
 
-  useEffect(() => {
-    if (currentMode === "AUDIO" && questions[currentIndex]) {
-      speakText(questions[currentIndex].question);
-    }
-    return () => synth.cancel();
-  }, [currentIndex, currentMode, questions]);
-
-  const speakText = (text: string) => {
+  const speakText = useCallback((text: string) => {
+    if (!("speechSynthesis" in window)) return;
+    const synth = window.speechSynthesis;
     synth.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    const voices = synth.getVoices();
-    const friendlyVoice = voices.find(
-      (v) =>
-        v.name.includes("Google") ||
-        v.name.includes("Samantha") ||
-        v.lang.includes("en"),
-    );
-    if (friendlyVoice) utterance.voice = friendlyVoice;
-    utterance.rate = 0.9;
-    synth.speak(utterance);
-  };
+
+    const playSpeech = () => {
+      const voices = synth.getVoices();
+      const friendlyVoice = voices.find(
+        (v) =>
+          v.name.includes("Google") ||
+          v.name.includes("Samantha") ||
+          v.name.includes("Natural") ||
+          v.lang.startsWith("en"),
+      );
+      if (friendlyVoice) utterance.voice = friendlyVoice;
+      utterance.rate = 0.9;
+      synth.speak(utterance);
+    };
+
+    if (synth.getVoices().length > 0) {
+      playSpeech();
+    } else {
+      synth.onvoiceschanged = () => {
+        playSpeech();
+        synth.onvoiceschanged = null;
+      };
+      setTimeout(playSpeech, 150);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (questions[currentIndex] && !showTransition) {
+      const timer = setTimeout(() => {
+        speakText(questions[currentIndex].question);
+      }, 200);
+      return () => {
+        clearTimeout(timer);
+        synth.cancel();
+      };
+    }
+  }, [currentIndex, questions, showTransition, speakText]);
 
   const handleAnswer = (option: string) => {
     if (selectedAnswer !== null) return;
@@ -1349,9 +1370,19 @@ export const QuizPage: React.FC = () => {
                     </button>
                   )}
 
-                  <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 leading-snug">
-                    {currentQ.question}
-                  </h2>
+                  <div className="flex items-center justify-center gap-3">
+                    <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 leading-snug">
+                      {currentQ.question}
+                    </h2>
+                    <button
+                      onClick={() => speakText(currentQ.question)}
+                      className="p-2 rounded-full text-slate-500 hover:text-sky-600 hover:bg-sky-50 transition-colors shrink-0"
+                      title="Click to re-listen"
+                      aria-label="Click to re-listen"
+                    >
+                      <Volume2 className="w-6 h-6 text-sky-600" />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

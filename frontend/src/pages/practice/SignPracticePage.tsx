@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import {
   LayoutDashboard,
   BookOpen,
@@ -16,6 +16,7 @@ import {
 import DashboardShell, { NavItem } from "../../components/DashboardShell";
 import SignSymbol from "../../components/SignSymbol";
 import { useAuth } from "../../contexts/AuthContext";
+import { useAccessibility } from "../../contexts/AccessibilityContext";
 import { usePageAudio } from "../../contexts/AudioNavigationContext";
 import { homePathFor } from "../../lib/homePath";
 import { ASL_ALPHABET } from "../../data/aslAlphabet";
@@ -74,6 +75,12 @@ function buildRound(terms: string[], count: number): Question[] {
 
 export const SignPracticePage: React.FC = () => {
   const { user } = useAuth();
+  const isDeafUser = user?.disabilityType === "DEAFNESS";
+
+  if (!isDeafUser) {
+    return <Navigate to={homePathFor(user)} replace />;
+  }
+
   const [deck, setDeck] = useState<Deck>("letters");
   const [direction, setDirection] = useState<Direction>("signToTerm");
   const [questions, setQuestions] = useState<Question[]>(() => buildRound(LETTERS, 10));

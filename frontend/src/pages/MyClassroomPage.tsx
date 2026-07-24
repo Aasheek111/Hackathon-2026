@@ -17,6 +17,8 @@ import {
 import DashboardShell, { NavItem } from "../components/DashboardShell";
 import { CustomPlanSubjectCard } from "../components/CustomPlanSubjectCard";
 import api from "../lib/api";
+import { useAuth } from "../contexts/AuthContext";
+import { useAccessibility } from "../contexts/AccessibilityContext";
 import { usePageAudio } from "../contexts/AudioNavigationContext";
 
 interface Unit {
@@ -69,11 +71,16 @@ export const MyClassroomPage: React.FC = () => {
     return `${classroom.name}. ${subjectCount} subjects containing ${unitCount} units. Open a unit to start its lessons.`;
   });
 
+  const { user } = useAuth();
+  const isDeafUser = user?.disabilityType === "DEAFNESS";
+
   const navItems: NavItem[] = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
     { icon: BookOpen, label: "My Classroom", path: "/classroom", active: true },
     { icon: TrendingUp, label: "My Progress", path: "/progress" },
-    { icon: Hand, label: "Sign Practice", path: "/practice/signs" },
+    ...(isDeafUser
+      ? [{ icon: Hand, label: "Sign Practice", path: "/practice/signs" }]
+      : []),
     { icon: SettingsIcon, label: "Settings", path: "/settings" },
   ];
 
