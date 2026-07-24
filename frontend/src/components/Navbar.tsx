@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, ArrowRight, LayoutDashboard } from "lucide-react";
+import { Menu, X, ArrowRight, LayoutDashboard, LogOut } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 
 export const Navbar: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -59,12 +59,21 @@ export const Navbar: React.FC = () => {
             </div>
             <div className="flex items-center space-x-3">
               {user ? (
-                <Link to={user.role === 'ADMIN' ? '/admin' : user.role === 'TEACHER' ? '/teacher' : '/dashboard'}>
-                  <button className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-4 py-2 rounded-2xl text-xs shadow-xs border-b-2 border-emerald-700 active:translate-y-0.5 transition-all flex items-center gap-1.5">
-                    <LayoutDashboard className="w-3.5 h-3.5" />
-                    <span>Dashboard</span>
+                <>
+                  <Link to={user.role === 'ADMIN' ? '/admin' : user.role === 'TEACHER' ? '/teacher' : '/dashboard'}>
+                    <button className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-4 py-2 rounded-2xl text-xs shadow-xs border-b-2 border-emerald-700 active:translate-y-0.5 transition-all flex items-center gap-1.5 cursor-pointer">
+                      <LayoutDashboard className="w-3.5 h-3.5" />
+                      <span>Dashboard</span>
+                    </button>
+                  </Link>
+                  <button
+                    onClick={logout}
+                    className="bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-700 font-bold px-3 py-2 rounded-2xl text-xs transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Sign Out</span>
                   </button>
-                </Link>
+                </>
               ) : (
                 <>
                   <Link to="/login">
@@ -117,12 +126,24 @@ export const Navbar: React.FC = () => {
               ))}
               <div className="pt-4 border-t border-slate-100 flex flex-col space-y-2.5">
                 {user ? (
-                  <Link to={user.role === 'ADMIN' ? '/admin' : user.role === 'TEACHER' ? '/teacher' : '/dashboard'} onClick={() => setIsMobileMenuOpen(false)}>
-                    <button className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-2xl shadow-sm border-b-4 border-emerald-700 text-sm flex items-center justify-center gap-2">
-                      <LayoutDashboard className="w-4 h-4" />
-                      Dashboard
+                  <>
+                    <Link to={user.role === 'ADMIN' ? '/admin' : user.role === 'TEACHER' ? '/teacher' : '/dashboard'} onClick={() => setIsMobileMenuOpen(false)}>
+                      <button className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-2xl shadow-sm border-b-4 border-emerald-700 text-sm flex items-center justify-center gap-2">
+                        <LayoutDashboard className="w-4 h-4" />
+                        Dashboard
+                      </button>
+                    </Link>
+                    <button
+                      onClick={() => {
+                        setIsMobileMenuOpen(false);
+                        logout();
+                      }}
+                      className="w-full bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-700 font-bold py-3 rounded-2xl text-sm flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Sign Out
                     </button>
-                  </Link>
+                  </>
                 ) : (
                   <>
                     <Link to="/login" onClick={() => setIsMobileMenuOpen(false)}>

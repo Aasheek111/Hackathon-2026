@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NeuroLearn AR Gem Collector</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- A-Frame 1.5.0 -->
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  
+  <style>
+    body {
+      font-family: 'Fredoka', 'Inter', sans-serif;
+      background-color: #0a0a0f;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+    }
+    
+    .glass-card {
+      background: rgba(30, 41, 59, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    #webcam-bg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      z-index: 0;
+      display: none;
+    }
+
+    .gem-btn {
+      transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .gem-btn:hover {
+      transform: translateY(-3px) scale(1.02);
+      box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.5);
+    }
+    .gem-btn:active {
+      transform: translateY(1px) scale(0.98);
+    }
+
+    @keyframes popIn {
+      0% { opacity: 0; transform: scale(0.85) translateY(15px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .animate-pop-in {
+      animation: popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+  </style>
+</head>
+<body class="bg-[#0a0a0f] text-white w-screen h-screen overflow-hidden select-none relative">
+
+  <!-- Real Camera Background for AR mode -->
+  <video id="webcam-bg" autoplay playsinline muted></video>
+
+  <!-- A-Frame 3D / AR Scene -->
+  <a-scene embedded style="width: 100%; height: 100vh; position: absolute; top: 0; left: 0; z-index: 2;" vr-mode-ui="enabled: false">
+    
+    <!-- Environment Sky (3D Fallback) -->
+    <a-sky id="space-sky" color="#05101a" opacity="1"></a-sky>
+
+    <!-- Ambient & Directional Lighting -->
+    <a-ambient-light color="#ffffff" intensity="1.0"></a-ambient-light>
+    <a-directional-light position="3 5 4" color="#38bdf8" intensity="1.4"></a-directional-light>
+    <a-directional-light position="-3 2 -2" color="#34d399" intensity="0.8"></a-directional-light>
+
+    <!-- Camera Setup -->
+    <a-entity id="camera-rig" position="0 0 0">
+      <a-camera id="main-camera" position="0 1.6 0" look-controls="enabled: false" wasd-controls="enabled: false" cursor="rayOrigin: mouse" raycaster="objects: .clickable">
+      </a-camera>
+    </a-entity>
+
+    <!-- Container for Starfield / Nebula Spheres -->
+    <a-entity id="starfield"></a-entity>
+
+    <!-- Container for Dynamic Particles on Gem Collect -->
+    <a-entity id="particle-container"></a-entity>
+
+    <!-- 4 Interactive Floating 3D Gems -->
+    <!-- Gem 0: Sphere (Emerald) -->
+    <a-entity id="gem-0" class="clickable gem-group" position="-2.4 1.8 -4.2"
+              animation__rotate="property: rotation; to: 0 360 0; loop: true; dur: 4000; easing: linear"
+              animation__float="property: position; to: -2.4 2.15 -4.2; dir: alternate; loop: true; dur: 2000; easing: easeInOutSine">
+      <a-sphere id="mesh-0" class="clickable gem-mesh" radius="0.72" color="#10b981" roughness="0.05" metalness="0.5"></a-sphere>
+      <a-plane id="plane-0" class="clickable" position="0 -0.95 0.6" width="1.35" height="0.5" color="#0f172a" opacity="0.9" material="transparent: true"></a-plane>
+      <a-text id="gem-text-0" value="Option A" align="center" position="0 -0.95 0.62" scale="1.1 1.1 1.1" color="#ffffff" wrap-count="14"></a-text>
+    </a-entity>
+
+    <!-- Gem 1: Box (Amber) -->
+    <a-entity id="gem-1" class="clickable gem-group" position="-0.8 2.2 -4.2"
+              animation__rotate="property: rotation; to: 360 360 0; loop: true; dur: 5000; easing: linear"
+              animation__float="property: position; to: -0.8 2.55 -4.2; dir: alternate; loop: true; dur: 2400; easing: easeInOutSine">
+      <a-box id="mesh-1" class="clickable gem-mesh" width="1.1" height="1.1" depth="1.1" color="#f59e0b" roughness="0.05" metalness="0.5"></a-box>
+      <a-plane id="plane-1" class="clickable" position="0 -0.95 0.6" width="1.35" height="0.5" color="#0f172a" opacity="0.9" material="transparent: true"></a-plane>
+      <a-text id="gem-text-1" value="Option B" align="center" position="0 -0.95 0.62" scale="1.1 1.1 1.1" color="#ffffff" wrap-count="14"></a-text>
+    </a-entity>
+
+    <!-- Gem 2: Torus (Cyan) -->
+    <a-entity id="gem-2" class="clickable gem-group" position="0.8 1.8 -4.2"
+              animation__rotate="property: rotation; to: 0 360 360; loop: true; dur: 4500; easing: linear"
+              animation__float="property: position; to: 0.8 2.15 -4.2; dir: alternate; loop: true; dur: 2200; easing: easeInOutSine">
+      <a-torus id="mesh-2" class="clickable gem-mesh" radius="0.6" radius-tubular="0.22" color="#06b6d4" roughness="0.05" metalness="0.5"></a-torus>
+      <a-plane id="plane-2" class="clickable" position="0 -0.95 0.6" width="1.35" height="0.5" color="#0f172a" opacity="0.9" material="transparent: true"></a-plane>
+      <a-text id="gem-text-2" value="Option C" align="center" position="0 -0.95 0.62" scale="1.1 1.1 1.1" color="#ffffff" wrap-count="14"></a-text>
+    </a-entity>
+
+    <!-- Gem 3: Cone (Purple) -->
+    <a-entity id="gem-3" class="clickable gem-group" position="2.4 2.2 -4.2"
+              animation__rotate="property: rotation; to: 360 0 360; loop: true; dur: 4200; easing: linear"
+              animation__float="property: position; to: 2.4 2.55 -4.2; dir: alternate; loop: true; dur: 2600; easing: easeInOutSine">
+      <a-cone id="mesh-3" class="clickable gem-mesh" radius-bottom="0.7" radius-top="0.05" height="1.2" color="#a855f7" roughness="0.05" metalness="0.5"></a-cone>
+      <a-plane id="plane-3" class="clickable" position="0 -0.95 0.6" width="1.35" height="0.5" color="#0f172a" opacity="0.9" material="transparent: true"></a-plane>
+      <a-text id="gem-text-3" value="Option D" align="center" position="0 -0.95 0.62" scale="1.1 1.1 1.1" color="#ffffff" wrap-count="14"></a-text>
+    </a-entity>
+  </a-scene>
+
+  <!-- HTML HUD Overlay -->
+  <div class="relative z-10 w-full h-full flex flex-col justify-between p-4 md:p-6 pointer-events-none">
+    
+    <!-- Top HUD Bar -->
+    <div class="flex items-center justify-between w-full pointer-events-auto">
+      <div class="glass-panel px-4 py-2 rounded-2xl flex items-center space-x-3">
+        <button id="toggle-camera-btn" onclick="toggleCameraMode()" class="bg-emerald-600/40 hover:bg-emerald-600/70 border border-emerald-500/50 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center space-x-2">
+          <i class="fa-solid fa-camera text-emerald-400"></i>
+          <span id="camera-btn-text">Enable Webcam AR</span>
+        </button>
+      </div>
+
+      <!-- Score Display Badge -->
+      <div class="glass-panel px-5 py-2.5 rounded-2xl flex items-center space-x-3">
+        <i class="fa-solid fa-gem text-emerald-400 text-lg"></i>
+        <div class="flex flex-col text-right">
+          <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Gems Collected</span>
+          <span id="score-display" class="text-xl font-bold text-white leading-none">0 <span class="text-xs text-slate-400 font-normal">/ 10</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Question Card HUD -->
+    <div class="w-full flex justify-center pointer-events-auto mt-2">
+      <div class="glass-panel px-6 py-4 rounded-3xl max-w-2xl w-full text-center border-emerald-500/40 shadow-2xl">
+        <div id="question-text" class="text-lg md:text-2xl font-bold text-white leading-tight">
+          Loading Question...
+        </div>
+        <p class="text-xs text-emerald-300 mt-1">Tap/click the 3D glowing gems in space or choose an option below!</p>
+      </div>
+    </div>
+
+    <!-- Feedback Message Overlay -->
+    <div id="feedback-toast" class="w-full flex justify-center opacity-0 transition-opacity duration-300 pointer-events-none mb-2">
+      <div id="toast-body" class="glass-panel px-6 py-2.5 rounded-2xl flex items-center space-x-3 text-lg font-bold">
+        <i id="toast-icon" class="fa-solid fa-gem"></i>
+        <span id="toast-message">Gem Collected!</span>
+      </div>
+    </div>
+
+    <!-- Interactive HTML Option Cards -->
+    <div class="w-full max-w-4xl mx-auto pointer-events-auto grid grid-cols-2 md:grid-cols-4 gap-3 mb-2">
+      <button onclick="handleAnswerSelect(0)" class="gem-btn glass-card p-3 rounded-2xl border-l-4 border-l-emerald-500 text-left flex items-center space-x-3">
+        <span class="w-7 h-7 rounded-full bg-emerald-600/30 text-emerald-300 font-bold flex items-center justify-center text-xs shrink-0">A</span>
+        <span id="btn-opt-0" class="text-sm font-bold text-white truncate">Option A</span>
+      </button>
+
+      <button onclick="handleAnswerSelect(1)" class="gem-btn glass-card p-3 rounded-2xl border-l-4 border-l-amber-500 text-left flex items-center space-x-3">
+        <span class="w-7 h-7 rounded-full bg-amber-600/30 text-amber-300 font-bold flex items-center justify-center text-xs shrink-0">B</span>
+        <span id="btn-opt-1" class="text-sm font-bold text-white truncate">Option B</span>
+      </button>
+
+      <button onclick="handleAnswerSelect(2)" class="gem-btn glass-card p-3 rounded-2xl border-l-4 border-l-cyan-500 text-left flex items-center space-x-3">
+        <span class="w-7 h-7 rounded-full bg-cyan-600/30 text-cyan-300 font-bold flex items-center justify-center text-xs shrink-0">C</span>
+        <span id="btn-opt-2" class="text-sm font-bold text-white truncate">Option C</span>
+      </button>
+
+      <button onclick="handleAnswerSelect(3)" class="gem-btn glass-card p-3 rounded-2xl border-l-4 border-l-purple-500 text-left flex items-center space-x-3">
+        <span class="w-7 h-7 rounded-full bg-purple-600/30 text-purple-300 font-bold flex items-center justify-center text-xs shrink-0">D</span>
+        <span id="btn-opt-3" class="text-sm font-bold text-white truncate">Option D</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- End Game Results Modal -->
+  <div id="results-modal" class="fixed inset-0 z-30 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="glass-panel p-8 rounded-3xl max-w-md w-full text-center space-y-6 animate-pop-in border-emerald-500/50">
+      <div class="w-20 h-20 bg-emerald-600/30 border border-emerald-500/50 rounded-full flex items-center justify-center mx-auto text-emerald-400 text-4xl shadow-lg">
+        <i class="fa-solid fa-gem"></i>
+      </div>
+      <div>
+        <h2 class="text-3xl font-bold text-white mb-2">Gem Hunt Complete!</h2>
+        <p class="text-slate-300 text-sm">You collected all 3D space gems!</p>
+      </div>
+      <div class="glass-card p-4 rounded-2xl flex justify-around items-center">
+        <div>
+          <p class="text-xs text-slate-400 uppercase font-bold">Gems Collected</p>
+          <p id="final-score-text" class="text-3xl font-bold text-emerald-400">0 / 10</p>
+        </div>
+      </div>
+      <div class="flex flex-col space-y-3">
+        <button onclick="restartGame()" class="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl font-bold text-base transition-colors shadow-lg">
+          Play Again
+        </button>
+        <button onclick="goToDashboard()" class="w-full py-3 bg-white/10 hover:bg-white/20 text-slate-300 rounded-2xl font-semibold text-sm transition-colors">
+          Back to Dashboard
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Logic JavaScript -->
+  <script>
+    const questions = [
+      { q: 'Which element do plants produce that we breathe?', options: ['Carbon', 'Oxygen', 'Helium', 'Nitrogen'], answer: 'Oxygen' },
+      { q: 'What is 8 x 4?', options: ['24', '28', '32', '36'], answer: '32' },
+      { q: 'Which is the largest land animal?', options: ['Rhino', 'Hippo', 'African Elephant', 'Giraffe'], answer: 'African Elephant' },
+      { q: 'What is 45 ÷ 5?', options: ['7', '8', '9', '10'], answer: '9' },
+      { q: 'Which planet is closest to the Sun?', options: ['Venus', 'Mercury', 'Earth', 'Mars'], answer: 'Mercury' },
+      { q: 'How many bones are in the adult human body?', options: ['180', '206', '210', '250'], answer: '206' },
+      { q: 'What is 15 + 27?', options: ['40', '41', '42', '43'], answer: '42' },
+      { q: 'Which gas makes balloons float in the air?', options: ['Oxygen', 'Helium', 'Hydrogen', 'Neon'], answer: 'Helium' },
+      { q: 'How many sides does an Octagon have?', options: ['6', '7', '8', '10'], answer: '8' },
+      { q: 'What is 100 - 37?', options: ['63', '65', '67', '73'], answer: '63' },
+    ];
+
+    let currentQuestionIndex = 0;
+    let score = 0;
+    let answered = false;
+    let cameraStream = null;
+
+    async function toggleCameraMode() {
+      const video = document.getElementById('webcam-bg');
+      const sky = document.getElementById('space-sky');
+      const btnText = document.getElementById('camera-btn-text');
+
+      if (!cameraStream) {
+        try {
+          cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          video.srcObject = cameraStream;
+          video.style.display = 'block';
+          sky.setAttribute('opacity', '0.1');
+          btnText.innerText = 'Disable Camera AR';
+        } catch (e) {
+          alert('Could not access webcam for AR mode.');
+        }
+      } else {
+        cameraStream.getTracks().forEach(t => t.stop());
+        cameraStream = null;
+        video.style.display = 'none';
+        sky.setAttribute('opacity', '1');
+        btnText.innerText = 'Enable Webcam AR';
+      }
+    }
+
+    function createStarfield() {
+      const container = document.getElementById('starfield');
+      if (!container) return;
+      for (let i = 0; i < 40; i++) {
+        const star = document.createElement('a-sphere');
+        const x = (Math.random() - 0.5) * 18;
+        const y = (Math.random() - 0.5) * 10 + 2;
+        const z = - (Math.random() * 8 + 4);
+        const radius = Math.random() * 0.03 + 0.015;
+        star.setAttribute('position', `${x} ${y} ${z}`);
+        star.setAttribute('radius', radius);
+        star.setAttribute('color', '#34d399');
+        container.appendChild(star);
+      }
+    }
+
+    function loadQuestion(index) {
+      if (index >= questions.length) {
+        showResults();
+        return;
+      }
+      answered = false;
+      const q = questions[index];
+      document.getElementById('question-text').innerText = q.q;
+
+      for (let i = 0; i < 4; i++) {
+        const gem = document.getElementById(`gem-${i}`);
+        const text = document.getElementById(`gem-text-${i}`);
+        const btnOpt = document.getElementById(`btn-opt-${i}`);
+
+        if (text) text.setAttribute('value', q.options[i]);
+        if (btnOpt) btnOpt.innerText = `${String.fromCharCode(65 + i)}: ${q.options[i]}`;
+        
+        if (gem) {
+          gem.setAttribute('scale', '1 1 1');
+          gem.setAttribute('visible', 'true');
+          gem.removeAttribute('animation__pop');
+        }
+      }
+    }
+
+    function handleAnswerSelect(optionIndex) {
+      if (answered) return;
+      answered = true;
+
+      const q = questions[currentQuestionIndex];
+      const selectedOption = q.options[optionIndex];
+      const isCorrect = selectedOption === q.answer;
+
+      const gemGroup = document.getElementById(`gem-${optionIndex}`);
+      const toast = document.getElementById('feedback-toast');
+      const toastBody = document.getElementById('toast-body');
+      const toastMsg = document.getElementById('toast-message');
+
+      if (isCorrect) {
+        score++;
+        document.getElementById('score-display').innerHTML = `${score} <span class="text-xs text-slate-400 font-normal">/ 10</span>`;
+
+        toastBody.className = "glass-panel px-6 py-2.5 rounded-2xl flex items-center space-x-3 text-lg font-bold text-emerald-400 border-emerald-500/50";
+        toastMsg.innerText = "Gem Collected! Brilliant!";
+        toast.style.opacity = '1';
+
+        if (gemGroup) {
+          gemGroup.setAttribute('animation__pop', 'property: scale; to: 0 0 0; dur: 250; easing: easeInBack');
+        }
+      } else {
+        toastBody.className = "glass-panel px-6 py-2.5 rounded-2xl flex items-center space-x-3 text-lg font-bold text-rose-400 border-rose-500/50";
+        toastMsg.innerText = `Oops! Correct answer was: ${q.answer}`;
+        toast.style.opacity = '1';
+      }
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        currentQuestionIndex++;
+        loadQuestion(currentQuestionIndex);
+      }, 1500);
+    }
+
+    function showResults() {
+      document.getElementById('final-score-text').innerText = `${score} / 10`;
+      document.getElementById('results-modal').classList.remove('hidden');
+    }
+
+    function restartGame() {
+      currentQuestionIndex = 0;
+      score = 0;
+      document.getElementById('score-display').innerHTML = `0 <span class="text-xs text-slate-400 font-normal">/ 10</span>`;
+      document.getElementById('results-modal').classList.add('hidden');
+      loadQuestion(0);
+    }
+
+    function goToDashboard() {
+      try {
+        if (window.parent && window.parent !== window && window.parent.location) {
+          window.parent.location.href = '/dashboard';
+        } else {
+          window.location.href = '/dashboard';
+        }
+      } catch (e) {
+        window.location.href = '/dashboard';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      createStarfield();
+
+      for (let i = 0; i < 4; i++) {
+        const handler = () => handleAnswerSelect(i);
+        const group = document.getElementById(`gem-${i}`);
+        const mesh = document.getElementById(`mesh-${i}`);
+        const plane = document.getElementById(`plane-${i}`);
+
+        if (group) group.addEventListener('click', handler);
+        if (mesh) mesh.addEventListener('click', handler);
+        if (plane) plane.addEventListener('click', handler);
+      }
+
+      loadQuestion(0);
+    });
+  </script>
+</body>
+</html>
