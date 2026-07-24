@@ -38,7 +38,8 @@ export const RegisterPage: React.FC = () => {
 
     if (score <= 1) return { score: 25, text: "Weak", color: "bg-rose-500" };
     if (score <= 3) return { score: 50, text: "Fair", color: "bg-amber-500" };
-    if (score === 4) return { score: 75, text: "Strong", color: "bg-emerald-500" };
+    if (score === 4)
+      return { score: 75, text: "Strong", color: "bg-emerald-500" };
     return { score: 100, text: "Very Strong", color: "bg-emerald-600" };
   };
 
@@ -290,4 +291,3 @@ export const RegisterPage: React.FC = () => {
 };
 
 export default RegisterPage;
-
