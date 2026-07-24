@@ -651,6 +651,48 @@ export const QuizPage: React.FC = () => {
     VISUAL: { totalScore: 0, samples: 0, focusedSamples: 0 },
   });
 
+  // Fetch admin-uploaded questions from database
+  useEffect(() => {
+    api
+      .get("/assessments/questions")
+      .then(({ data }) => {
+        if (data.questions && Array.isArray(data.questions) && data.questions.length > 0) {
+          const adminFormatted = data.questions.map((q: any) => ({
+            id: q.id,
+            question: q.question,
+            options: Array.isArray(q.options)
+              ? q.options
+              : typeof q.options === "string"
+              ? JSON.parse(q.options)
+              : [],
+            answer: q.answer,
+            learningMode: q.learningMode || "TEXT",
+            subject: q.subject || "General",
+            imageUrl:
+              q.imageUrl ||
+              "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80",
+          }));
+
+          // Admin questions come first, merged with demo pool
+          const combined = [...adminFormatted, ...demo20Questions];
+          const deduplicated = Array.from(
+            new Map(combined.map((item) => [item.question, item])).values()
+          );
+          const merged = deduplicated.slice(0, Math.max(20, adminFormatted.length));
+          setQuestions(merged);
+          // Set initial mode from the first question's learningMode
+          if (merged[0]?.learningMode) {
+            const firstMode = merged[0].learningMode as LearningMode;
+            setCurrentMode(firstMode);
+            currentModeRef.current = firstMode;
+          }
+        }
+      })
+      .catch(() => {
+        /* Local fallback holds */
+      });
+  }, []);
+
   const lowEyeContactCounter = useRef(0);
   const adaptationLockedRef = useRef(false);
   const currentIndexRef = useRef(0);
@@ -1078,6 +1120,13 @@ export const QuizPage: React.FC = () => {
     setTimeout(() => {
       const nextIndex = findNextQuestionIndex();
       if (nextIndex !== null) {
+        // Respect admin-set learningMode for the next question as the baseline
+        const nextQ = questions[nextIndex];
+        if (nextQ?.learningMode && !adaptationLockedRef.current) {
+          const nextQMode = nextQ.learningMode as LearningMode;
+          setCurrentMode(nextQMode);
+          currentModeRef.current = nextQMode;
+        }
         setCurrentIndex(nextIndex);
         setSelectedAnswer(null);
         setIsCorrect(null);
@@ -1190,7 +1239,7 @@ export const QuizPage: React.FC = () => {
             className="flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3.5 py-2 rounded-2xl transition-all"
           >
             <ArrowRight className="w-4 h-4" />
-            <span className="hidden sm:inline">Skip Demo</span>
+            <span className="hidden sm:inline">Finish Quiz</span>
           </button>
           <button
             onClick={() => navigate(homePathFor(user))}
@@ -1243,12 +1292,20 @@ export const QuizPage: React.FC = () => {
                     Subject: {currentQ.subject.toUpperCase()}
                   </div>
 
-                  {currentMode === "VISUAL" && (
-                    <div className="relative overflow-hidden rounded-2xl mb-6 max-h-72 border border-slate-200 shadow-sm bg-slate-900">
+                  {(currentMode === "VISUAL" || currentQ.learningMode === "VISUAL") && (
+                    <div className="relative overflow-hidden rounded-2xl mb-6 border border-slate-200 shadow-sm bg-slate-100 max-h-80">
                       <img
-                        src={currentQ.imageUrl || getSubjectDatasetImage(currentQ.subject)}
+                        src={
+                          currentQ.imageUrl && currentQ.imageUrl.trim().length > 5
+                            ? currentQ.imageUrl
+                            : "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80"
+                        }
                         alt={`Visual context for ${currentQ.subject}`}
-                        className="w-full h-64 object-cover"
+                        className="w-full h-64 sm:h-72 object-cover rounded-2xl"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src =
+                            "https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=800&q=80";
+                        }}
                       />
                     </div>
                   )}
