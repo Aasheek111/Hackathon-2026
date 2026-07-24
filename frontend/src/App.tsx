@@ -20,6 +20,7 @@ import RecommendationPage from './pages/RecommendationPage';
 import MyClassroomPage from './pages/MyClassroomPage';
 import TutorialRouter from './pages/TutorialRouter';
 import RawDocViewerPage from './pages/RawDocViewerPage';
+import YoutubeQuizPage from './pages/YoutubeQuizPage';
 import ProgressPage from './pages/ProgressPage';
 import LoadingSpinner from './components/ui/LoadingSpinner';
 
@@ -96,6 +97,7 @@ const App: React.FC = () => {
           <Route path="/classroom" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><MyClassroomPage /></ProtectedRoute>} />
           <Route path="/classroom/units/:unitId/tutorial" element={<ProtectedRoute allowRoles={['STUDENT', 'TEACHER']} requirePaidStudent><TutorialRouter /></ProtectedRoute>} />
           <Route path="/classroom/units/:unitId/document" element={<ProtectedRoute allowRoles={['STUDENT', 'TEACHER']} requirePaidStudent><RawDocViewerPage /></ProtectedRoute>} />
+          <Route path="/classroom/units/:unitId/youtube-quiz" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><YoutubeQuizPage /></ProtectedRoute>} />
           <Route path="/progress" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><ProgressPage /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

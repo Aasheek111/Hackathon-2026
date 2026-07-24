@@ -152,7 +152,16 @@ router.get('/mine/enrolment', requireRole('STUDENT'), async (req: Request, res: 
       where: { studentId: req.user!.id },
       include: {
         classroom: {
-          include: { subjects: { include: { units: true } }, teacher: { select: { name: true } } }
+          include: {
+            subjects: {
+              include: {
+                units: {
+                  include: { youtubeQuizzes: { where: { status: 'READY' }, select: { id: true } } }
+                }
+              }
+            },
+            teacher: { select: { name: true } }
+          }
         }
       }
     });

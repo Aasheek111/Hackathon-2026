@@ -592,16 +592,87 @@ def _generate_via_pollinations(styled_prompt: str) -> tuple[bytes, str] | None:
     return None
 
 
+UNSPLASH_SEARCH_URL = "https://api.unsplash.com/search/photos"
+
+# Unsplash is a photo SEARCH API, not an image generator - so the AI's
+# "visual_suggestion" (written as a prompt for an illustrator) has to be
+# reduced to a few keywords or it matches nothing. Strip the styling
+# boilerplate and keep the first handful of content words.
+_UNSPLASH_STOPWORDS = {
+    "a", "an", "the", "of", "for", "to", "and", "or", "with", "in", "on", "that", "this",
+    "showing", "show", "shows", "illustration", "illustrating", "diagram", "picture",
+    "image", "drawing", "draw", "simple", "clean", "educational", "student", "students",
+    "depicting", "depict", "visual", "chart", "graphic", "showing",
+}
+UNSPLASH_MAX_KEYWORDS = 5
+
+
+def unsplash_key_present() -> bool:
+    return os.getenv("UNSPLASH_ACCESS_KEY", "").strip().strip('"') not in PLACEHOLDER_KEYS
+
+
+def _unsplash_query(prompt: str) -> str:
+    words = re.findall(r"[A-Za-z][A-Za-z'-]+", prompt.lower())
+    keywords = [w for w in words if w not in _UNSPLASH_STOPWORDS]
+    return " ".join(keywords[:UNSPLASH_MAX_KEYWORDS]) or prompt.strip()[:80]
+
+
+def _fetch_via_unsplash(prompt: str) -> str | None:
+    """Returns a HOTLINKED Unsplash CDN URL (not downloaded bytes).
+
+    Deliberately different from the generator providers below: Unsplash's API
+    guidelines require hotlinking their CDN rather than re-hosting copies, and
+    it's also what the teacher asked for on speed/storage grounds - a real
+    photo arrives in one fast API call instead of waiting on image synthesis,
+    and we store nothing.
+    """
+    if not unsplash_key_present():
+        return None
+    try:
+        response = requests.get(
+            UNSPLASH_SEARCH_URL,
+            params={"query": _unsplash_query(prompt), "per_page": 1, "orientation": "landscape"},
+            headers={
+                "Authorization": f"Client-ID {os.getenv('UNSPLASH_ACCESS_KEY', '').strip().strip(chr(34))}",
+                "Accept-Version": "v1",
+            },
+            timeout=15,
+        )
+        if response.status_code != 200:
+            return None
+        results = response.json().get("results") or []
+        if not results:
+            return None
+        urls = results[0].get("urls") or {}
+        # `regular` (~1080px) is the right size for a lesson card; `small` is
+        # the fallback if a result somehow lacks it.
+        return urls.get("regular") or urls.get("small") or urls.get("full")
+    except Exception:
+        return None
+
+
 def generate_visual_image(prompt: str, unit_id: int) -> str | None:
     """Turn a visual_suggestion (a hint written for a human artist) into an
-    actual picture: Gemini first, then a free fallback provider.
+    actual picture.
 
-    Never raises - if both providers come back empty, the caller falls back
+    Order: Unsplash (a real photo, one fast call, hotlinked - no storage) ->
+    Gemini -> pollinations. The two generators still run when Unsplash has no
+    key configured or no match for the topic, so nothing regresses if the key
+    is absent.
+
+    Returns either an absolute Unsplash CDN URL or our own relative
+    /static/images/... path - the frontend's resolveMediaUrl() handles both.
+
+    Never raises - if every provider comes back empty, the caller falls back
     to showing the text suggestion, same contract as `offline_tutorial`. A
     dead demo helps nobody.
     """
     if not (prompt or "").strip():
         return None
+
+    hotlinked = _fetch_via_unsplash(prompt)
+    if hotlinked:
+        return hotlinked
 
     styled_prompt = (
         "Create a simple, clean educational illustration for a student, based on this "
