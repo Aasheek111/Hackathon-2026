@@ -141,8 +141,8 @@ export const AudioControlBar: React.FC = () => {
               <span className="mx-2 opacity-50">|</span>
             </>
           ) : null}
-          Say &ldquo;read screen&rdquo;, &ldquo;open lessons&rdquo;, &ldquo;my progress&rdquo;,
-          &ldquo;sign practice&rdquo;, &ldquo;help&rdquo;, or &ldquo;log out&rdquo;.
+          Say &ldquo;read screen&rdquo;, &ldquo;read navigation&rdquo;, &ldquo;open lessons&rdquo;,
+          &ldquo;my progress&rdquo;, &ldquo;help&rdquo;, or &ldquo;log out&rdquo;.
         </p>
       )}
 

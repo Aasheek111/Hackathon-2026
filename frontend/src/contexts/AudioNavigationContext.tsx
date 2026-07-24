@@ -221,6 +221,9 @@ export const AudioNavigationProvider: React.FC<{ children: React.ReactNode }> = 
   const resumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [numberedTargets, setNumberedTargets] = useState<NumberedTarget[]>([]);
+  // Read by the "read navigation" command, so re-detecting targets doesn't
+  // rebuild every global command each time.
+  const numberedTargetsRef = useRef<NumberedTarget[]>([]);
   const explicitTargetsRef = useRef<NumberedTarget[] | null>(null);
 
   const pageRef = useRef<PageAudioSummary | null>(null);
@@ -320,10 +323,12 @@ export const AudioNavigationProvider: React.FC<{ children: React.ReactNode }> = 
 
   const readPage = useCallback(() => {
     const page = pageRef.current;
+    // Point at the command instead of reciting every option. Reading nine
+    // items on every single screen-read made the useful part - what the page
+    // actually is - arrive far too late.
     const targets = numberedTargets.length
-      ? ' On this screen you can say or press: ' +
-        numberedTargets.map((t, i) => `${i + 1}, ${t.label}`).join('. ') +
-        '.'
+      ? ` There are ${numberedTargets.length} numbered options on this screen. ` +
+        `Say "read navigation" to hear the numbers and what they do.`
       : '';
     const text =
       (page ? `${page.title}. ${page.describe()}` : 'This screen has no audio description yet.') +
@@ -362,6 +367,22 @@ export const AudioNavigationProvider: React.FC<{ children: React.ReactNode }> = 
       { phrases: ['read screen', 'read this page', 'where am i', 'what is on the screen'], description: 'Read this screen aloud', run: readPage },
       { phrases: ['repeat that', 'repeat'], description: 'Repeat the last thing said', run: () => speak(announcement) },
       { phrases: ['stop talking', 'stop reading', 'be quiet', 'stop'], description: 'Stop reading', run: () => stopSpeech() },
+      {
+        phrases: ['read navigation', 'read numbers', 'what are the numbers', 'list navigation', 'navigation'],
+        description: 'Hear what each number does on this screen',
+        run: () => {
+          const targets = numberedTargetsRef.current;
+          if (!targets.length) {
+            announce('This screen has no numbered options.');
+            return;
+          }
+          announce(
+            `${targets.length} numbered options. ` +
+              targets.map((t, i) => `${i + 1}, ${t.label}`).join('. ') +
+              '. Say the number, or press that number key.',
+          );
+        },
+      },
       { phrases: ['go back'], description: 'Go back', run: () => navigate(-1) },
       { phrases: ['what can i say', 'help', 'list commands'], description: 'List voice commands', run: () => {
           const list = globalCommands.map((c) => c.phrases[0]).join(', ');
@@ -544,6 +565,8 @@ export const AudioNavigationProvider: React.FC<{ children: React.ReactNode }> = 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [readPage, stopSpeech, toggleMic, micSupported]);
+
+  numberedTargetsRef.current = numberedTargets;
 
   const value: AudioNavigationContextType = {
     enabled: enabled && applicable,
