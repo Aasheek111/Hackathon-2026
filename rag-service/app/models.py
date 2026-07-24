@@ -116,6 +116,26 @@ class GenerateSpeechResponse(BaseModel):
     audio_url: str
 
 
+class AiAssistRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=2000, description="What the learner asked")
+    context: str | None = Field(
+        default=None,
+        max_length=8000,
+        description="The lesson/story text the learner is currently on, so answers stay on-topic.",
+    )
+    # Shapes tone and reading level. Matches the DisabilityType enum in
+    # backend/prisma/schema.prisma so the backend can pass it straight through.
+    profile: Literal["NONE", "AUTISM", "ADHD", "BLINDNESS", "DEAFNESS"] = Field(
+        default="NONE",
+        description="Learner's accessibility profile - BLINDNESS gets prose with no visual references, etc.",
+    )
+    grade_level: str | None = Field(default=None, description="Target education level, steers vocabulary.")
+
+
+class AiAssistResponse(BaseModel):
+    answer: str
+
+
 class HealthResponse(BaseModel):
     status: str
     service: str = "neurolearn-rag"

@@ -1,0 +1,139 @@
+import { ASL_ALPHABET } from './aslAlphabet';
+
+/**
+ * ASL sign reference used by the deaf/hard-of-hearing dashboard.
+ *
+ * WHAT THIS IS, HONESTLY: written descriptions of how each sign is formed,
+ * drawn from the standard, widely-published ASL manual alphabet and common
+ * vocabulary. It is a text-based study aid.
+ *
+ * WHAT IT IS NOT: sign language video, photos, or an animated avatar. No
+ * provider in this stack (Groq for text, Unsplash for photos) can generate an
+ * accurate handshape, and a wrong or hallucinated image would teach a deaf
+ * learner an incorrect sign - materially worse than showing none. Real sign
+ * media needs a licensed dataset (e.g. an ASL-LEX / Signing Savvy licence) or
+ * footage recorded with a Deaf consultant.
+ *
+ * `mediaUrl` is the seam for exactly that: every entry accepts one, the UI
+ * renders it when present and falls back to the description when absent, so
+ * dropping in a licensed media set later is a data change, not a rewrite.
+ */
+
+export type SignCategory = 'Alphabet' | 'Numbers' | 'Greetings' | 'Everyday' | 'School' | 'Feelings';
+
+export interface Sign {
+  /** Stable id, used for favourites in localStorage. */
+  id: string;
+  /** The word or letter this sign means. */
+  term: string;
+  category: SignCategory;
+  /** How to form the sign, in plain language. */
+  description: string;
+  /** Optional memory hook - why the sign looks the way it does. */
+  tip?: string;
+  /** Licensed photo/video/GIF of the sign, when a real dataset is available. */
+  mediaUrl?: string;
+}
+
+const alphabetSigns: Sign[] = Object.entries(ASL_ALPHABET).map(([letter, description]) => ({
+  id: `letter-${letter}`,
+  term: letter,
+  category: 'Alphabet' as const,
+  description,
+}));
+
+const numberSigns: Sign[] = [
+  { id: 'num-1', term: '1', category: 'Numbers', description: 'Index finger pointing up, other fingers closed.' },
+  { id: 'num-2', term: '2', category: 'Numbers', description: 'Index and middle fingers up, spread apart.' },
+  { id: 'num-3', term: '3', category: 'Numbers', description: 'Thumb, index, and middle finger up.' },
+  { id: 'num-4', term: '4', category: 'Numbers', description: 'Four fingers up and spread, thumb folded across the palm.' },
+  { id: 'num-5', term: '5', category: 'Numbers', description: 'All five fingers spread wide, palm forward.' },
+  { id: 'num-6', term: '6', category: 'Numbers', description: 'Pinky touches the thumb, the other three fingers stay up.' },
+  { id: 'num-7', term: '7', category: 'Numbers', description: 'Ring finger touches the thumb, the other three fingers stay up.' },
+  { id: 'num-8', term: '8', category: 'Numbers', description: 'Middle finger touches the thumb, the other three fingers stay up.' },
+  { id: 'num-9', term: '9', category: 'Numbers', description: 'Index finger touches the thumb, the other three fingers stay up.' },
+  { id: 'num-10', term: '10', category: 'Numbers', description: 'Fist with the thumb pointing up, then shake it slightly.' },
+];
+
+const vocabularySigns: Sign[] = [
+  // Greetings
+  { id: 'w-hello', term: 'Hello', category: 'Greetings', description: 'Flat hand at your forehead, then move it outward - like a friendly salute.', tip: 'It looks like waving someone over from a distance.' },
+  { id: 'w-goodbye', term: 'Goodbye', category: 'Greetings', description: 'Open hand up, then fold your fingers down and up again.', tip: 'Exactly like a normal wave.' },
+  { id: 'w-please', term: 'Please', category: 'Greetings', description: 'Flat hand on your chest, moving in a circle.', tip: 'Rubbing your chest, as if asking kindly.' },
+  { id: 'w-thankyou', term: 'Thank you', category: 'Greetings', description: 'Flat hand starts at your chin, then moves forward and down toward the person.', tip: 'Like blowing a kiss of thanks outward.' },
+  { id: 'w-sorry', term: 'Sorry', category: 'Greetings', description: 'Make a fist with the thumb out and circle it on your chest.', tip: 'A circling motion over the heart.' },
+  { id: 'w-yes', term: 'Yes', category: 'Greetings', description: 'Make a fist and nod it up and down at the wrist.', tip: 'Your hand nods like a head saying yes.' },
+  { id: 'w-no', term: 'No', category: 'Greetings', description: 'Tap your index and middle fingers down onto your thumb.', tip: 'Like a mouth snapping shut.' },
+  { id: 'w-name', term: 'Name', category: 'Greetings', description: 'Both hands in U shapes, tap the fingers of one across the other twice.' },
+
+  // Everyday
+  { id: 'w-eat', term: 'Eat', category: 'Everyday', description: 'Pinch your fingers and thumb together and tap them to your mouth.', tip: 'Like putting food in your mouth.' },
+  { id: 'w-drink', term: 'Drink', category: 'Everyday', description: 'Curve your hand into a C shape and tilt it toward your mouth.', tip: 'Like holding and tipping a cup.' },
+  { id: 'w-water', term: 'Water', category: 'Everyday', description: 'Make a W shape with three fingers and tap it against your chin.' },
+  { id: 'w-more', term: 'More', category: 'Everyday', description: 'Both hands with fingers and thumb pinched together, tap the fingertips against each other.' },
+  { id: 'w-finished', term: 'Finished', category: 'Everyday', description: 'Both open hands facing up, then quickly flip them over.', tip: 'Like tipping something out - all done.' },
+  { id: 'w-help', term: 'Help', category: 'Everyday', description: 'Rest a thumbs-up fist on your other flat palm, then lift both hands together.', tip: 'One hand lifting the other up.' },
+  { id: 'w-stop', term: 'Stop', category: 'Everyday', description: 'Chop the edge of your flat hand down onto your other open palm.' },
+  { id: 'w-home', term: 'Home', category: 'Everyday', description: 'Pinch your fingers together and touch your cheek, first near the mouth then higher up.' },
+
+  // School
+  { id: 'w-learn', term: 'Learn', category: 'School', description: 'Gather your fingers up off your flat palm and bring them to your forehead.', tip: 'Taking knowledge from the page into your head.' },
+  { id: 'w-book', term: 'Book', category: 'School', description: 'Press your palms together, then open them like opening a book.' },
+  { id: 'w-read', term: 'Read', category: 'School', description: 'Make a V with two fingers and move it down over your other flat palm.', tip: 'The V is your eyes scanning the page.' },
+  { id: 'w-write', term: 'Write', category: 'School', description: 'Pinch your dominant hand as if holding a pen and move it across your other flat palm.' },
+  { id: 'w-school', term: 'School', category: 'School', description: 'Clap your hands together twice, dominant hand on top.', tip: 'Like a teacher clapping for attention.' },
+  { id: 'w-teacher', term: 'Teacher', category: 'School', description: 'Both pinched hands move forward from your temples, then flat hands sweep down your sides.', tip: 'Giving out ideas, then the sign for "person".' },
+  { id: 'w-question', term: 'Question', category: 'School', description: 'Draw a question mark in the air with your index finger.' },
+
+  // Feelings
+  { id: 'w-happy', term: 'Happy', category: 'Feelings', description: 'Brush your flat hands upward on your chest in circles.', tip: 'Feelings bubbling up.' },
+  { id: 'w-sad', term: 'Sad', category: 'Feelings', description: 'Open hands in front of your face, then move them slowly downward.', tip: 'Your face falling.' },
+  { id: 'w-tired', term: 'Tired', category: 'Feelings', description: 'Bent hands on your chest, then let them drop downward.' },
+  { id: 'w-love', term: 'Love', category: 'Feelings', description: 'Cross both fists over your chest, like giving yourself a hug.' },
+  { id: 'w-angry', term: 'Angry', category: 'Feelings', description: 'Claw your hand in front of your face and pull it away sharply.' },
+  { id: 'w-scared', term: 'Scared', category: 'Feelings', description: 'Both hands open sharply in front of your chest, as if startled.' },
+];
+
+export const SIGNS: Sign[] = [...alphabetSigns, ...numberSigns, ...vocabularySigns];
+
+export const SIGN_CATEGORIES: SignCategory[] = [
+  'Alphabet',
+  'Numbers',
+  'Greetings',
+  'Everyday',
+  'School',
+  'Feelings',
+];
+
+export function signsInCategory(category: SignCategory): Sign[] {
+  return SIGNS.filter((s) => s.category === category);
+}
+
+/** Case-insensitive search over the term and its description. */
+export function searchSigns(query: string): Sign[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  return SIGNS.filter(
+    (s) => s.term.toLowerCase().includes(q) || s.description.toLowerCase().includes(q),
+  );
+}
+
+const FAVOURITES_KEY = 'pragya_sign_favourites';
+
+/** Favourites live in localStorage - no server round-trip for a personal bookmark list. */
+export function loadFavourites(): string[] {
+  try {
+    const raw = localStorage.getItem(FAVOURITES_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveFavourites(ids: string[]): void {
+  try {
+    localStorage.setItem(FAVOURITES_KEY, JSON.stringify(ids));
+  } catch {
+    /* private mode / quota - favourites just won't persist */
+  }
+}
