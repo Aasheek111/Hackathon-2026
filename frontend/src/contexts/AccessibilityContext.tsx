@@ -3,6 +3,7 @@ import api from '../lib/api';
 import { useAuth, type DisabilityType } from './AuthContext';
 
 export type FontSize = 'SMALL' | 'MEDIUM' | 'LARGE' | 'XLARGE';
+export type AppTheme = 'DEFAULT' | 'DYSLEXIA' | 'ADHD' | 'SENSORY' | 'DARK_CONTRAST';
 
 export interface AccessibilityPrefs {
   fontSize: FontSize;
@@ -11,6 +12,7 @@ export interface AccessibilityPrefs {
   reducedMotion: boolean;
   signLanguage: boolean;
   audiobookMode: boolean;
+  appTheme: AppTheme;
 }
 
 /** What PATCH /me/accessibility accepts - the prefs plus the profile itself. */
@@ -25,6 +27,7 @@ const DEFAULT_PREFS: AccessibilityPrefs = {
   reducedMotion: false,
   signLanguage: false,
   audiobookMode: false,
+  appTheme: 'DEFAULT',
 };
 
 export const FONT_SCALE_PX: Record<FontSize, string> = {
@@ -74,6 +77,7 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
     root.classList.toggle('high-contrast', prefs.highContrast);
     root.classList.toggle('reduced-motion', prefs.reducedMotion);
     root.style.fontSize = FONT_SCALE_PX[prefs.fontSize] || '16px';
+    root.setAttribute('data-theme', prefs.appTheme || 'DEFAULT');
   }, [prefs]);
 
   // Load student preferences from backend on mount or user login
@@ -95,6 +99,7 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
           reducedMotion: data.reducedMotion ?? prev.reducedMotion,
           signLanguage: data.signLanguage ?? prev.signLanguage,
           audiobookMode: data.audiobookMode ?? prev.audiobookMode,
+          appTheme: data.appTheme || prev.appTheme || 'DEFAULT',
         }));
       })
       .catch(() => {
@@ -112,19 +117,27 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
     async (patch: AccessibilityPatch) => {
       const { disabilityType, ...prefPatch } = patch;
       
-      setPrefs((prev) => ({ ...prev, ...prefPatch }));
+      setPrefs((prev) => {
+        const next = { ...prev, ...prefPatch };
+        try {
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(next));
+        } catch {}
+        return next;
+      });
 
       if (token && user?.role === 'STUDENT') {
         try {
           const { data } = await api.patch('/me/accessibility', patch);
-          setPrefs({
-            fontSize: data.fontSize,
-            highContrast: data.highContrast,
-            alwaysNarrate: data.alwaysNarrate,
-            reducedMotion: data.reducedMotion,
-            signLanguage: data.signLanguage,
-            audiobookMode: data.audiobookMode,
-          });
+          setPrefs((prev) => ({
+            ...prev,
+            fontSize: data.fontSize || prev.fontSize,
+            highContrast: data.highContrast ?? prev.highContrast,
+            alwaysNarrate: data.alwaysNarrate ?? prev.alwaysNarrate,
+            reducedMotion: data.reducedMotion ?? prev.reducedMotion,
+            signLanguage: data.signLanguage ?? prev.signLanguage,
+            audiobookMode: data.audiobookMode ?? prev.audiobookMode,
+            appTheme: prefPatch.appTheme || prev.appTheme || 'DEFAULT',
+          }));
           if (disabilityType !== undefined) await refreshUser();
         } catch {
           // Local fallback holds
