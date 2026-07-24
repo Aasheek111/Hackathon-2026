@@ -46,7 +46,14 @@ router.post('/register', async (req: Request, res: Response) => {
     const token = generateToken(user.id, '7d');
     const { password: _, ...userWithoutPassword } = user;
 
-    res.status(201).json({ token, user: userWithoutPassword });
+    res.status(201).json({
+      token,
+      user: {
+        ...userWithoutPassword,
+        freeTrialUsed: false,
+        hasPaid: false
+      }
+    });
   } catch (error) {
     res.status(500).json({ error: 'Registration failed' });
   }
@@ -80,7 +87,27 @@ router.post('/login', async (req: Request, res: Response) => {
 
     const { password: _, ...userWithoutPassword } = user;
 
-    res.json({ token, user: userWithoutPassword });
+    const attemptCount = await prisma.assessmentAttempt.count({
+      where: { userId: user.id, completedAt: { not: null } }
+    });
+    const demoResult = await prisma.demoResult.findUnique({ where: { userId: user.id } });
+    const freeTrialUsed = attemptCount > 0 || demoResult !== null;
+
+    const subscription = await prisma.subscription.findUnique({ where: { userId: user.id } });
+    const hasPaid = subscription
+      ? subscription.paymentStatus === 'SUCCESS' &&
+        (subscription.expiryDate ? new Date(subscription.expiryDate) > new Date() : true)
+      : false;
+
+    res.json({
+      token,
+      user: {
+        ...userWithoutPassword,
+        freeTrialUsed,
+        hasPaid,
+        subscription
+      }
+    });
   } catch (error) {
     res.status(500).json({ error: 'Login failed' });
   }
@@ -171,7 +198,31 @@ router.post('/change-password', requireAuth, async (req: Request, res: Response)
 });
 
 router.get('/me', requireAuth, async (req: Request, res: Response) => {
-  res.json(req.user);
+  try {
+    const userId = req.user!.id;
+    const user = req.user!;
+
+    const attemptCount = await prisma.assessmentAttempt.count({
+      where: { userId, completedAt: { not: null } }
+    });
+    const demoResult = await prisma.demoResult.findUnique({ where: { userId } });
+    const freeTrialUsed = attemptCount > 0 || demoResult !== null;
+
+    const subscription = await prisma.subscription.findUnique({ where: { userId } });
+    const hasPaid = subscription
+      ? subscription.paymentStatus === 'SUCCESS' &&
+        (subscription.expiryDate ? new Date(subscription.expiryDate) > new Date() : true)
+      : false;
+
+    res.json({
+      ...user,
+      freeTrialUsed,
+      hasPaid,
+      subscription
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch current user profile' });
+  }
 });
 
 export default router;
