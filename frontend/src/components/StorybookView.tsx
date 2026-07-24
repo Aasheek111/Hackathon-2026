@@ -7,9 +7,15 @@ import {
   AlertCircle,
   Image as ImageIcon,
   BookOpen,
+  Volume2,
+  Loader2,
 } from "lucide-react";
 import Button from "./ui/Button";
 import api, { resolveMediaUrl } from "../lib/api";
+import { useAccessibility, FONT_SCALE_PX } from "../contexts/AccessibilityContext";
+import { useSpeech } from "../hooks/useSpeech";
+import AslFingerspellingStrip from "./AslFingerspellingStrip";
+import { pickKeyWord } from "../data/aslAlphabet";
 
 interface StorybookPage {
   id: string;
@@ -42,16 +48,35 @@ const Leaf: React.FC<{
   side: "left" | "right";
   onClick?: () => void;
   clickable: boolean;
-}> = ({ page, side, onClick, clickable }) => (
-  <button
-    type="button"
+  highContrast: boolean;
+  fontStyle?: React.CSSProperties;
+  signLanguage: boolean;
+}> = ({ page, side, onClick, clickable, highContrast, fontStyle, signLanguage }) => (
+  // A <div role="button"> rather than a real <button> - the fingerspelling
+  // strip below the story text renders its own letter buttons, and a
+  // <button> can't legally contain nested <button>s.
+  <div
+    role="button"
+    tabIndex={clickable ? 0 : -1}
     onClick={clickable ? onClick : undefined}
-    disabled={!clickable}
-    className={`group relative flex-1 min-h-[22rem] sm:min-h-[28rem] bg-[#f8f4ec] text-slate-800 p-5 sm:p-8 flex flex-col text-left transition-transform ${
+    onKeyDown={
+      clickable
+        ? (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onClick?.();
+            }
+          }
+        : undefined
+    }
+    aria-disabled={!clickable}
+    className={`group relative flex-1 min-h-[22rem] sm:min-h-[28rem] p-5 sm:p-8 flex flex-col text-left transition-transform outline-none ${
+      highContrast ? "bg-black text-yellow-300" : "bg-[#f8f4ec] text-slate-800"
+    } ${
       side === "left"
         ? "rounded-t-2xl sm:rounded-l-2xl sm:rounded-tr-none"
         : "rounded-b-2xl sm:rounded-r-2xl sm:rounded-bl-none"
-    } ${clickable ? "cursor-pointer hover:brightness-95" : "cursor-default"}`}
+    } ${clickable ? "cursor-pointer hover:brightness-95 focus-visible:ring-2 focus-visible:ring-sky-500" : "cursor-default"}`}
     style={{
       boxShadow:
         side === "left"
@@ -79,11 +104,18 @@ const Leaf: React.FC<{
             <ImageIcon className="w-5 h-5 mr-2" /> No picture for this page
           </div>
         )}
-        <p className="flex-1 text-base sm:text-lg leading-relaxed">{page.storyText}</p>
-        <span className="mt-4 text-xs text-slate-400 self-center">{page.pageNumber}</span>
+        <p className="flex-1 text-base sm:text-lg leading-relaxed" style={fontStyle}>
+          {page.storyText}
+        </p>
+        {signLanguage && pickKeyWord(page.storyText) && (
+          <AslFingerspellingStrip word={pickKeyWord(page.storyText) as string} highContrast={highContrast} />
+        )}
+        <span className={`mt-4 text-xs self-center ${highContrast ? "text-yellow-500" : "text-slate-400"}`}>
+          {page.pageNumber}
+        </span>
       </>
     ) : (
-      <div className="flex-1 flex flex-col items-center justify-center text-slate-300">
+      <div className={`flex-1 flex flex-col items-center justify-center ${highContrast ? "text-yellow-700" : "text-slate-300"}`}>
         <BookOpen className="w-10 h-10 mb-2" />
         <span className="text-sm">The End</span>
       </div>
@@ -96,7 +128,7 @@ const Leaf: React.FC<{
         {side === "left" ? <ChevronLeft className="w-6 h-6" /> : <ChevronRight className="w-6 h-6" />}
       </span>
     )}
-  </button>
+  </div>
 );
 
 /**
@@ -106,6 +138,8 @@ const Leaf: React.FC<{
  * at once, click the right leaf to turn forward, the left leaf to turn back.
  */
 export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
+  const { prefs } = useAccessibility();
+  const { speak, stop: stopSpeaking, loading: ttsLoading } = useSpeech();
   const [storybook, setStorybook] = useState<Storybook | null | undefined>(undefined); // undefined = still loading
   const [spreadIndex, setSpreadIndex] = useState(0);
   const [direction, setDirection] = useState(1);
@@ -144,6 +178,22 @@ export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unitId]);
+
+  // "Always narrate lessons" (Settings) also covers Storybook mode - reads
+  // the current spread's page(s) aloud as soon as they're on screen, same
+  // fallback chain (live TTS -> browser voice) as the lesson player.
+  useEffect(() => {
+    if (!prefs.alwaysNarrate) return;
+    if (!storybook || storybook.status !== "READY") return;
+    const left = storybook.pages[spreadIndex * 2];
+    const right = storybook.pages[spreadIndex * 2 + 1];
+    const text = [left?.storyText, right?.storyText].filter(Boolean).join(" ");
+    if (text) speak(text);
+    return () => stopSpeaking();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefs.alwaysNarrate, storybook, spreadIndex]);
+
+  useEffect(() => stopSpeaking, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const generate = async () => {
     setStarting(true);
@@ -233,16 +283,24 @@ export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
     setSpreadIndex((i) => Math.max(0, Math.min(totalSpreads - 1, i + dir)));
   };
 
-  const variants = {
-    enter: (dir: number) => ({ rotateY: dir > 0 ? 60 : -60, opacity: 0 }),
-    center: { rotateY: 0, opacity: 1 },
-    exit: (dir: number) => ({ rotateY: dir > 0 ? -60 : 60, opacity: 0 }),
-  };
+  // Reduced motion: skip the 3D page-turn tilt entirely, just cut straight
+  // to the next spread - same page-turning mechanic, no rotation/opacity ramp.
+  const variants = prefs.reducedMotion
+    ? { enter: { rotateY: 0, opacity: 1 }, center: { rotateY: 0, opacity: 1 }, exit: { rotateY: 0, opacity: 1 } }
+    : {
+        enter: (dir: number) => ({ rotateY: dir > 0 ? 60 : -60, opacity: 0 }),
+        center: { rotateY: 0, opacity: 1 },
+        exit: (dir: number) => ({ rotateY: dir > 0 ? -60 : 60, opacity: 0 }),
+      };
+
+  const hc = prefs.highContrast;
+  const pageFontStyle =
+    prefs.fontSize !== "MEDIUM" ? { fontSize: FONT_SCALE_PX[prefs.fontSize] } : undefined;
 
   return (
     <div className="px-4 sm:px-8">
       {storybook.title && (
-        <h2 className="text-xl font-display font-bold text-center mb-4 text-slate-800 dark:text-white">
+        <h2 className={`text-xl font-display font-bold text-center mb-4 ${hc ? "text-yellow-300" : "text-slate-800 dark:text-white"}`}>
           {storybook.title}
         </h2>
       )}
@@ -256,21 +314,29 @@ export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
             initial="enter"
             animate="center"
             exit="exit"
-            transition={{ duration: 0.4, ease: "easeInOut" }}
+            transition={{ duration: prefs.reducedMotion ? 0 : 0.4, ease: "easeInOut" }}
             style={{ transformStyle: "preserve-3d" }}
-            className="flex flex-col sm:flex-row rounded-2xl overflow-hidden shadow-2xl border-4 border-[#e8e0d0] sm:divide-x-0 divide-y sm:divide-y-0 divide-black/10"
+            className={`flex flex-col sm:flex-row rounded-2xl overflow-hidden shadow-2xl border-4 sm:divide-x-0 divide-y sm:divide-y-0 ${
+              hc ? "border-yellow-500 divide-yellow-700" : "border-[#e8e0d0] divide-black/10"
+            }`}
           >
             <Leaf
               page={left}
               side="left"
               clickable={!onFirstSpread}
               onClick={() => turn(-1)}
+              highContrast={hc}
+              fontStyle={pageFontStyle}
+              signLanguage={prefs.signLanguage}
             />
             <Leaf
               page={right}
               side="right"
               clickable={!onLastSpread}
               onClick={() => turn(1)}
+              highContrast={hc}
+              fontStyle={pageFontStyle}
+              signLanguage={prefs.signLanguage}
             />
           </motion.div>
         </AnimatePresence>
@@ -304,6 +370,19 @@ export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
         <Button onClick={() => turn(1)} disabled={onLastSpread} className="gap-2">
           Next <ChevronRight className="w-4 h-4" />
         </Button>
+      </div>
+      <div className="flex justify-center mt-3">
+        <button
+          onClick={() => {
+            const text = [left?.storyText, right?.storyText].filter(Boolean).join(" ");
+            if (text) speak(text);
+          }}
+          disabled={ttsLoading}
+          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-300 dark:hover:text-blue-200 disabled:opacity-60"
+        >
+          {ttsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Volume2 className="w-4 h-4" />}
+          {ttsLoading ? "Loading audio…" : "Listen to this page"}
+        </button>
       </div>
       <p className="text-center text-xs text-slate-400 dark:text-gray-500 mt-3">
         Click the right page to turn forward, the left page to turn back.

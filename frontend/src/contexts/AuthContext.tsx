@@ -1,12 +1,15 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../lib/api';
 
+export type DisabilityType = 'AUTISM' | 'BLINDNESS' | 'DEAFNESS';
+
 interface User {
   id: string;
   name: string;
   email: string;
   role: 'ADMIN' | 'TEACHER' | 'STUDENT';
   teacherStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' | null;
+  disabilityType?: DisabilityType | null;
   demoResult?: any;
   freeTrialUsed?: boolean;
   hasPaid?: boolean;
@@ -18,7 +21,13 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<User>;
-  register: (name: string, email: string, password: string, intendedRole?: 'STUDENT' | 'TEACHER') => Promise<void>;
+  register: (
+    name: string,
+    email: string,
+    password: string,
+    intendedRole?: 'STUDENT' | 'TEACHER',
+    disabilityType?: DisabilityType | null
+  ) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -62,9 +71,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     name: string,
     email: string,
     password: string,
-    intendedRole: 'STUDENT' | 'TEACHER' = 'STUDENT'
+    intendedRole: 'STUDENT' | 'TEACHER' = 'STUDENT',
+    disabilityType: DisabilityType | null = null
   ) => {
-    const { data } = await api.post('/auth/register', { name, email, password, intendedRole });
+    const { data } = await api.post('/auth/register', { name, email, password, intendedRole, disabilityType });
     localStorage.setItem('token', data.token);
     setToken(data.token);
     setUser(data.user);

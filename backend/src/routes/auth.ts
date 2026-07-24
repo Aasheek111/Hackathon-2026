@@ -14,7 +14,7 @@ const generateToken = (userId: string, expiresIn: string) => {
 
 router.post('/register', async (req: Request, res: Response) => {
   try {
-    const { name, email, password, intendedRole } = req.body;
+    const { name, email, password, intendedRole, disabilityType } = req.body;
 
     if (!name || !email || !password || password.length < 8) {
       return res.status(400).json({ error: 'Invalid input data. Password must be at least 8 characters.' });
@@ -33,13 +33,21 @@ router.post('/register', async (req: Request, res: Response) => {
     // approves them (see requireApprovedTeacher).
     const isTeacher = intendedRole === 'TEACHER';
 
+    // disabilityType is student-only and optional - a teacher who somehow
+    // sends one is silently ignored rather than rejected, and an unrecognized
+    // value falls back to unset rather than failing registration outright.
+    const validDisabilityTypes = ['AUTISM', 'BLINDNESS', 'DEAFNESS'];
+    const resolvedDisabilityType =
+      !isTeacher && validDisabilityTypes.includes(disabilityType) ? disabilityType : null;
+
     const user = await prisma.user.create({
       data: {
         name,
         email,
         password: hashedPassword,
         role: isTeacher ? 'TEACHER' : 'STUDENT',
-        teacherStatus: isTeacher ? 'PENDING' : null
+        teacherStatus: isTeacher ? 'PENDING' : null,
+        disabilityType: resolvedDisabilityType
       },
     });
 
