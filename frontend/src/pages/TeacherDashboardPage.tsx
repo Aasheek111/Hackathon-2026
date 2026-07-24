@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
@@ -23,6 +23,7 @@ import {
   RefreshCw,
   Image as ImageIcon,
   ArrowRight,
+  LogOut,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import DashboardShell, { NavItem } from "../components/DashboardShell";
@@ -84,30 +85,49 @@ interface Classroom {
   joinRequests: JoinRequest[];
 }
 
-const PendingApproval: React.FC<{ status: string }> = ({ status }) => (
-  <div className="min-h-screen bg-[#FAF9F5] flex items-center justify-center p-6 text-slate-800 font-sans">
-    <div className="bg-white max-w-md w-full p-10 rounded-3xl border border-slate-200/80 shadow-md text-center">
-      <div className="w-16 h-16 mx-auto mb-6 rounded-3xl bg-amber-100 border border-amber-200 flex items-center justify-center">
-        <Clock className="w-8 h-8 text-amber-700" />
+const PendingApproval: React.FC<{ status: string }> = ({ status }) => {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
+
+  return (
+    <div className="min-h-screen bg-[#FAF9F5] flex items-center justify-center p-6 text-slate-800 font-sans">
+      <div className="bg-white max-w-md w-full p-10 rounded-3xl border border-slate-200/80 shadow-md text-center">
+        <div className="w-16 h-16 mx-auto mb-6 rounded-3xl bg-amber-100 border border-amber-200 flex items-center justify-center">
+          <Clock className="w-8 h-8 text-amber-700" />
+        </div>
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">
+          {status === "REJECTED"
+            ? "Application Not Approved"
+            : status === "SUSPENDED"
+              ? "Account Suspended"
+              : "Pending Approval"}
+        </h1>
+        <p className="text-slate-600 text-sm leading-relaxed mb-6">
+          {status === "PENDING" &&
+            "Your educator account is awaiting admin review. You will be notified once verified."}
+          {status === "REJECTED" &&
+            "An administrator reviewed your teacher application and did not approve it."}
+          {status === "SUSPENDED" &&
+            "Your teacher account has been suspended. Contact an administrator for details."}
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <button
+            onClick={handleLogout}
+            className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all cursor-pointer shadow-xs"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Sign Out</span>
+          </button>
+        </div>
       </div>
-      <h1 className="text-2xl font-bold text-slate-900 mb-2">
-        {status === "REJECTED"
-          ? "Application Not Approved"
-          : status === "SUSPENDED"
-            ? "Account Suspended"
-            : "Pending Approval"}
-      </h1>
-      <p className="text-slate-600 text-sm leading-relaxed">
-        {status === "PENDING" &&
-          "Your educator account is awaiting admin review. You will be notified once verified."}
-        {status === "REJECTED" &&
-          "An administrator reviewed your teacher application and did not approve it."}
-        {status === "SUSPENDED" &&
-          "Your teacher account has been suspended. Contact an administrator for details."}
-      </p>
     </div>
-  </div>
-);
+  );
+};
 
 export const TeacherDashboardPage: React.FC = () => {
   const { user } = useAuth();

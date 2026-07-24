@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Users, FileText, Database, CreditCard, Plus, Trash2, GraduationCap, Check, X, ArrowLeft, SlidersHorizontal, Loader2 } from 'lucide-react';
+import { Users, FileText, Database, CreditCard, Plus, Trash2, GraduationCap, Check, X, ArrowLeft, SlidersHorizontal, Loader2, Pencil, Image as ImageIcon, Upload } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../lib/api';
 
@@ -29,6 +29,7 @@ interface AdminQuestion {
   options: string[];
   answer: string;
   learningMode: string;
+  imageUrl?: string | null;
 }
 
 interface AdminPayment {
@@ -48,6 +49,8 @@ interface Analytics {
 export const AdminPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState('Overview');
   const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
+  const [editingQuestion, setEditingQuestion] = useState<AdminQuestion | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [rejectingTeacher, setRejectingTeacher] = useState<Teacher | null>(null);
   const [rejectNote, setRejectNote] = useState('');
 
@@ -59,8 +62,31 @@ export const AdminPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   const [newQuestion, setNewQuestion] = useState({
-    subject: '', question: '', optionA: '', optionB: '', optionC: '', optionD: '', answer: '', learningMode: 'TEXT'
+    subject: '', question: '', optionA: '', optionB: '', optionC: '', optionD: '', answer: '', imageUrl: '', learningMode: 'TEXT'
   });
+
+  const openCreateModal = () => {
+    setEditingQuestion(null);
+    setNewQuestion({ subject: '', question: '', optionA: '', optionB: '', optionC: '', optionD: '', answer: '', imageUrl: '', learningMode: 'TEXT' });
+    setIsQuestionModalOpen(true);
+  };
+
+  const openEditModal = (q: AdminQuestion) => {
+    setEditingQuestion(q);
+    const opts = Array.isArray(q.options) ? q.options : (typeof q.options === 'string' ? JSON.parse(q.options) : []);
+    setNewQuestion({
+      subject: q.subject,
+      question: q.question,
+      optionA: opts[0] || '',
+      optionB: opts[1] || '',
+      optionC: opts[2] || '',
+      optionD: opts[3] || '',
+      answer: q.answer,
+      imageUrl: q.imageUrl || '',
+      learningMode: q.learningMode,
+    });
+    setIsQuestionModalOpen(true);
+  };
 
   const [gradeLevel, setGradeLevel] = useState('');
   const [savingGrade, setSavingGrade] = useState(false);
@@ -156,15 +182,24 @@ export const AdminPage: React.FC = () => {
 
   const submitQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
-    await api.post('/admin/questions', {
+    const payload = {
       subject: newQuestion.subject,
       question: newQuestion.question,
       options: [newQuestion.optionA, newQuestion.optionB, newQuestion.optionC, newQuestion.optionD].filter(Boolean),
       answer: newQuestion.answer,
-      learningMode: newQuestion.learningMode
-    });
+      learningMode: newQuestion.learningMode,
+      imageUrl: newQuestion.imageUrl.trim() || null,
+    };
+
+    if (editingQuestion) {
+      await api.put(`/admin/questions/${editingQuestion.id}`, payload);
+    } else {
+      await api.post('/admin/questions', payload);
+    }
+
     setIsQuestionModalOpen(false);
-    setNewQuestion({ subject: '', question: '', optionA: '', optionB: '', optionC: '', optionD: '', answer: '', learningMode: 'TEXT' });
+    setEditingQuestion(null);
+    setNewQuestion({ subject: '', question: '', optionA: '', optionB: '', optionC: '', optionD: '', answer: '', imageUrl: '', learningMode: 'TEXT' });
     loadQuestions();
   };
 
@@ -343,8 +378,8 @@ export const AdminPage: React.FC = () => {
       <div className="flex justify-between items-center">
         <h3 className="text-xl font-bold text-slate-900">Question Bank</h3>
         <button
-          onClick={() => setIsQuestionModalOpen(true)}
-          className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-4 py-2.5 rounded-2xl shadow-sm border-b-2 border-emerald-700 active:translate-y-0.5 transition-all text-xs flex items-center gap-1.5"
+          onClick={openCreateModal}
+          className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-4 py-2.5 rounded-2xl shadow-sm border-b-2 border-emerald-700 active:translate-y-0.5 transition-all text-xs flex items-center gap-1.5 cursor-pointer"
         >
           <Plus className="w-4 h-4" /> Add Question
         </button>
@@ -364,12 +399,28 @@ export const AdminPage: React.FC = () => {
             {questions.map((q) => (
               <tr key={q.id} className="border-b border-slate-100 hover:bg-[#FAF9F5]">
                 <td className="p-4 text-xs font-bold text-slate-800">{q.subject}</td>
-                <td className="p-4 text-xs text-slate-700 truncate max-w-[300px]">{q.question}</td>
+                <td className="p-4 text-xs text-slate-700 max-w-[300px]">
+                  <div className="font-medium truncate">{q.question}</div>
+                  {q.imageUrl && (
+                    <div className="text-[10px] text-emerald-700 flex items-center gap-1 mt-0.5 truncate">
+                      <ImageIcon className="w-3 h-3 shrink-0" />
+                      <span className="truncate">{q.imageUrl}</span>
+                    </div>
+                  )}
+                </td>
                 <td className="p-4 text-xs font-bold text-slate-600">{q.learningMode}</td>
-                <td className="p-4">
+                <td className="p-4 flex items-center gap-2">
+                  <button
+                    onClick={() => openEditModal(q)}
+                    className="p-2 bg-emerald-50 text-emerald-700 rounded-xl hover:bg-emerald-100 transition-colors cursor-pointer"
+                    title="Edit Question"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
                   <button
                     onClick={() => deleteQuestion(q.id)}
-                    className="p-2 bg-rose-50 text-rose-700 rounded-xl hover:bg-rose-100"
+                    className="p-2 bg-rose-50 text-rose-700 rounded-xl hover:bg-rose-100 transition-colors cursor-pointer"
+                    title="Delete Question"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -522,7 +573,9 @@ export const AdminPage: React.FC = () => {
       {isQuestionModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
           <div className="bg-white max-w-lg w-full p-8 rounded-3xl border border-slate-200 shadow-xl space-y-4">
-            <h3 className="text-xl font-bold text-slate-900">Add New Question</h3>
+            <h3 className="text-xl font-bold text-slate-900">
+              {editingQuestion ? "Edit Question" : "Add New Question"}
+            </h3>
             <form className="space-y-3" onSubmit={submitQuestion}>
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Subject</label>
@@ -555,6 +608,67 @@ export const AdminPage: React.FC = () => {
                 <input type="text" placeholder="Must match one option exactly" value={newQuestion.answer} onChange={(e) => setNewQuestion({ ...newQuestion, answer: e.target.value })} className="w-full bg-[#FAF9F5] border border-slate-200 rounded-2xl px-4 py-2 text-xs text-slate-800 focus:outline-none focus:border-emerald-500" required />
               </div>
               <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Visual Question Photo / Image</label>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <label className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 bg-[#FAF9F5] border border-dashed border-slate-300 rounded-2xl hover:border-emerald-500 cursor-pointer text-xs text-slate-700 font-bold transition-all shadow-xs">
+                      <Upload className="w-4 h-4 text-emerald-600" />
+                      <span>{uploadingImage ? "Processing photo..." : "Upload Image File from Computer"}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setUploadingImage(true);
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              const result = event.target?.result as string;
+                              if (result) {
+                                setNewQuestion((prev) => ({ ...prev, imageUrl: result }));
+                              }
+                              setUploadingImage(false);
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="text-center text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                    — or paste web image URL —
+                  </div>
+
+                  <input
+                    type="text"
+                    placeholder="https://images.unsplash.com/... or paste image URL"
+                    value={newQuestion.imageUrl}
+                    onChange={(e) => setNewQuestion({ ...newQuestion, imageUrl: e.target.value })}
+                    className="w-full bg-[#FAF9F5] border border-slate-200 rounded-2xl px-4 py-2 text-xs text-slate-800 focus:outline-none focus:border-emerald-500"
+                  />
+
+                  {newQuestion.imageUrl && (
+                    <div className="relative mt-2 rounded-2xl overflow-hidden border border-slate-200 h-28 bg-slate-900 flex items-center justify-center shadow-xs">
+                      <img
+                        src={newQuestion.imageUrl}
+                        alt="Question visual preview"
+                        className="h-full w-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setNewQuestion({ ...newQuestion, imageUrl: "" })}
+                        className="absolute top-1.5 right-1.5 p-1 rounded-full bg-slate-900/80 text-white hover:bg-rose-600 transition-colors cursor-pointer"
+                        title="Remove photo"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Target Mode</label>
                 <select
                   value={newQuestion.learningMode}
@@ -568,10 +682,10 @@ export const AdminPage: React.FC = () => {
                 </select>
               </div>
               <div className="pt-3 flex space-x-3">
-                <button type="submit" className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-2xl shadow-sm border-b-4 border-emerald-700 text-xs">
-                  Save Question
+                <button type="submit" className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-2xl shadow-sm border-b-4 border-emerald-700 text-xs cursor-pointer">
+                  {editingQuestion ? "Update Question" : "Save Question"}
                 </button>
-                <button type="button" onClick={() => setIsQuestionModalOpen(false)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-3 rounded-2xl text-xs">
+                <button type="button" onClick={() => { setIsQuestionModalOpen(false); setEditingQuestion(null); }} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-3 rounded-2xl text-xs cursor-pointer">
                   Cancel
                 </button>
               </div>

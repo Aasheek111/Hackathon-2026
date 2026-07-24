@@ -242,6 +242,17 @@ router.get('/history', async (req: Request, res: Response) => {
   }
 });
 
+router.get('/questions', async (_req: Request, res: Response) => {
+  try {
+    const questions = await prisma.quizQuestion.findMany({
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json({ questions });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch questions' });
+  }
+});
+
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const attempt = await prisma.assessmentAttempt.findFirst({
