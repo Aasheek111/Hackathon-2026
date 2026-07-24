@@ -42,6 +42,7 @@ app.add_middleware(
 )
 
 app.mount("/static/images", StaticFiles(directory=str(engine.IMAGE_DIR)), name="images")
+app.mount("/static/audio", StaticFiles(directory=str(engine.AUDIO_DIR)), name="audio")
 app.mount("/static", StaticFiles(directory=str(engine.STATIC_DIR)), name="static")
 
 app.include_router(router)

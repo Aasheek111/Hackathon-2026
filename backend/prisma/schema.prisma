@@ -13,6 +13,16 @@ enum Role {
   STUDENT
 }
 
+// Global, admin-only settings. A single row (id = "singleton"). Right now it
+// just holds the target grade/education level that steers AI generation, so
+// the whole app can be retargeted (Nursery -> Grade 5, etc.) without touching
+// code or prompts. Only the ADMIN role can change it; teachers can't.
+model AppConfig {
+  id         String   @id @default("singleton")
+  gradeLevel String   @default("Nursery")
+  updatedAt  DateTime @updatedAt
+}
+
 enum TeacherStatus {
   PENDING
   APPROVED
@@ -52,6 +62,36 @@ enum IndexStatus {
   FAILED
 }
 
+// ---------------------------------------------------------------------------
+// Full-curriculum background generation pipeline
+// ---------------------------------------------------------------------------
+
+enum JobStage {
+  QUEUED
+  EXTRACTING
+  PLANNING
+  GENERATING_TEXT
+  GENERATING_VISUALS
+  GENERATING_AUDIO
+  GENERATING_QUESTIONS
+  FINALIZING
+  COMPLETED
+  FAILED
+}
+
+enum NotificationType {
+  GENERATION_COMPLETE
+  GENERATION_FAILED
+}
+
+enum YoutubeQuizStatus {
+  QUEUED
+  FETCHING_TRANSCRIPT
+  GENERATING_QUESTIONS
+  READY
+  FAILED
+}
+
 model User {
   id             String         @id @default(cuid())
   name           String
@@ -81,6 +121,18 @@ model User {
   attempts        AssessmentAttempt[]
   tutorials       Tutorial[]
   progress        StudentProgress?
+
+  // Full-curriculum pipeline (student side)
+  tutorialProgresses      TutorialProgress[]
+  knowledgeCheckAttempts  KnowledgeCheckAttempt[]
+  finalAssessmentAttempts FinalAssessmentAttempt[]
+  rawDocProgress          RawDocProgress[]
+  engagementSamples       UnitEngagementSample[]
+
+  // Full-curriculum pipeline (teacher side)
+  generationJobs  TutorialGenerationJob[]
+  notifications   Notification[]
+  youtubeQuizzes  YoutubeQuiz[]
 }
 
 model DemoResult {
@@ -269,6 +321,13 @@ model Unit {
   tutorials   Tutorial[]
   preview     UnitPreview?
 
+  // Full-curriculum pipeline - one canonical curriculum per unit, shared
+  // across students (PLAN §23: canonical content + adaptive presentation,
+  // not a separate generated copy per student)
+  curriculum       TutorialCurriculum?
+  generationJobs   TutorialGenerationJob[]
+  engagementSamples UnitEngagementSample[]
+
   ragUnitId   Int?         @unique // the integer id rag-service indexes under
   indexStatus IndexStatus  @default(NOT_INDEXED)
   createdAt   DateTime     @default(now())
@@ -304,6 +363,47 @@ model SyllabusDocument {
   status       IndexStatus @default(NOT_INDEXED)
   errorMessage String?
   uploadedAt   DateTime    @default(now())
+
+  generationJobs TutorialGenerationJob[]
+  rawDocProgress RawDocProgress[]
+}
+
+// Per-(student, unit, lesson) concentration rollup, fed by the webcam/CV
+// engagement loop while a student is in the tutorial player. Stored as running
+// sums (not per-frame rows) so ingestion is a cheap increment and the teacher
+// heatmap is one indexed query per unit. avgScore = totalScore/samples;
+// focusedRatio = focusedSamples/samples.
+model UnitEngagementSample {
+  id             String       @id @default(cuid())
+  studentId      String
+  student        User         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  unitId         String
+  unit           Unit         @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  lessonOrder    Int
+  mode           LearningMode @default(TEXT)
+  totalScore     Float        @default(0)
+  samples        Int          @default(0)
+  focusedSamples Int          @default(0)
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([studentId, unitId, lessonOrder])
+  @@index([unitId])
+}
+
+// A student reading the ORIGINAL uploaded PDF (the "raw docs" door, distinct
+// from the generated tutorial). Just a resume pointer - which page they left
+// off on - so Back-then-return continues where they were.
+model RawDocProgress {
+  id         String           @id @default(cuid())
+  studentId  String
+  student    User             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  documentId String
+  document   SyllabusDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  lastPage   Int              @default(1)
+  updatedAt  DateTime         @updatedAt
+
+  @@unique([studentId, documentId])
+  @@index([studentId])
 }
 
 model Tutorial {
@@ -342,4 +442,204 @@ model StudentProgress {
   lastActiveDate DateTime?
   badges         Json      @default("[]") // [{id, name, earnedAt}]
   updatedAt      DateTime  @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Full-curriculum background generation pipeline (TODO.md Phases 1-10)
+//
+// A teacher's upload produces exactly one canonical TutorialCurriculum per
+// Unit - generated once, in the background, shared by every student (PLAN
+// §23: "canonical tutorial + adaptive presentation" rather than a full copy
+// per student). TutorialProgress is the thin per-student pointer into it.
+//
+// The existing student-scoped Tutorial model (TEXT/AUDIO/VISUAL mode picker,
+// generated lazily on first view) is left untouched for backward
+// compatibility - a Unit routes to the new curriculum player only once its
+// TutorialCurriculum exists; older/in-flight units keep working exactly as
+// before.
+// ---------------------------------------------------------------------------
+
+model TutorialGenerationJob {
+  id               String            @id @default(cuid())
+  unitId           String
+  unit             Unit              @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  sourceDocumentId String?
+  sourceDocument   SyllabusDocument? @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  teacherId        String
+  teacher          User              @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  stage           JobStage @default(QUEUED)
+  progressPercent Int      @default(0)
+  errorMessage    String?
+  retryCount      Int      @default(0)
+  celeryTaskId    String? // the Celery task id, for correlating worker logs
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  @@index([unitId])
+  @@index([teacherId])
+}
+
+model TutorialCurriculum {
+  id     String @id @default(cuid())
+  unitId String @unique
+  unit   Unit   @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  title  String
+
+  lessons                  TutorialLesson[]
+  finalAssessmentQuestions FinalAssessmentQuestion[]
+  progresses               TutorialProgress[]
+  finalAssessmentAttempts  FinalAssessmentAttempt[]
+
+  sourceChunks Int      @default(0) // total chunks the source document produced
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model TutorialLesson {
+  id           String             @id @default(cuid())
+  curriculumId String
+  curriculum   TutorialCurriculum @relation(fields: [curriculumId], references: [id], onDelete: Cascade)
+  order        Int
+
+  title       String
+  explanation String
+  example     String?
+  imageUrl    String?
+  audioUrl    String?
+
+  // Traceability back to the source document (TODO.md §22 RAG compatibility)
+  sourceChunkStart Int?
+  sourceChunkEnd   Int?
+
+  knowledgeCheck KnowledgeCheckQuestion?
+  createdAt      DateTime                @default(now())
+
+  @@unique([curriculumId, order])
+  @@index([curriculumId])
+}
+
+model KnowledgeCheckQuestion {
+  id       String         @id @default(cuid())
+  lessonId String         @unique
+  lesson   TutorialLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  question String
+  options  Json // string[]
+  correct  String
+
+  attempts KnowledgeCheckAttempt[]
+}
+
+// One row per student per question - a retry overwrites rather than
+// accumulates history, matching the existing Tutorial model's "cache the
+// latest, don't keep a full history" convention.
+model KnowledgeCheckAttempt {
+  id         String                 @id @default(cuid())
+  questionId String
+  question   KnowledgeCheckQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  studentId  String
+  student    User                   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  answer     String
+  correct    Boolean
+  answeredAt DateTime @default(now())
+
+  @@unique([questionId, studentId])
+  @@index([studentId])
+}
+
+model FinalAssessmentQuestion {
+  id           String             @id @default(cuid())
+  curriculumId String
+  curriculum   TutorialCurriculum @relation(fields: [curriculumId], references: [id], onDelete: Cascade)
+  order        Int
+
+  question String
+  options  Json // string[]
+  correct  String
+
+  @@unique([curriculumId, order])
+  @@index([curriculumId])
+}
+
+model FinalAssessmentAttempt {
+  id           String             @id @default(cuid())
+  curriculumId String
+  curriculum   TutorialCurriculum @relation(fields: [curriculumId], references: [id], onDelete: Cascade)
+  studentId    String
+  student      User               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  answerLog    Json // [{questionId, answer, correct}]
+  scoreCorrect Int
+  scoreTotal   Int
+  completedAt  DateTime @default(now())
+
+  @@index([studentId, curriculumId])
+}
+
+// Per-student pointer into the canonical curriculum - not a content copy.
+model TutorialProgress {
+  id                 String             @id @default(cuid())
+  studentId          String
+  student            User               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  curriculumId       String
+  curriculum         TutorialCurriculum @relation(fields: [curriculumId], references: [id], onDelete: Cascade)
+  currentLessonOrder Int                @default(0)
+  // Which presentation the student last used (TEXT/AUDIO/VISUAL/AR). Purely a
+  // display preference over the one shared curriculum - switching it never
+  // regenerates content, and progress is kept whichever mode they pick.
+  preferredMode      LearningMode       @default(TEXT)
+  completed          Boolean            @default(false)
+  completedAt        DateTime?
+  updatedAt          DateTime           @updatedAt
+
+  @@unique([studentId, curriculumId])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  teacherId String
+  teacher   User             @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  body      String
+  unitId    String?
+  jobId     String?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([teacherId, read])
+}
+
+// ---------------------------------------------------------------------------
+// YouTube transcript -> quiz generation (TODO.md Phase 11)
+// ---------------------------------------------------------------------------
+
+model YoutubeQuiz {
+  id           String            @id @default(cuid())
+  teacherId    String
+  teacher      User              @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  sourceUrl    String
+  videoId      String
+  status       YoutubeQuizStatus @default(QUEUED)
+  errorMessage String?
+  title        String?
+  questions    YoutubeQuizQuestion[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+}
+
+model YoutubeQuizQuestion {
+  id       String      @id @default(cuid())
+  quizId   String
+  quiz     YoutubeQuiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  order    Int
+  question String
+  options  Json // string[]
+  correct  String
+
+  @@unique([quizId, order])
 }

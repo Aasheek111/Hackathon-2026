@@ -228,7 +228,12 @@
 
   <!-- Game Logic JavaScript -->
   <script>
-    const questions = [
+    // Default demo set. Replaced at runtime by the real unit's questions when
+    // this game is embedded in the tutorial player (see the 'message' listener
+    // below) - those come from the curriculum's own knowledge-checks + final
+    // assessment, so AR mode reuses already-generated content and costs no
+    // extra AI call.
+    let questions = [
       { q: 'What is 3 + 4?', options: ['5', '7', '9', '6'], answer: '7' },
       { q: 'What color is a banana?', options: ['Red', 'Blue', 'Yellow', 'Green'], answer: 'Yellow' },
       { q: 'How many legs does a dog have?', options: ['2', '4', '6', '3'], answer: '4' },
@@ -497,7 +502,7 @@
 
       if (isCorrect) {
         score++;
-        document.getElementById('score-display').innerHTML = `${score} <span class="text-xs text-slate-400 font-normal">/ 10</span>`;
+        document.getElementById('score-display').innerHTML = `${score} <span class="text-xs text-slate-400 font-normal">/ ${questions.length}</span>`;
 
         toastBody.className = "glass-panel px-6 py-3 rounded-2xl flex items-center space-x-3 text-lg font-bold text-emerald-400 border-emerald-500/50";
         toastMsg.innerText = "Correct! Great Job!";
@@ -520,17 +525,43 @@
     }
 
     function showResults() {
-      document.getElementById('final-score-text').innerText = `${score} / 10`;
+      document.getElementById('final-score-text').innerText = `${score} / ${questions.length}`;
       document.getElementById('results-modal').classList.remove('hidden');
+      // Tell the tutorial player (parent frame) the game finished so it can
+      // count AR completion toward the student's progress.
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage(
+            { type: 'ar-complete', score, total: questions.length },
+            '*'
+          );
+        }
+      } catch (e) { /* standalone (not embedded) - nothing to report to */ }
     }
 
     function restartGame() {
       currentQuestionIndex = 0;
       score = 0;
-      document.getElementById('score-display').innerHTML = `0 <span class="text-xs text-slate-400 font-normal">/ 10</span>`;
+      document.getElementById('score-display').innerHTML = `0 <span class="text-xs text-slate-400 font-normal">/ ${questions.length}</span>`;
       document.getElementById('results-modal').classList.add('hidden');
       loadQuestion(0);
     }
+
+    // When embedded in the tutorial player, the parent posts this unit's real
+    // questions in. Swap them and restart cleanly. Ignores empty sets so the
+    // demo fallback above still shows if a unit has no 4-option MCQs yet.
+    window.addEventListener('message', (event) => {
+      const data = event.data;
+      if (!data || data.type !== 'ar-questions') return;
+      if (Array.isArray(data.questions) && data.questions.length > 0) {
+        questions = data.questions;
+        currentQuestionIndex = 0;
+        score = 0;
+        document.getElementById('score-display').innerHTML = `0 <span class="text-xs text-slate-400 font-normal">/ ${questions.length}</span>`;
+        document.getElementById('results-modal').classList.add('hidden');
+        loadQuestion(0);
+      }
+    });
 
     function goToDashboard() {
       try {
@@ -553,6 +584,14 @@
         }
       }
       loadQuestion(0);
+      // Handshake: tell an embedding player the scene is ready to receive this
+      // unit's real questions (avoids a race where the parent posts before the
+      // balloons exist).
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'ar-ready' }, '*');
+        }
+      } catch (e) { /* standalone */ }
     });
   </script>
 </body>

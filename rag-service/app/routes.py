@@ -16,14 +16,23 @@ from fastapi.responses import JSONResponse
 from PIL import Image, UnidentifiedImageError
 
 from . import rag_engine as engine
+from . import youtube_quiz as yt
+from .celery_app import celery_app
 from .models import (
+    ExtractYoutubeIdRequest,
+    ExtractYoutubeIdResponse,
+    GenerateCurriculumRequest,
+    GenerateSpeechRequest,
+    GenerateSpeechResponse,
     GenerateVisualRequest,
+    GenerateYoutubeQuizRequest,
     HealthResponse,
     ImageUploadResponse,
     PdfUploadResponse,
     TutorialRequest,
     TutorialResponse,
 )
+from .tasks import generate_curriculum, generate_youtube_quiz, ping
 
 router = APIRouter()
 
@@ -107,6 +116,26 @@ async def upload_image(unit_id: int = Form(...), file: UploadFile = File(...)) -
     return ImageUploadResponse(status="success", image_url=f"/static/images/{filename}")
 
 
+@router.post("/internal/celery-ping", tags=["system"])
+def celery_ping() -> dict:
+    """Proof-of-life for the Celery+Redis wiring: enqueues a trivial task onto
+    redis and returns its id immediately (this endpoint must not block on the
+    result - that would defeat the point of a background queue).
+    """
+    task = ping.delay()
+    return {"task_id": task.id}
+
+
+@router.get("/internal/celery-ping/{task_id}", tags=["system"])
+def celery_ping_status(task_id: str) -> dict:
+    """Poll for the ping task's result - proves a separate celery-worker
+    container actually received and executed the task, not just that it sat
+    in the queue.
+    """
+    result = celery_app.AsyncResult(task_id)
+    return {"task_id": task_id, "status": result.status, "result": result.result if result.ready() else None}
+
+
 @router.post("/generate-visual", response_model=ImageUploadResponse, tags=["generate"])
 def generate_visual(request: GenerateVisualRequest) -> ImageUploadResponse:
     """Turn a visual_suggestion (or a student's custom request) into a picture."""
@@ -119,6 +148,47 @@ def generate_visual(request: GenerateVisualRequest) -> ImageUploadResponse:
     return ImageUploadResponse(status="success", image_url=image_url)
 
 
+@router.post("/generate-curriculum", tags=["generate"])
+def generate_curriculum_endpoint(request: GenerateCurriculumRequest) -> dict:
+    """Enqueues the full-document curriculum generation task and returns
+    immediately - the actual work (minutes long) runs in the celery-worker
+    container, not in this request.
+    """
+    if not engine.unit_is_processed(request.unit_id):
+        raise HTTPException(status_code=404, detail="Unit not processed yet")
+
+    task = generate_curriculum.delay(request.job_id, request.unit_id, request.grade_level)
+    return {"status": "queued", "celery_task_id": task.id}
+
+
+@router.post("/extract-youtube-id", response_model=ExtractYoutubeIdResponse, tags=["youtube"])
+def extract_youtube_id(request: ExtractYoutubeIdRequest) -> ExtractYoutubeIdResponse:
+    video_id = yt.extract_video_id(request.url)
+    if not video_id:
+        raise HTTPException(status_code=400, detail="That doesn't look like a valid YouTube URL")
+    return ExtractYoutubeIdResponse(video_id=video_id)
+
+
+@router.post("/generate-youtube-quiz", tags=["generate"])
+def generate_youtube_quiz_endpoint(request: GenerateYoutubeQuizRequest) -> dict:
+    """Enqueues transcript fetch + quiz generation and returns immediately -
+    both steps are external API calls, slow enough to belong on the queue.
+    """
+    task = generate_youtube_quiz.delay(request.quiz_id, request.video_id)
+    return {"status": "queued", "celery_task_id": task.id}
+
+
+@router.post("/generate-speech", response_model=GenerateSpeechResponse, tags=["generate"])
+def generate_speech_endpoint(request: GenerateSpeechRequest) -> GenerateSpeechResponse:
+    """Synchronous - a single TTS call is fast enough not to need the queue,
+    unlike the multi-call curriculum/YouTube-quiz pipelines.
+    """
+    audio_url = engine.generate_speech(request.text, request.voice)
+    if not audio_url:
+        raise HTTPException(status_code=502, detail="Could not generate speech right now")
+    return GenerateSpeechResponse(status="success", audio_url=audio_url)
+
+
 @router.post("/generate-tutorial", response_model=TutorialResponse, tags=["generate"])
 def generate_tutorial(request: TutorialRequest) -> TutorialResponse:
     """Retrieve the most relevant chunks for this student and adapt them."""
@@ -128,7 +198,7 @@ def generate_tutorial(request: TutorialRequest) -> TutorialResponse:
 
     try:
         payload = engine.generate_tutorial(
-            request.unit_id, request.student_diagnosis, request.learning_mode
+            request.unit_id, request.student_diagnosis, request.learning_mode, request.grade_level
         )
     except ValueError as failure:  # the model returned something that was not JSON
         raise HTTPException(

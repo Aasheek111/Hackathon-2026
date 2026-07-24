@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, BookOpen, TrendingUp, Zap, Award, Loader2 } from 'lucide-react';
+import { LayoutDashboard, BookOpen, TrendingUp, Zap, Award, Loader2, GraduationCap, Sparkles, Eye, RefreshCw, ArrowRight } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import DashboardShell, { NavItem } from '../components/DashboardShell';
 import api from '../lib/api';
@@ -16,17 +17,63 @@ interface Progress {
   streakDays: number;
   badges: Array<{ id: string; name: string; earnedAt: string }>;
 }
+interface UnitReport {
+  id: string;
+  title: string;
+  hasCurriculum: boolean;
+  mark: number | null;
+  grade: string;
+  finalPercent: number | null;
+  kcAccuracy: number | null;
+  focus: number | null;
+  completed: boolean;
+}
+interface SubjectReport {
+  id: string;
+  name: string;
+  mark: number | null;
+  grade: string;
+  units: UnitReport[];
+}
+interface Recommendation {
+  type: string;
+  title: string;
+  detail: string;
+  unitId?: string;
+}
+interface Report {
+  enrolled: boolean;
+  overall: number | null;
+  overallGrade: string;
+  subjects: SubjectReport[];
+  pattern: { bestMode: string | null; preferredMode: string | null; attentionSpanScore: number | null; diagnosticScore: number | null } | null;
+  recommendations: Recommendation[];
+}
+
+const gradeColor = (grade: string): string => {
+  switch (grade) {
+    case 'A': return 'text-emerald-700 bg-emerald-50 border-emerald-200';
+    case 'B': return 'text-sky-700 bg-sky-50 border-sky-200';
+    case 'C': return 'text-amber-700 bg-amber-50 border-amber-200';
+    case 'D': return 'text-orange-700 bg-orange-50 border-orange-200';
+    case 'F': return 'text-rose-700 bg-rose-50 border-rose-200';
+    default: return 'text-slate-500 bg-slate-50 border-slate-200';
+  }
+};
 
 export const ProgressPage: React.FC = () => {
+  const navigate = useNavigate();
   const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [progress, setProgress] = useState<Progress | null>(null);
+  const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([api.get('/assessments/history'), api.get('/progress')])
-      .then(([hist, prog]) => {
+    Promise.all([api.get('/assessments/history'), api.get('/progress'), api.get('/progress/report')])
+      .then(([hist, prog, rep]) => {
         setAttempts(hist.data.attempts);
         setProgress(prog.data);
+        setReport(rep.data);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -78,6 +125,97 @@ export const ProgressPage: React.FC = () => {
             </div>
           ))}
         </div>
+
+        {/* Report card - consolidated marks from exams, lesson checks, focus */}
+        {report?.enrolled && report.subjects.length > 0 && (
+          <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <GraduationCap className="w-5 h-5 text-emerald-600" /> Report Card
+              </h2>
+              {report.overall !== null && (
+                <div className={`flex items-center gap-2 px-4 py-1.5 rounded-2xl border font-bold ${gradeColor(report.overallGrade)}`}>
+                  <span className="text-2xl">{report.overallGrade}</span>
+                  <span className="text-sm">{report.overall}%</span>
+                </div>
+              )}
+            </div>
+            <div className="space-y-3">
+              {report.subjects.map((s) => (
+                <div key={s.id} className="rounded-2xl border border-slate-100 overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-3 bg-[#FAF9F5]">
+                    <span className="font-bold text-slate-900 text-sm">{s.name}</span>
+                    <span className={`text-xs font-bold px-3 py-1 rounded-full border ${gradeColor(s.grade)}`}>
+                      {s.mark === null ? 'No marks yet' : `${s.grade} · ${s.mark}%`}
+                    </span>
+                  </div>
+                  <div className="divide-y divide-slate-50">
+                    {s.units.map((u) => (
+                      <div key={u.id} className="flex items-center justify-between px-4 py-2.5 text-xs">
+                        <span className="text-slate-700 font-medium">{u.title}</span>
+                        <div className="flex items-center gap-3 text-slate-500">
+                          {u.finalPercent !== null && <span title="Final exam">Exam {u.finalPercent}%</span>}
+                          {u.focus !== null && (
+                            <span className="flex items-center gap-1" title="Focus"><Eye className="w-3 h-3" />{u.focus}%</span>
+                          )}
+                          <span className={`font-bold px-2 py-0.5 rounded-full border ${gradeColor(u.grade)}`}>
+                            {u.mark === null ? '—' : `${u.grade} ${u.mark}%`}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Learning pattern + recommendations */}
+        {report?.enrolled && (report.recommendations.length > 0 || report.pattern?.bestMode) && (
+          <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs">
+            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2 mb-4">
+              <Sparkles className="w-5 h-5 text-amber-500" /> Recommended for you
+            </h2>
+            {report.pattern && (
+              <div className="flex flex-wrap gap-2 mb-4">
+                {report.pattern.bestMode && (
+                  <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    Learns best in {report.pattern.bestMode}
+                  </span>
+                )}
+                {report.pattern.attentionSpanScore !== null && (
+                  <span className="text-xs font-bold px-3 py-1 rounded-full bg-sky-50 text-sky-800 border border-sky-200">
+                    Attention {report.pattern.attentionSpanScore}%
+                  </span>
+                )}
+              </div>
+            )}
+            <div className="space-y-2.5">
+              {report.recommendations.map((r, i) => (
+                <button
+                  key={i}
+                  onClick={() => r.unitId && navigate(`/classroom/units/${r.unitId}/tutorial`)}
+                  disabled={!r.unitId}
+                  className={`w-full text-left flex items-center gap-3 p-3.5 rounded-2xl border transition-all ${
+                    r.unitId ? 'border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/40 cursor-pointer' : 'border-slate-100 bg-[#FAF9F5]'
+                  }`}
+                >
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                    r.type === 'revisit' ? 'bg-amber-100 text-amber-700' : r.type === 'continue' ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700'
+                  }`}>
+                    {r.type === 'revisit' ? <RefreshCw className="w-4 h-4" /> : r.type === 'continue' ? <BookOpen className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-slate-900">{r.title}</p>
+                    <p className="text-xs text-slate-500">{r.detail}</p>
+                  </div>
+                  {r.unitId && <ArrowRight className="w-4 h-4 text-slate-400 shrink-0" />}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {attempts.length >= 2 && (
           <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs">

@@ -6,6 +6,7 @@ import axios from 'axios';
 import FormData from 'form-data';
 import prisma from '../lib/prisma';
 import { requireAuth, requireApprovedTeacher } from '../middleware/auth';
+import { getGradeLevel } from '../lib/appConfig';
 
 const router = Router();
 router.use(requireAuth);
@@ -104,6 +105,37 @@ async function queueUnitPreview(unitId: string, ragUnitId: number): Promise<void
   }
 }
 
+/**
+ * Creates the durable job row and hands it to rag-service, which enqueues
+ * the real Celery task (full-document segmentation, per-lesson generation,
+ * visuals, final assessment) and returns immediately - this call itself must
+ * stay fast, the actual generation runs in the celery-worker container.
+ */
+async function queueCurriculumGeneration(
+  unitId: string,
+  documentId: string | null,
+  teacherId: string,
+  ragUnitId: number
+): Promise<void> {
+  const job = await prisma.tutorialGenerationJob.create({
+    data: { unitId, sourceDocumentId: documentId, teacherId, stage: 'QUEUED' }
+  });
+
+  try {
+    const gradeLevel = await getGradeLevel();
+    await axios.post(
+      `${RAG_SERVICE_URL}/generate-curriculum`,
+      { job_id: job.id, unit_id: ragUnitId, grade_level: gradeLevel },
+      { timeout: 15000 }
+    );
+  } catch (error: any) {
+    const message = error.response?.data?.detail || error.message || 'Could not queue curriculum generation';
+    await prisma.tutorialGenerationJob
+      .update({ where: { id: job.id }, data: { stage: 'FAILED', errorMessage: String(message) } })
+      .catch(() => {});
+  }
+}
+
 router.post(
   '/:id/documents',
   requireApprovedTeacher,
@@ -161,6 +193,7 @@ router.post(
         // Not awaited - the upload request already returned. Runs after the
         // response is sent so a slow LLM/image call never delays the upload.
         queueUnitPreview(unit.id, ragUnitId).catch(() => {});
+        queueCurriculumGeneration(unit.id, document.id, req.user!.id, ragUnitId).catch(() => {});
       } catch (ragError: any) {
         const message =
           ragError.response?.data?.detail || ragError.message || 'rag-service is unreachable';
@@ -200,6 +233,137 @@ router.get('/:id/documents', async (req: Request, res: Response) => {
     res.json({ documents, indexStatus: unit.indexStatus });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch documents' });
+  }
+});
+
+/** Teacher-owner OR an enrolled student may view a unit's raw content. */
+async function unitViewAccess(userId: string, unitId: string) {
+  const unit = await prisma.unit.findUnique({
+    where: { id: unitId },
+    include: { subject: { include: { classroom: true } } }
+  });
+  if (!unit) return { unit: null, allowed: false };
+  if (unit.subject.classroom.teacherId === userId) return { unit, allowed: true };
+  const enrolled = await prisma.enrolment.findUnique({
+    where: { classroomId_studentId: { classroomId: unit.subject.classroomId, studentId: userId } }
+  });
+  return { unit, allowed: !!enrolled };
+}
+
+/** The newest successfully-indexed document for a unit (the one worth reading). */
+async function latestReadyDoc(unitId: string) {
+  return prisma.syllabusDocument.findFirst({
+    where: { unitId, status: 'READY' },
+    orderBy: { uploadedAt: 'desc' }
+  });
+}
+
+/**
+ * Streams the original uploaded PDF so a student can read the teacher's raw
+ * material (the "raw docs" door). Auth is enforced here (enrolled student or
+ * teacher-owner), so the frontend fetches it as a blob with its JWT rather
+ * than putting a token in an <iframe src>.
+ */
+router.get('/:id/document/file', async (req: Request, res: Response) => {
+  try {
+    const { unit, allowed } = await unitViewAccess(req.user!.id, req.params['id'] as string);
+    if (!unit) return res.status(404).json({ error: 'Unit not found' });
+    if (!allowed) return res.status(403).json({ error: 'Not allowed to view this unit' });
+
+    const doc = await latestReadyDoc(unit.id);
+    if (!doc || !doc.storagePath || !fs.existsSync(doc.storagePath)) {
+      return res.status(404).json({ error: 'No readable document for this unit' });
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(doc.filename)}"`);
+    fs.createReadStream(doc.storagePath).on('error', () => {
+      if (!res.headersSent) res.status(500).json({ error: 'Failed to read document' });
+    }).pipe(res);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to stream document' });
+  }
+});
+
+/** This student's resume pointer (last page read) for the unit's raw document. */
+router.get('/:id/raw-progress', async (req: Request, res: Response) => {
+  try {
+    const { unit, allowed } = await unitViewAccess(req.user!.id, req.params['id'] as string);
+    if (!unit) return res.status(404).json({ error: 'Unit not found' });
+    if (!allowed) return res.status(403).json({ error: 'Not allowed to view this unit' });
+
+    const doc = await latestReadyDoc(unit.id);
+    if (!doc) return res.json({ document: null, lastPage: 1 });
+
+    const progress = await prisma.rawDocProgress.findUnique({
+      where: { studentId_documentId: { studentId: req.user!.id, documentId: doc.id } }
+    });
+    res.json({
+      document: { id: doc.id, filename: doc.filename, pageCount: doc.pageCount },
+      lastPage: progress?.lastPage ?? 1
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch raw progress' });
+  }
+});
+
+/** Save the student's current page so Back-then-return resumes there. */
+router.patch('/:id/raw-progress', async (req: Request, res: Response) => {
+  try {
+    const { unit, allowed } = await unitViewAccess(req.user!.id, req.params['id'] as string);
+    if (!unit) return res.status(404).json({ error: 'Unit not found' });
+    if (!allowed) return res.status(403).json({ error: 'Not allowed to view this unit' });
+
+    const lastPage = Math.max(1, Math.round(Number(req.body?.lastPage) || 1));
+    const doc = await latestReadyDoc(unit.id);
+    if (!doc) return res.status(404).json({ error: 'No readable document for this unit' });
+
+    const progress = await prisma.rawDocProgress.upsert({
+      where: { studentId_documentId: { studentId: req.user!.id, documentId: doc.id } },
+      create: { studentId: req.user!.id, documentId: doc.id, lastPage },
+      update: { lastPage }
+    });
+    res.json({ progress });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to save raw progress' });
+  }
+});
+
+const IN_FLIGHT_STAGES = [
+  'QUEUED', 'EXTRACTING', 'PLANNING', 'GENERATING_TEXT', 'GENERATING_VISUALS', 'GENERATING_AUDIO', 'GENERATING_QUESTIONS', 'FINALIZING'
+];
+
+/**
+ * Retroactively runs the full-curriculum pipeline for a unit that was
+ * indexed before this pipeline existed (or whose earlier attempt failed) -
+ * the source PDF is already indexed, so this just (re)generates the
+ * curriculum from the existing FAISS index, no re-upload needed.
+ */
+router.post('/:id/generate-curriculum', requireApprovedTeacher, async (req: Request, res: Response) => {
+  try {
+    const unit = await ownsUnit(req.user!.id, req.params['id'] as string);
+    if (!unit) return res.status(404).json({ error: 'Unit not found or not yours' });
+    if (unit.indexStatus !== 'READY' || !unit.ragUnitId) {
+      return res.status(400).json({ error: 'This unit has no indexed document yet - upload a PDF first' });
+    }
+
+    const existingJob = await prisma.tutorialGenerationJob.findFirst({
+      where: { unitId: unit.id },
+      orderBy: { startedAt: 'desc' }
+    });
+    if (existingJob && IN_FLIGHT_STAGES.includes(existingJob.stage)) {
+      return res.status(409).json({ error: 'Generation is already in progress for this unit', job: existingJob });
+    }
+
+    const document = await prisma.syllabusDocument.findFirst({
+      where: { unitId: unit.id },
+      orderBy: { uploadedAt: 'desc' }
+    });
+
+    queueCurriculumGeneration(unit.id, document?.id ?? null, req.user!.id, unit.ragUnitId).catch(() => {});
+    res.status(202).json({ status: 'queued' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to queue curriculum generation' });
   }
 });
 
