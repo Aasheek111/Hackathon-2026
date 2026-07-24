@@ -133,9 +133,9 @@ export const SubscriptionPage: React.FC = () => {
       exit={{ opacity: 0 }}
       className="h-screen overflow-hidden bg-[#FAF9F5] text-slate-800 font-sans selection:bg-emerald-100 selection:text-emerald-900 flex flex-col justify-center px-4 sm:px-6 lg:px-8 pt-16 pb-3"
     >
-      <div className="max-w-6xl mx-auto w-full">
+      <div className="max-w-6xl mx-auto w-full mb-50">
         <div className="text-center mb-4">
-          <div className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 mb-2">
+          <div className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 mb-5">
             <Lock className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
             <span>eSewa Payment Required to Access Dashboard</span>
           </div>
@@ -154,7 +154,7 @@ export const SubscriptionPage: React.FC = () => {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-5xl mx-auto mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-5xl mx-auto mb-4 mt-20">
           {plans.map((plan) => {
             const isSelected = selectedPlan === plan.id;
             return (
@@ -236,9 +236,9 @@ export const SubscriptionPage: React.FC = () => {
             type="button"
             onClick={handleTestActivate}
             disabled={loading}
-            className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 px-6 rounded-2xl shadow-md border-b-4 border-amber-700 active:translate-y-0.5 active:border-b-2 transition-all flex items-center justify-center gap-1 text-xs sm:text-sm cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
+            className="text-gray-500 hover:text-green-600 cursor-pointer text-xs font-medium underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 rounded disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <span>⚡ Sandbox Quick Complete (Bypass Payment)</span>
+            Sandbox Quick Complete (Bypass Payment)
           </button>
         </div>
       </div>
