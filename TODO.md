@@ -481,3 +481,55 @@ is mocked.
       created during manual verification and the one interrupted test run)
       confirmed cleaned up - zero orphaned test users, subjects, or
       notifications remain in the dev database.
+
+---
+
+## Phase 18 — Groq migration (post-launch, real-usage feedback) ✅
+
+The single biggest recurring blocker throughout this whole build was
+Gemini's free-tier **text** quota (20 requests/day, observed live
+repeatedly) - every `FAILED` curriculum job and every early YouTube-quiz
+failure traced back to it. Once a Groq API key became available, Groq
+became the **primary text-generation engine everywhere**, Gemini staying
+as the fallback:
+
+- [x] `invoke_json()` in `rag_engine.py` - one shared helper every
+      JSON-generation call site goes through: Groq (`llama-3.3-70b-versatile`,
+      verified live with the real key, including `response_format:
+      {"type":"json_object"}` - genuinely OpenAI-compatible, confirmed not
+      assumed) first, Gemini second. `generate_tutorial`, `plan_curriculum`,
+      `generate_lesson_content`, `generate_final_assessment`, and
+      `youtube_quiz.generate_quiz_from_transcript` all migrated to it.
+- [x] Groq TTS (`canopylabs/orpheus-v1-english`) wired in as the first
+      attempt in `generate_speech()`, already returns a playable WAV (no
+      PCM-wrapping needed, unlike Gemini's). **Currently blocked** on Groq's
+      end only: the model requires terms acceptance in the Groq console
+      (`model_terms_required`, confirmed live) - not fixable from code.
+      Falls back to the already-working Gemini TTS automatically until
+      that's accepted.
+- [x] Call spacing reduced from 6s to 2.5s (`LLM_CALL_SPACING_SECONDS` in
+      `tasks.py`) - matches Groq's 30 req/min free-tier limit instead of
+      Gemini's much tighter one.
+- [x] **What did NOT move to Groq, and why**: embeddings (Groq offers none
+      - `get_embeddings()`/FAISS indexing stays on Gemini) and image
+      generation (Groq offers none - `generate_visual_image()` stays
+      Gemini-then-pollinations, unchanged). Neither was ever the source of
+      a quota failure this session.
+- [x] **Also fixed while verifying this**: the SerpApi YouTube transcript
+      integration had a real bug from Phase 11 that only a real key could
+      surface - the parameter is `v`, not `video_id` as SerpApi's own docs
+      page said (confirmed via a live call: `400 Missing v parameter`, then
+      confirmed the correct shape via the main `youtube_video` engine's
+      `transcript.serpapi_link` field). Fixed in `fetch_transcript()`.
+
+**Verified live, end-to-end, with real data** (not just unit-level checks):
+- The exact 40-chunk document that had failed on Gemini's quota multiple
+  times earlier this session went QUEUED → COMPLETED in under a minute via
+  Groq, producing **15 real lessons** (titled from the document's actual
+  section structure, e.g. "Barriers Faced by Nepalese Entrepreneurs") each
+  with a knowledge check, plus **10 final assessment questions** - the
+  clearest possible proof that both "full PDF coverage" (Phase 2) and the
+  Groq migration are genuinely working together, not just individually.
+- A YouTube quiz went QUEUED → READY in ~2 seconds with a real transcript
+  and 5 contextually-grounded questions (correctly titled "Never Gonna Give
+  You Up" from the transcript content itself).

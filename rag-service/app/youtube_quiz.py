@@ -85,7 +85,8 @@ def fetch_transcript(video_id: str) -> str:
         SERPAPI_BASE_URL,
         params={
             "engine": "youtube_video_transcript",
-            "video_id": video_id,
+            "v": video_id,
+            "language_code": "en",
             "api_key": os.getenv("SERPAPI_API_KEY"),
         },
         timeout=30,
@@ -139,19 +140,19 @@ def generate_quiz_from_transcript(transcript: str) -> dict:
     Unlike the tutorial pipeline's offline_tutorial() fallback, there is no
     sentence-extraction fallback here without an API key - a YouTube quiz
     has no reason to exist without the model, so this raises plainly instead
-    of fabricating a degraded version.
+    of fabricating a degraded version. Goes through Groq first, Gemini
+    second (engine.invoke_json) - same as every other generation call in
+    this pipeline.
     """
-    if not engine.api_key_present():
-        raise RuntimeError("GOOGLE_API_KEY is not set - cannot generate a quiz without it.")
+    if not engine.any_llm_configured():
+        raise RuntimeError("Neither GROQ_API_KEY nor GOOGLE_API_KEY is set - cannot generate a quiz without one.")
 
-    model = engine.get_chat_model().bind(response_mime_type="application/json")
-    reply = model.invoke(
-        [
-            ("system", YOUTUBE_QUIZ_SYSTEM_PROMPT),
-            ("human", f"Transcript:\n{transcript[:MAX_TRANSCRIPT_CHARS]}\n\nReturn only the JSON object."),
-        ]
+    data = engine._coerce_json(
+        engine.invoke_json(
+            YOUTUBE_QUIZ_SYSTEM_PROMPT,
+            f"Transcript:\n{transcript[:MAX_TRANSCRIPT_CHARS]}\n\nReturn only the JSON object.",
+        )
     )
-    data = engine._coerce_json(reply.content)
 
     questions = []
     for item in (data.get("questions") or [])[:10]:
