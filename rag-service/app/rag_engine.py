@@ -11,12 +11,17 @@ be regenerated in the new mode from the same source PDF.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
+import time
 from pathlib import Path
+from urllib.parse import quote
 
+import requests
 from dotenv import load_dotenv
+from google import genai
 from langchain_community.embeddings import FakeEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
@@ -42,6 +47,10 @@ STATIC_DIR = BASE_DIR / "static"
 CHUNK_SIZE = 500
 CHUNK_OVERLAP = 50
 TOP_K = 4
+
+# "-latest" alias doesn't exist for image models yet, so this is pinned. A
+# one-line swap to a paid Imagen model if that becomes available later.
+GEMINI_IMAGE_MODEL = "gemini-2.5-flash-image"
 
 DEFAULT_QUERY = "Explain the key concepts of this unit simply"
 
@@ -390,3 +399,100 @@ def generate_tutorial(
     result["learning_mode"] = mode
     result["offline"] = False
     return result
+
+
+# --- image generation --------------------------------------------------------
+
+
+#  Gemini returns PNG; pollinations.ai returns JPEG. Saving whatever comes
+#  back under the right extension keeps the static server's guessed
+#  Content-Type (mimetypes, by extension) truthful for either provider.
+_MIME_EXTENSIONS = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
+
+
+def _generate_via_gemini(styled_prompt: str) -> tuple[bytes, str] | None:
+    """Gemini's image-output model. Requires billing enabled on the API key's
+    Google Cloud project - the free AI Studio tier grants zero quota for
+    image models, unlike the text models this app already uses elsewhere.
+    """
+    if not api_key_present():
+        return None
+    try:
+        client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
+        response = client.models.generate_content(
+            model=GEMINI_IMAGE_MODEL,
+            contents=[styled_prompt],
+        )
+    except Exception:
+        # network error, quota (incl. the free-tier's zero image-gen quota),
+        # or a safety block from the SDK itself
+        return None
+
+    for candidate in response.candidates or []:
+        for part in candidate.content.parts or []:
+            inline_data = getattr(part, "inline_data", None)
+            if inline_data is not None and inline_data.data:
+                return inline_data.data, (inline_data.mime_type or "image/png")
+    return None
+
+
+def _pollinations_token_present() -> bool:
+    return os.getenv("POLLINATIONS_API_KEY", "").strip().strip('"') not in PLACEHOLDER_KEYS
+
+
+def _generate_via_pollinations(styled_prompt: str) -> tuple[bytes, str] | None:
+    """Free fallback (pollinations.ai) - used whenever Gemini's image models
+    are unavailable, so a picture still generates without requiring a paid
+    Gemini tier. Works anonymously with no key; if POLLINATIONS_API_KEY is
+    set, it's sent for pollinations' higher-priority/rate-limited tier.
+    """
+    try:
+        url = (
+            f"https://image.pollinations.ai/prompt/{quote(styled_prompt, safe='')}"
+            "?width=768&height=768&nologo=true"
+        )
+        if _pollinations_token_present():
+            url += f"&token={quote(os.getenv('POLLINATIONS_API_KEY', ''))}"
+        response = requests.get(url, timeout=30)
+        content_type = response.headers.get("content-type", "")
+        if response.status_code == 200 and content_type.startswith("image/"):
+            return response.content, content_type.split(";")[0].strip()
+    except Exception:
+        pass
+    return None
+
+
+def generate_visual_image(prompt: str, unit_id: int) -> str | None:
+    """Turn a visual_suggestion (a hint written for a human artist) into an
+    actual picture: Gemini first, then a free fallback provider.
+
+    Never raises - if both providers come back empty, the caller falls back
+    to showing the text suggestion, same contract as `offline_tutorial`. A
+    dead demo helps nobody.
+    """
+    if not (prompt or "").strip():
+        return None
+
+    styled_prompt = (
+        "Create a simple, clean educational illustration for a student, based on this "
+        f"description: {prompt.strip()}\n"
+        "Style: flat vector illustration, bright and friendly, minimal or no text baked "
+        "into the image itself, high contrast, easy to understand at a glance."
+    )
+
+    result = _generate_via_gemini(styled_prompt) or _generate_via_pollinations(styled_prompt)
+    if not result:
+        return None
+    image_bytes, mime_type = result
+
+    IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+    digest = hashlib.sha1(f"{prompt}{time.time()}".encode()).hexdigest()[:10]
+    extension = _MIME_EXTENSIONS.get(mime_type, ".png")
+    filename = f"visual_{unit_id}_{digest}{extension}"
+    target = IMAGE_DIR / filename
+    try:
+        target.write_bytes(image_bytes)
+    except OSError:
+        return None
+
+    return f"/static/images/{filename}"

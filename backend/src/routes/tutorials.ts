@@ -18,12 +18,32 @@ function levelFromScore(scorePercent: number): number {
   return 4;
 }
 
+/**
+ * Not awaited by the route that creates the tutorial - the student already
+ * has their text/steps/quiz to read while this fills in the picture.
+ */
+async function queueTutorialImage(tutorialId: string, ragUnitId: number, prompt: string): Promise<void> {
+  try {
+    const response = await axios.post(
+      `${RAG_SERVICE_URL}/generate-visual`,
+      { unit_id: ragUnitId, prompt },
+      { timeout: 60000 }
+    );
+    const imageUrl = response.data?.image_url;
+    if (imageUrl) {
+      await prisma.tutorial.update({ where: { id: tutorialId }, data: { imageUrl } });
+    }
+  } catch {
+    // no key / safety block / quota - the unit preview image or text stands in for it
+  }
+}
+
 router.get('/:id/tutorial', requireRole('STUDENT'), async (req: Request, res: Response) => {
   try {
     const studentId = req.user!.id;
     const unit = await prisma.unit.findUnique({
       where: { id: req.params['id'] as string },
-      include: { subject: { include: { classroom: true } } }
+      include: { subject: { include: { classroom: true } }, preview: true }
     });
     if (!unit) return res.status(404).json({ error: 'Unit not found' });
 
@@ -63,7 +83,7 @@ router.get('/:id/tutorial', requireRole('STUDENT'), async (req: Request, res: Re
       }
     });
     if (cached) {
-      return res.json({ tutorial: cached, cached: true });
+      return res.json({ tutorial: cached, cached: true, unitPreviewImageUrl: unit.preview?.imageUrl ?? null });
     }
 
     const diagnosis = latestAttempt
@@ -109,13 +129,65 @@ router.get('/:id/tutorial', requireRole('STUDENT'), async (req: Request, res: Re
     const tutorialCount = await prisma.tutorial.count({ where: { studentId } });
     const { newlyEarned: newBadges } = await awardXp(studentId, 10, { tutorialCount });
 
-    res.status(201).json({ tutorial, cached: false, newBadges });
+    res.status(201).json({ tutorial, cached: false, newBadges, unitPreviewImageUrl: unit.preview?.imageUrl ?? null });
+
+    // Not awaited - the student already has text/steps/quiz to read; the
+    // picture fills in a few seconds later via polling on the frontend.
+    if (learningMode === 'VISUAL' && !tutorial.offline && tutorial.visualSuggestion && unit.ragUnitId) {
+      queueTutorialImage(tutorial.id, unit.ragUnitId, tutorial.visualSuggestion).catch(() => {});
+    }
   } catch (error: any) {
     if (axios.isAxiosError(error)) {
       const detail = error.response?.data?.detail || error.message;
       return res.status(502).json({ error: `Tutorial generation failed: ${detail}` });
     }
     res.status(500).json({ error: 'Failed to generate tutorial' });
+  }
+});
+
+/**
+ * Chat-driven customization: the student describes what they want the
+ * picture to look like, blended with the tutorial's own visual_suggestion.
+ * Called synchronously (the student is watching the chat) rather than
+ * fire-and-forget like tutorial creation's default image.
+ */
+router.post('/:id/tutorial/:tutorialId/visual', requireRole('STUDENT'), async (req: Request, res: Response) => {
+  try {
+    const instruction = (req.body?.instruction as string | undefined)?.trim();
+    if (!instruction) {
+      return res.status(400).json({ error: 'Tell me what you would like the picture to look like' });
+    }
+
+    const tutorial = await prisma.tutorial.findFirst({
+      where: {
+        id: req.params['tutorialId'] as string,
+        unitId: req.params['id'] as string,
+        studentId: req.user!.id
+      }
+    });
+    if (!tutorial) return res.status(404).json({ error: 'Tutorial not found' });
+
+    const unit = await prisma.unit.findUnique({ where: { id: tutorial.unitId } });
+    if (!unit?.ragUnitId) return res.status(404).json({ error: 'This unit has no content indexed yet' });
+
+    const prompt = `${tutorial.visualSuggestion}. Additional request from the student: ${instruction}`;
+    const ragResponse = await axios.post(
+      `${RAG_SERVICE_URL}/generate-visual`,
+      { unit_id: unit.ragUnitId, prompt },
+      { timeout: 60000 }
+    );
+
+    const imageUrl = ragResponse.data?.image_url;
+    if (!imageUrl) return res.status(502).json({ error: 'Could not generate that picture right now' });
+
+    const updated = await prisma.tutorial.update({ where: { id: tutorial.id }, data: { imageUrl } });
+    res.json({ tutorial: updated });
+  } catch (error: any) {
+    if (axios.isAxiosError(error)) {
+      const detail = error.response?.data?.detail || error.message;
+      return res.status(502).json({ error: `Could not generate that picture: ${detail}` });
+    }
+    res.status(500).json({ error: 'Failed to customize the picture' });
   }
 });
 
