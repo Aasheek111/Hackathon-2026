@@ -29,6 +29,7 @@ import DeafDashboardPage from './pages/deaf/DeafDashboardPage';
 import SignLanguagePage from './pages/deaf/SignLanguagePage';
 import SignQuizPage from './pages/deaf/SignQuizPage';
 import LoadingSpinner from './components/ui/LoadingSpinner';
+import FloatingAccessibilityToolkit from './components/FloatingAccessibilityToolkit';
 import { homePathFor } from './lib/homePath';
 
 const ProtectedRoute = ({
@@ -82,6 +83,7 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#FAF9F5] text-slate-800 font-sans selection:bg-emerald-100 selection:text-emerald-900">
       {showNavbar && <Navbar />}
+      <FloatingAccessibilityToolkit />
       
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>

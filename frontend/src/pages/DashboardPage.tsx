@@ -102,7 +102,6 @@ export const DashboardPage: React.FC = () => {
     { icon: BookOpen, label: "My Classroom", path: "/classroom" },
     { icon: TrendingUp, label: "My Progress", path: "/progress" },
     { icon: Gamepad2, label: "AR Game", path: "/ar-game" },
-    { icon: SettingsIcon, label: "Settings", path: "/settings" },
   ];
 
   const latest = history[0];

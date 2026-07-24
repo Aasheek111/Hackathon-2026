@@ -87,7 +87,6 @@ export const SignLanguagePage: React.FC = () => {
     { icon: ClipboardList, label: "Sign Quiz", path: "/dashboard/deaf/sign-quiz" },
     { icon: BookOpen, label: "My Classroom", path: "/classroom" },
     { icon: TrendingUp, label: "My Progress", path: "/progress" },
-    { icon: SettingsIcon, label: "Settings", path: "/settings" },
   ];
 
   const toggleFavourite = (id: string) => {

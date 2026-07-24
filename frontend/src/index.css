@@ -88,3 +88,63 @@
 .animate-pulse-glow {
   animation: pulse-glow 2s infinite;
 }
+
+/* Accessibility Global Rules - Lightweight 60fps High Contrast */
+html.high-contrast body {
+  background-color: #F5F4EF !important;
+  color: #000000 !important;
+}
+
+html.high-contrast p,
+html.high-contrast h1,
+html.high-contrast h2,
+html.high-contrast h3,
+html.high-contrast h4,
+html.high-contrast span,
+html.high-contrast label,
+html.high-contrast div {
+  color: #050505 !important;
+}
+
+html.high-contrast .bg-white {
+  background-color: #FFFFFF !important;
+  border-color: #000000 !important;
+}
+
+html.high-contrast button,
+html.high-contrast input,
+html.high-contrast select,
+html.high-contrast textarea,
+html.high-contrast .border,
+html.high-contrast [class*="border-"] {
+  border-color: #0f172a !important;
+}
+
+/* Complete Strict Reduced Motion Rule */
+html.reduced-motion *,
+html.reduced-motion *::before,
+html.reduced-motion *::after {
+  animation: none !important;
+  animation-delay: 0s !important;
+  animation-duration: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition: none !important;
+  transition-delay: 0s !important;
+  transition-duration: 0s !important;
+  scroll-behavior: auto !important;
+}
+
+html.reduced-motion .animate-bounce,
+html.reduced-motion .animate-pulse,
+html.reduced-motion .animate-spin,
+html.reduced-motion .animate-ping,
+html.reduced-motion .animate-float,
+html.reduced-motion .animate-pulse-glow {
+  animation: none !important;
+}
+
+html.reduced-motion button:hover,
+html.reduced-motion a:hover,
+html.reduced-motion div:hover {
+  transform: none !important;
+}
