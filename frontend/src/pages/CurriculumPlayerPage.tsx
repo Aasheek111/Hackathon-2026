@@ -604,20 +604,21 @@ export const CurriculumPlayerPage: React.FC = () => {
   // (blind/low-vision students shouldn't have to switch modes to get audio).
   // With "Audiobook mode" on too, finishing a clip auto-advances to the next
   // lesson - hands-free playback across the whole unit.
+  // Hands-free continuous playback - only auto-plays when audiobookMode is explicitly enabled
   useEffect(() => {
     if (!curriculum || view !== "lesson") return;
+    if (!prefs.audiobookMode) return;
     if (mode === "AR" || mode === "STORY") return;
-    if (mode !== "AUDIO" && !prefs.alwaysNarrate) return;
     const activeLesson = curriculum.lessons[lessonIndex];
     if (!activeLesson) return;
     const isLastLesson = lessonIndex >= curriculum.lessons.length - 1;
-    const onEnded = prefs.audiobookMode && !isLastLesson ? () => goTo(lessonIndex + 1) : undefined;
+    const onEnded = !isLastLesson ? () => goTo(lessonIndex + 1) : undefined;
     speak(
       `${activeLesson.title}. ${activeLesson.explanation} ${activeLesson.example || ""}`,
       activeLesson.audioUrl,
       onEnded,
     );
-  }, [curriculum, lessonIndex, view, mode, prefs.alwaysNarrate, prefs.audiobookMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [curriculum, lessonIndex, view, mode, prefs.audiobookMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
