@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Heart, ArrowRight } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 
 export const LoginPage: React.FC = () => {
@@ -37,100 +36,123 @@ export const LoginPage: React.FC = () => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="min-h-screen flex items-center justify-center pt-20 pb-12 px-4 sm:px-6 lg:px-8 bg-dark"
+      className="min-h-screen flex items-center justify-center py-16 px-4 sm:px-6 lg:px-8 bg-[#FAF9F5] text-slate-800 font-sans selection:bg-emerald-100 selection:text-emerald-900"
     >
-      <div className="w-full max-w-5xl flex rounded-3xl overflow-hidden glass-strong shadow-2xl">
-        {/* Left Side - Visual */}
-        <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-primary/20 to-dark relative items-center justify-center p-12">
-          <div className="absolute inset-0 overflow-hidden">
-            <div className="absolute -top-24 -left-24 w-96 h-96 bg-primary/30 rounded-full blur-3xl animate-pulse-glow" />
-            <div className="absolute bottom-0 right-0 w-64 h-64 bg-accent/20 rounded-full blur-3xl" />
+      <div className="w-full max-w-4xl flex flex-col lg:flex-row rounded-3xl overflow-hidden bg-white border border-slate-200/80 shadow-md">
+        {/* Left Side - Visual Quote */}
+        <div className="lg:w-1/2 bg-gradient-to-br from-emerald-50 via-teal-50/50 to-sky-50 p-8 sm:p-12 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-100">
+          <div>
+            <div className="flex items-center space-x-2 mb-8">
+              <img src="/logo.png" alt="Pragya Logo" className="h-12 w-auto object-contain" />
+            </div>
+            <div className="inline-flex items-center gap-2 bg-white/80 border border-emerald-200/60 px-3 py-1 rounded-full text-xs font-bold text-emerald-800 mb-6">
+              <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
+              <span>Sensory-Friendly Learning</span>
+            </div>
+            <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 leading-tight">
+              Welcome back to your safe learning space
+            </h1>
           </div>
           
-          <div className="relative z-10 glass p-8 rounded-2xl max-w-md">
-            <div className="text-4xl mb-4">"</div>
-            <p className="text-xl leading-relaxed text-gray-200 font-medium italic">
-              NeuroLearn completely changed how my son approaches education. 
-              The way it switches to visual learning when he gets frustrated is like magic.
+          <div className="bg-white p-6 rounded-2xl shadow-xs border border-emerald-100/80 mt-8">
+            <p className="text-sm leading-relaxed text-slate-600 font-medium">
+              "NeuroLearn completely changed how my son approaches education. When he gets overwhelmed, the shift to visual cards is like magic."
             </p>
-            <div className="mt-6 flex items-center">
-              <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-xl font-bold">
+            <div className="mt-4 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center text-sm border border-emerald-200">
                 S
               </div>
-              <div className="ml-4">
-                <p className="font-bold">Sarah Jenkins</p>
-                <p className="text-sm text-gray-400">Parent of a 7-year-old</p>
+              <div>
+                <p className="font-bold text-xs text-slate-900">Sarah Jenkins</p>
+                <p className="text-[11px] text-slate-500">Parent of a 7-year-old</p>
               </div>
             </div>
           </div>
         </div>
 
         {/* Right Side - Form */}
-        <div className="w-full lg:w-1/2 p-8 sm:p-12 lg:p-16 flex flex-col justify-center">
-          <div className="mb-10">
-            <h2 className="text-3xl font-display font-bold mb-2">Welcome Back</h2>
-            <p className="text-gray-400">Continue your personalized learning journey.</p>
+        <div className="w-full lg:w-1/2 p-8 sm:p-12 flex flex-col justify-center">
+          <div className="mb-8">
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-1">Sign In</h2>
+            <p className="text-slate-500 text-sm">Continue your adaptive educational journey.</p>
           </div>
 
           {error && (
-            <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-4 rounded-xl mb-6 text-sm">
+            <div className="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-2xl mb-6 text-sm font-medium">
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <Input
-              label="Email Address"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              icon={<Mail className="w-5 h-5" />}
-              required
-            />
-
-            <div className="relative">
-              <Input
-                label="Password"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                icon={<Lock className="w-5 h-5" />}
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-9 text-gray-400 hover:text-white transition-colors"
-              >
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                Email Address
+              </label>
+              <div className="relative">
+                <Mail className="w-5 h-5 absolute left-3.5 top-3.5 text-slate-400" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="w-full bg-[#FAF9F5] border border-slate-200 rounded-2xl pl-11 pr-4 py-3 text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white text-sm"
+                  required
+                />
+              </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <label className="flex items-center space-x-2 cursor-pointer group">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                Password
+              </label>
+              <div className="relative">
+                <Lock className="w-5 h-5 absolute left-3.5 top-3.5 text-slate-400" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-[#FAF9F5] border border-slate-200 rounded-2xl pl-11 pr-11 py-3 text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white text-sm"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-1 text-xs">
+              <label className="flex items-center space-x-2 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-600 bg-dark-card text-primary focus:ring-primary focus:ring-offset-dark"
+                  className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                 />
-                <span className="text-sm text-gray-400 group-hover:text-white transition-colors">Remember me</span>
+                <span className="text-slate-600 font-medium">Remember me</span>
               </label>
-              <Link to="/forgot-password" className="text-sm text-primary hover:text-primary-dark transition-colors">
+              <Link to="/forgot-password" className="text-emerald-700 font-bold hover:underline">
                 Forgot password?
               </Link>
             </div>
 
-            <Button type="submit" className="w-full" size="lg" loading={loading}>
-              Sign In
-            </Button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 px-6 rounded-2xl shadow-md border-b-4 border-emerald-700 active:translate-y-0.5 active:border-b-2 transition-all flex items-center justify-center gap-2 text-base mt-4"
+            >
+              <span>{loading ? 'Signing In...' : 'Sign In'}</span>
+              {!loading && <ArrowRight className="w-5 h-5" />}
+            </button>
           </form>
 
-          <div className="mt-8 text-center text-sm text-gray-400">
+          <div className="mt-8 text-center text-xs text-slate-500">
             Don't have an account?{' '}
-            <Link to="/register" className="text-primary font-medium hover:text-white transition-colors">
+            <Link to="/register" className="text-emerald-700 font-bold hover:underline">
               Create one now
             </Link>
           </div>
@@ -141,3 +163,4 @@ export const LoginPage: React.FC = () => {
 };
 
 export default LoginPage;
+

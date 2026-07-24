@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Users, FileText, Database, CreditCard, Plus, Trash2, GraduationCap, Check, X } from 'lucide-react';
-import Button from '../components/ui/Button';
-import Modal from '../components/ui/Modal';
-import Input from '../components/ui/Input';
+import { Users, FileText, Database, CreditCard, Plus, Trash2, GraduationCap, Check, X, ArrowLeft } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import api from '../lib/api';
 
 interface AdminUser {
@@ -92,8 +90,6 @@ export const AdminPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // Teachers are loaded up front regardless of tab, so the pending badge on
-    // the tab bar itself is always accurate.
     loadTeachers().catch(() => undefined);
   }, [loadTeachers]);
 
@@ -166,11 +162,11 @@ export const AdminPage: React.FC = () => {
   const statusPill = (status: string) => {
     const tone =
       status === 'APPROVED' || status === 'SUCCESS'
-        ? 'bg-green-500/20 text-green-400'
+        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
         : status === 'PENDING'
-        ? 'bg-amber-500/20 text-amber-400'
-        : 'bg-red-500/20 text-red-400';
-    return <span className={`px-2 py-1 rounded text-xs font-medium ${tone}`}>{status}</span>;
+        ? 'bg-amber-50 text-amber-800 border-amber-200'
+        : 'bg-rose-50 text-rose-800 border-rose-200';
+    return <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${tone}`}>{status}</span>;
   };
 
   const renderOverview = () => (
@@ -179,30 +175,30 @@ export const AdminPage: React.FC = () => {
         {[
           { label: 'Total Users', value: analytics?.totalUsers ?? '—' },
           { label: 'Active Subscriptions', value: analytics?.activeSubscriptions ?? '—' },
-          { label: 'Pending Teachers', value: pendingCount },
+          { label: 'Pending Educators', value: pendingCount },
           {
             label: 'Avg Engagement (Text)',
             value: analytics ? `${Math.round(analytics.avgEngagement.TEXT)}%` : '—'
           }
         ].map((stat, i) => (
-          <div key={i} className="glass p-6 rounded-2xl">
-            <div className="text-gray-400 text-sm mb-2">{stat.label}</div>
-            <div className="text-3xl font-bold mb-2">{stat.value}</div>
+          <div key={i} className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs">
+            <div className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">{stat.label}</div>
+            <div className="text-3xl font-bold text-slate-900 mb-1">{stat.value}</div>
           </div>
         ))}
       </div>
       {analytics && (
-        <div className="glass p-6 rounded-2xl">
-          <h3 className="text-lg font-bold mb-4">Engagement by mode</h3>
-          <div className="space-y-3">
+        <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs">
+          <h3 className="text-base font-bold text-slate-900 mb-4">Engagement by Learning Mode</h3>
+          <div className="space-y-4">
             {(['TEXT', 'AUDIO', 'VISUAL'] as const).map((mode) => (
               <div key={mode}>
-                <div className="flex justify-between text-sm mb-1">
+                <div className="flex justify-between text-xs font-bold text-slate-700 mb-1.5">
                   <span>{mode}</span>
                   <span>{Math.round(analytics.avgEngagement[mode])}%</span>
                 </div>
-                <div className="h-2 bg-dark rounded-full overflow-hidden">
-                  <div className="h-full bg-primary rounded-full" style={{ width: `${analytics.avgEngagement[mode]}%` }} />
+                <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${analytics.avgEngagement[mode]}%` }} />
                 </div>
               </div>
             ))}
@@ -213,27 +209,27 @@ export const AdminPage: React.FC = () => {
   );
 
   const renderUsers = () => (
-    <div className="glass rounded-2xl overflow-hidden">
+    <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-white/5 border-b border-white/10 text-sm">
-              <th className="p-4 font-medium text-gray-300">Name</th>
-              <th className="p-4 font-medium text-gray-300">Email</th>
-              <th className="p-4 font-medium text-gray-300">Role</th>
-              <th className="p-4 font-medium text-gray-300">Actions</th>
+            <tr className="bg-[#FAF9F5] border-b border-slate-200 text-xs font-bold text-slate-600 uppercase tracking-wider">
+              <th className="p-4">Name</th>
+              <th className="p-4">Email</th>
+              <th className="p-4">Role</th>
+              <th className="p-4">Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="text-sm">
             {users.map((u) => (
-              <tr key={u.id} className="border-b border-white/5 hover:bg-white/5">
-                <td className="p-4">{u.name}</td>
-                <td className="p-4 text-gray-400">{u.email}</td>
+              <tr key={u.id} className="border-b border-slate-100 hover:bg-[#FAF9F5]">
+                <td className="p-4 font-bold text-slate-900">{u.name}</td>
+                <td className="p-4 text-slate-500">{u.email}</td>
                 <td className="p-4">
                   <select
                     value={u.role}
                     onChange={(e) => changeRole(u.id, e.target.value)}
-                    className="bg-dark border border-white/10 rounded px-2 py-1 text-xs"
+                    className="bg-[#FAF9F5] border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800"
                   >
                     <option value="STUDENT">STUDENT</option>
                     <option value="TEACHER">TEACHER</option>
@@ -243,7 +239,7 @@ export const AdminPage: React.FC = () => {
                 <td className="p-4">
                   <button
                     onClick={() => deleteUser(u.id)}
-                    className="p-1.5 bg-dark border border-white/10 rounded hover:text-red-500"
+                    className="p-2 bg-rose-50 text-rose-700 rounded-xl hover:bg-rose-100 transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -251,7 +247,7 @@ export const AdminPage: React.FC = () => {
               </tr>
             ))}
             {users.length === 0 && !loading && (
-              <tr><td colSpan={4} className="p-8 text-center text-gray-500">No users yet.</td></tr>
+              <tr><td colSpan={4} className="p-8 text-center text-slate-400 text-xs">No users found.</td></tr>
             )}
           </tbody>
         </table>
@@ -260,38 +256,38 @@ export const AdminPage: React.FC = () => {
   );
 
   const renderTeachers = () => (
-    <div className="glass rounded-2xl overflow-hidden">
+    <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-white/5 border-b border-white/10 text-sm">
-              <th className="p-4 font-medium text-gray-300">Name</th>
-              <th className="p-4 font-medium text-gray-300">Email</th>
-              <th className="p-4 font-medium text-gray-300">Classroom</th>
-              <th className="p-4 font-medium text-gray-300">Status</th>
-              <th className="p-4 font-medium text-gray-300">Actions</th>
+            <tr className="bg-[#FAF9F5] border-b border-slate-200 text-xs font-bold text-slate-600 uppercase tracking-wider">
+              <th className="p-4">Name</th>
+              <th className="p-4">Email</th>
+              <th className="p-4">Classroom</th>
+              <th className="p-4">Status</th>
+              <th className="p-4">Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="text-sm">
             {teachers.map((t) => (
-              <tr key={t.id} className="border-b border-white/5 hover:bg-white/5">
-                <td className="p-4">{t.name}</td>
-                <td className="p-4 text-gray-400">{t.email}</td>
-                <td className="p-4 text-gray-400">{t.classroomTaught?.name || '—'}</td>
+              <tr key={t.id} className="border-b border-slate-100 hover:bg-[#FAF9F5]">
+                <td className="p-4 font-bold text-slate-900">{t.name}</td>
+                <td className="p-4 text-slate-500">{t.email}</td>
+                <td className="p-4 text-slate-600 font-medium">{t.classroomTaught?.name || '—'}</td>
                 <td className="p-4">{statusPill(t.teacherStatus)}</td>
                 <td className="p-4 flex space-x-2">
                   {t.teacherStatus === 'PENDING' && (
                     <>
                       <button
                         onClick={() => approveTeacher(t.id)}
-                        className="p-1.5 bg-green-500/10 border border-green-500/30 text-green-400 rounded hover:bg-green-500/20"
+                        className="p-2 bg-emerald-100 text-emerald-800 rounded-xl hover:bg-emerald-200 font-bold"
                         title="Approve"
                       >
                         <Check className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => setRejectingTeacher(t)}
-                        className="p-1.5 bg-red-500/10 border border-red-500/30 text-red-400 rounded hover:bg-red-500/20"
+                        className="p-2 bg-rose-100 text-rose-800 rounded-xl hover:bg-rose-200 font-bold"
                         title="Reject"
                       >
                         <X className="w-4 h-4" />
@@ -301,7 +297,7 @@ export const AdminPage: React.FC = () => {
                   {t.teacherStatus === 'APPROVED' && (
                     <button
                       onClick={() => setRejectingTeacher(t)}
-                      className="text-xs px-2 py-1 bg-dark border border-white/10 rounded hover:text-red-400"
+                      className="text-xs font-bold px-3 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-xl hover:bg-rose-100"
                     >
                       Suspend
                     </button>
@@ -310,7 +306,7 @@ export const AdminPage: React.FC = () => {
               </tr>
             ))}
             {teachers.length === 0 && !loading && (
-              <tr><td colSpan={5} className="p-8 text-center text-gray-500">No teachers yet.</td></tr>
+              <tr><td colSpan={5} className="p-8 text-center text-slate-400 text-xs">No educators found.</td></tr>
             )}
           </tbody>
         </table>
@@ -321,32 +317,35 @@ export const AdminPage: React.FC = () => {
   const renderQuestions = () => (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h3 className="text-xl font-bold">Question Bank</h3>
-        <Button onClick={() => setIsQuestionModalOpen(true)} size="sm" className="gap-2">
+        <h3 className="text-xl font-bold text-slate-900">Question Bank</h3>
+        <button
+          onClick={() => setIsQuestionModalOpen(true)}
+          className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-4 py-2.5 rounded-2xl shadow-sm border-b-2 border-emerald-700 active:translate-y-0.5 transition-all text-xs flex items-center gap-1.5"
+        >
           <Plus className="w-4 h-4" /> Add Question
-        </Button>
+        </button>
       </div>
 
-      <div className="glass rounded-2xl overflow-hidden">
+      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-white/5 border-b border-white/10 text-sm">
-              <th className="p-4 font-medium text-gray-300">Subject</th>
-              <th className="p-4 font-medium text-gray-300">Question</th>
-              <th className="p-4 font-medium text-gray-300">Target Mode</th>
-              <th className="p-4 font-medium text-gray-300">Actions</th>
+            <tr className="bg-[#FAF9F5] border-b border-slate-200 text-xs font-bold text-slate-600 uppercase tracking-wider">
+              <th className="p-4">Subject</th>
+              <th className="p-4">Question</th>
+              <th className="p-4">Target Mode</th>
+              <th className="p-4">Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="text-sm">
             {questions.map((q) => (
-              <tr key={q.id} className="border-b border-white/5 hover:bg-white/5">
-                <td className="p-4 text-sm">{q.subject}</td>
-                <td className="p-4 text-sm truncate max-w-[300px]">{q.question}</td>
-                <td className="p-4 text-sm">{q.learningMode}</td>
+              <tr key={q.id} className="border-b border-slate-100 hover:bg-[#FAF9F5]">
+                <td className="p-4 text-xs font-bold text-slate-800">{q.subject}</td>
+                <td className="p-4 text-xs text-slate-700 truncate max-w-[300px]">{q.question}</td>
+                <td className="p-4 text-xs font-bold text-slate-600">{q.learningMode}</td>
                 <td className="p-4">
                   <button
                     onClick={() => deleteQuestion(q.id)}
-                    className="p-1.5 bg-dark border border-white/10 rounded hover:text-red-500"
+                    className="p-2 bg-rose-50 text-rose-700 rounded-xl hover:bg-rose-100"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -354,7 +353,7 @@ export const AdminPage: React.FC = () => {
               </tr>
             ))}
             {questions.length === 0 && !loading && (
-              <tr><td colSpan={4} className="p-8 text-center text-gray-500">No questions yet.</td></tr>
+              <tr><td colSpan={4} className="p-8 text-center text-slate-400 text-xs">No questions found.</td></tr>
             )}
           </tbody>
         </table>
@@ -363,27 +362,27 @@ export const AdminPage: React.FC = () => {
   );
 
   const renderPayments = () => (
-    <div className="glass rounded-2xl overflow-hidden">
+    <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
       <table className="w-full text-left border-collapse">
         <thead>
-          <tr className="bg-white/5 border-b border-white/10 text-sm">
-            <th className="p-4 font-medium text-gray-300">User</th>
-            <th className="p-4 font-medium text-gray-300">Plan</th>
-            <th className="p-4 font-medium text-gray-300">Status</th>
-            <th className="p-4 font-medium text-gray-300">Date</th>
+          <tr className="bg-[#FAF9F5] border-b border-slate-200 text-xs font-bold text-slate-600 uppercase tracking-wider">
+            <th className="p-4">User</th>
+            <th className="p-4">Plan</th>
+            <th className="p-4">Status</th>
+            <th className="p-4">Date</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="text-sm">
           {payments.map((p) => (
-            <tr key={p.id} className="border-b border-white/5 hover:bg-white/5">
-              <td className="p-4 text-sm">{p.user?.name} <span className="text-gray-500">({p.user?.email})</span></td>
-              <td className="p-4 text-sm">{p.plan}</td>
+            <tr key={p.id} className="border-b border-slate-100 hover:bg-[#FAF9F5]">
+              <td className="p-4 text-xs font-bold text-slate-900">{p.user?.name} <span className="text-slate-500 font-normal">({p.user?.email})</span></td>
+              <td className="p-4 text-xs text-slate-700 font-medium">{p.plan}</td>
               <td className="p-4">{statusPill(p.paymentStatus)}</td>
-              <td className="p-4 text-sm text-gray-400">{new Date(p.createdAt).toLocaleDateString()}</td>
+              <td className="p-4 text-xs text-slate-500 font-medium">{new Date(p.createdAt).toLocaleDateString()}</td>
             </tr>
           ))}
           {payments.length === 0 && !loading && (
-            <tr><td colSpan={4} className="p-8 text-center text-gray-500">No payments yet.</td></tr>
+            <tr><td colSpan={4} className="p-8 text-center text-slate-400 text-xs">No payments recorded.</td></tr>
           )}
         </tbody>
       </table>
@@ -391,30 +390,35 @@ export const AdminPage: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-dark text-white p-6 md:p-10">
+    <div className="min-h-screen bg-[#FAF9F5] text-slate-800 font-sans selection:bg-emerald-100 selection:text-emerald-900 p-6 md:p-10">
       <div className="max-w-7xl mx-auto">
         <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-display font-bold">Admin Dashboard</h1>
-            <p className="text-gray-400">Manage platform resources and users.</p>
+            <div className="flex items-center space-x-3 mb-2">
+              <Link to="/dashboard" className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1">
+                <ArrowLeft className="w-3.5 h-3.5" /> Back to Dashboard
+              </Link>
+            </div>
+            <h1 className="text-3xl font-bold text-slate-900">Admin Console</h1>
+            <p className="text-slate-500 text-sm mt-0.5">Manage users, teacher approvals, questions, and subscriptions.</p>
           </div>
         </div>
 
-        <div className="flex overflow-x-auto space-x-2 mb-8 bg-dark-card p-1.5 rounded-xl border border-white/5">
+        <div className="flex overflow-x-auto space-x-2 mb-8 bg-white p-1.5 rounded-2xl border border-slate-200/80 shadow-xs">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`relative flex items-center space-x-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+              className={`relative flex items-center space-x-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                 activeTab === tab.id
-                  ? 'bg-primary text-white shadow-lg'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  ? 'bg-emerald-500 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
               <tab.icon className="w-4 h-4" />
               <span>{tab.id}</span>
               {!!tab.badge && (
-                <span className="ml-1 bg-accent text-dark text-[10px] font-bold rounded-full px-1.5 py-0.5">
+                <span className="ml-1 bg-amber-100 text-amber-900 text-[10px] font-bold rounded-full px-2 py-0.5 border border-amber-200">
                   {tab.badge}
                 </span>
               )}
@@ -436,48 +440,95 @@ export const AdminPage: React.FC = () => {
         </motion.div>
       </div>
 
-      <Modal isOpen={isQuestionModalOpen} onClose={() => setIsQuestionModalOpen(false)} title="Add New Question">
-        <form className="space-y-4" onSubmit={submitQuestion}>
-          <Input label="Subject" value={newQuestion.subject} onChange={(e) => setNewQuestion({ ...newQuestion, subject: e.target.value })} required />
-          <Input label="Question Text" value={newQuestion.question} onChange={(e) => setNewQuestion({ ...newQuestion, question: e.target.value })} required />
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Option A" value={newQuestion.optionA} onChange={(e) => setNewQuestion({ ...newQuestion, optionA: e.target.value })} required />
-            <Input label="Option B" value={newQuestion.optionB} onChange={(e) => setNewQuestion({ ...newQuestion, optionB: e.target.value })} required />
-            <Input label="Option C" value={newQuestion.optionC} onChange={(e) => setNewQuestion({ ...newQuestion, optionC: e.target.value })} />
-            <Input label="Option D" value={newQuestion.optionD} onChange={(e) => setNewQuestion({ ...newQuestion, optionD: e.target.value })} />
-          </div>
-          <Input label="Correct Answer" placeholder="Must match one option exactly" value={newQuestion.answer} onChange={(e) => setNewQuestion({ ...newQuestion, answer: e.target.value })} required />
-          <div>
-            <label className="text-sm text-gray-400 mb-1 block">Target learning mode</label>
-            <select
-              value={newQuestion.learningMode}
-              onChange={(e) => setNewQuestion({ ...newQuestion, learningMode: e.target.value })}
-              className="w-full bg-dark border border-white/10 rounded-lg px-3 py-2"
-            >
-              <option value="TEXT">TEXT</option>
-              <option value="AUDIO">AUDIO</option>
-              <option value="VISUAL">VISUAL</option>
-              <option value="AR">AR</option>
-            </select>
-          </div>
-          <div className="pt-4 flex space-x-3">
-            <Button type="submit" className="flex-1">Save Question</Button>
-            <Button type="button" variant="ghost" onClick={() => setIsQuestionModalOpen(false)}>Cancel</Button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal isOpen={!!rejectingTeacher} onClose={() => setRejectingTeacher(null)} title={`Reject ${rejectingTeacher?.name || ''}`}>
-        <div className="space-y-4">
-          <Input label="Reason (shown to the teacher)" value={rejectNote} onChange={(e) => setRejectNote(e.target.value)} />
-          <div className="flex space-x-3">
-            <Button onClick={submitReject} className="flex-1">Confirm</Button>
-            <Button type="button" variant="ghost" onClick={() => setRejectingTeacher(null)}>Cancel</Button>
+      {isQuestionModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <div className="bg-white max-w-lg w-full p-8 rounded-3xl border border-slate-200 shadow-xl space-y-4">
+            <h3 className="text-xl font-bold text-slate-900">Add New Question</h3>
+            <form className="space-y-3" onSubmit={submitQuestion}>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Subject</label>
+                <input type="text" value={newQuestion.subject} onChange={(e) => setNewQuestion({ ...newQuestion, subject: e.target.value })} className="w-full bg-[#FAF9F5] border border-slate-200 rounded-2xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-emerald-500" required />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Question Text</label>
+                <input type="text" value={newQuestion.question} onChange={(e) => setNewQuestion({ ...newQuestion, question: e.target.value })} className="w-full bg-[#FAF9F5] border border-slate-200 rounded-2xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-emerald-500" required />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Option A</label>
+                  <input type="text" value={newQuestion.optionA} onChange={(e) => setNewQuestion({ ...newQuestion, optionA: e.target.value })} className="w-full bg-[#FAF9F5] border border-slate-200 rounded-2xl px-4 py-2 text-xs text-slate-800 focus:outline-none focus:border-emerald-500" required />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Option B</label>
+                  <input type="text" value={newQuestion.optionB} onChange={(e) => setNewQuestion({ ...newQuestion, optionB: e.target.value })} className="w-full bg-[#FAF9F5] border border-slate-200 rounded-2xl px-4 py-2 text-xs text-slate-800 focus:outline-none focus:border-emerald-500" required />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Option C</label>
+                  <input type="text" value={newQuestion.optionC} onChange={(e) => setNewQuestion({ ...newQuestion, optionC: e.target.value })} className="w-full bg-[#FAF9F5] border border-slate-200 rounded-2xl px-4 py-2 text-xs text-slate-800 focus:outline-none focus:border-emerald-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Option D</label>
+                  <input type="text" value={newQuestion.optionD} onChange={(e) => setNewQuestion({ ...newQuestion, optionD: e.target.value })} className="w-full bg-[#FAF9F5] border border-slate-200 rounded-2xl px-4 py-2 text-xs text-slate-800 focus:outline-none focus:border-emerald-500" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Correct Answer</label>
+                <input type="text" placeholder="Must match one option exactly" value={newQuestion.answer} onChange={(e) => setNewQuestion({ ...newQuestion, answer: e.target.value })} className="w-full bg-[#FAF9F5] border border-slate-200 rounded-2xl px-4 py-2 text-xs text-slate-800 focus:outline-none focus:border-emerald-500" required />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Target Mode</label>
+                <select
+                  value={newQuestion.learningMode}
+                  onChange={(e) => setNewQuestion({ ...newQuestion, learningMode: e.target.value })}
+                  className="w-full bg-[#FAF9F5] border border-slate-200 rounded-2xl px-4 py-2 text-xs text-slate-800 focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="TEXT">TEXT</option>
+                  <option value="AUDIO">AUDIO</option>
+                  <option value="VISUAL">VISUAL</option>
+                  <option value="AR">AR</option>
+                </select>
+              </div>
+              <div className="pt-3 flex space-x-3">
+                <button type="submit" className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-2xl shadow-sm border-b-4 border-emerald-700 text-xs">
+                  Save Question
+                </button>
+                <button type="button" onClick={() => setIsQuestionModalOpen(false)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-3 rounded-2xl text-xs">
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         </div>
-      </Modal>
+      )}
+
+      {rejectingTeacher && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <div className="bg-white max-w-md w-full p-8 rounded-3xl border border-slate-200 shadow-xl space-y-4">
+            <h3 className="text-xl font-bold text-slate-900">Reject {rejectingTeacher.name}</h3>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Reason for rejection (optional)</label>
+              <input
+                type="text"
+                value={rejectNote}
+                onChange={(e) => setRejectNote(e.target.value)}
+                placeholder="Brief reason shown to the teacher"
+                className="w-full bg-[#FAF9F5] border border-slate-200 rounded-2xl px-4 py-3 text-xs text-slate-800 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+            <div className="flex space-x-3 pt-2">
+              <button onClick={submitReject} className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 rounded-2xl text-xs shadow-sm">
+                Confirm Rejection
+              </button>
+              <button type="button" onClick={() => setRejectingTeacher(null)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-3 rounded-2xl text-xs">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default AdminPage;
+
