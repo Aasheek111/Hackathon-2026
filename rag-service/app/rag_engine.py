@@ -21,16 +21,12 @@ from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
-from google import genai
-from google.genai import types as genai_types
-from langchain_community.embeddings import FakeEmbeddings
 from langchain_community.vectorstores import FAISS
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pypdf import PdfReader
 
-# override=True: docker-compose sets GOOGLE_API_KEY="" in the container when
-# it isn't exported in the host shell (the ${GOOGLE_API_KEY:-} fallback), and
+# override=True: docker-compose sets GROQ_API_KEY="" in the container when
+# it isn't exported in the host shell (the ${GROQ_API_KEY:-} fallback), and
 # python-dotenv otherwise leaves an already-set env var alone - which would
 # silently shadow a real key placed in this file, the documented way to
 # configure it.
@@ -49,10 +45,6 @@ STATIC_DIR = BASE_DIR / "static"
 CHUNK_SIZE = 500
 CHUNK_OVERLAP = 50
 TOP_K = 4
-
-# "-latest" alias doesn't exist for image models yet, so this is pinned. A
-# one-line swap to a paid Imagen model if that becomes available later.
-GEMINI_IMAGE_MODEL = "gemini-2.5-flash-image"
 
 DEFAULT_QUERY = "Explain the key concepts of this unit simply"
 
@@ -133,30 +125,25 @@ def processed_units() -> list[int]:
 PLACEHOLDER_KEYS = {"", "your-key-here", "changeme"}
 
 
-def api_key_present() -> bool:
-    return os.getenv("GOOGLE_API_KEY", "").strip().strip('"') not in PLACEHOLDER_KEYS
+# --- embeddings ---------------------------------------------------------------
+# Runs LOCALLY (fastembed / ONNX, ~66MB model cached in the image). Deliberately
+# not a hosted embedding API: Gemini's embedding endpoint shares the same
+# free-tier request budget that kept exhausting mid-generation, and embeddings
+# are called once per chunk, so a 40-chunk PDF could burn a day's quota on
+# indexing alone. Local means no key, no quota, no network, and it keeps
+# working when every external provider is rate-limited.
+EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
+_embeddings_cache = None
 
 
-# --- embeddings and chat models ---------------------------------------------
-# Built lazily rather than at import time: the app should still start and serve
-# the upload page when no API key is configured yet, and fail with a clear
-# message only when a key is actually needed. Uses Gemini (langchain-google-genai)
-# rather than OpenAI - same offline-fallback contract either way.
+def get_embeddings():
+    """Cached because constructing it loads the ONNX model from disk."""
+    global _embeddings_cache
+    if _embeddings_cache is None:
+        from langchain_community.embeddings import FastEmbedEmbeddings
 
-
-def get_embeddings() -> GoogleGenerativeAIEmbeddings:
-    if not api_key_present():
-        raise RuntimeError("GOOGLE_API_KEY is not set. Copy .env.example to .env and add your key.")
-    return GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
-
-
-def get_chat_model() -> ChatGoogleGenerativeAI:
-    if not api_key_present():
-        raise RuntimeError("GOOGLE_API_KEY is not set. Copy .env.example to .env and add your key.")
-    # "-latest" alias rather than a pinned version - Google periodically
-    # retires specific model snapshots for new API keys (as gemini-2.5-flash
-    # already has), and the alias stays pointed at whatever is current.
-    return ChatGoogleGenerativeAI(model="gemini-flash-latest", temperature=0.3)
+        _embeddings_cache = FastEmbedEmbeddings(model_name=EMBEDDING_MODEL)
+    return _embeddings_cache
 
 
 # --- Groq (primary text generation) ------------------------------------------
@@ -166,11 +153,11 @@ def get_chat_model() -> ChatGoogleGenerativeAI:
 # (OpenAI-compatible, confirmed working). Groq's free tier is dramatically
 # more generous than Gemini's for text generation - 1,000 requests/day and
 # 30/minute, versus Gemini's observed 20/day - which is the actual bottleneck
-# this pipeline has hit repeatedly (every "FAILED - 429 RESOURCE_EXHAUSTED"
-# this session was the Gemini *text* model's daily quota, never Groq, images,
-# or embeddings). Groq becomes the primary text engine everywhere; Gemini
-# stays as a fallback if Groq isn't configured or a call fails, and remains
-# the only option for embeddings and image generation (Groq offers neither).
+# this pipeline has hit repeatedly. Groq is now the ONLY text engine - the
+# Gemini fallback was removed because falling back to a 20-request/day quota
+# just converted a transient Groq blip into a confusing Gemini error. Visuals
+# come from Unsplash and embeddings run locally, so Groq is the only AI
+# provider this service talks to.
 
 GROQ_CHAT_MODEL = "llama-3.3-70b-versatile"
 GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -190,10 +177,10 @@ def groq_key_present() -> bool:
 
 
 def any_llm_configured() -> bool:
-    """Gate for the offline-extraction fallbacks - True if there is ANY
-    usable text-generation key, Groq or Gemini.
+    """Gate for the offline-extraction fallbacks. Groq is the only text
+    provider now, so this is simply "is Groq configured".
     """
-    return groq_key_present() or api_key_present()
+    return groq_key_present()
 
 
 def _invoke_groq_json(system_prompt: str, user_prompt: str) -> str | None:
@@ -239,33 +226,62 @@ def _invoke_groq_json(system_prompt: str, user_prompt: str) -> str | None:
 
 
 def invoke_json(system_prompt: str, user_prompt: str) -> str:
-    """The one place every JSON-generation call in this module goes through:
-    Groq first, Gemini second. Raises only if neither is configured or both
-    fail - callers already wrap this the same way they wrapped the old
-    direct get_chat_model() calls.
+    """The one place every JSON-generation call in this module goes through.
+
+    Groq ONLY. The Gemini fallback was removed deliberately: Gemini's free tier
+    allows 20 generate-content requests per DAY, so once Groq was briefly
+    unavailable the pipeline would silently drop onto Gemini, exhaust it within
+    a single unit, and then surface a confusing "gemini quota exceeded" error
+    for a failure that had nothing to do with Gemini. One provider means the
+    error you see is the error that actually happened.
     """
-    groq_result = _invoke_groq_json(system_prompt, user_prompt)
-    if groq_result is not None:
-        return groq_result
-
-    if not api_key_present():
-        raise RuntimeError("Neither GROQ_API_KEY nor GOOGLE_API_KEY is configured.")
-
-    model = get_chat_model().bind(response_mime_type="application/json")
-    reply = model.invoke([("system", system_prompt), ("human", user_prompt)])
-    return reply.content
+    result = _invoke_groq_json(system_prompt, user_prompt)
+    if result is not None:
+        return result
+    if not groq_key_present():
+        raise RuntimeError("GROQ_API_KEY is not set. Copy .env.example to .env and add your key.")
+    raise RuntimeError(
+        "Groq did not return a result (rate limit or network). Free tier allows "
+        "1,000 requests and 100,000 tokens per day - if a large document exhausts "
+        "the daily token budget, generation resumes on the next reset."
+    )
 
 
 # --- ingestion ---------------------------------------------------------------
 
 
-def extract_text(path: Path) -> str:
-    """Pull the text layer out of a PDF.
+SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md"}
 
-    A scanned PDF has no text layer, so this legitimately returns almost
-    nothing - the caller checks and says so rather than silently indexing an
-    empty document.
+
+def extract_text(path: Path) -> str:
+    """Pull the text layer out of a teacher's document.
+
+    Handles PDF, Word (.docx) and plain text/markdown. A scanned PDF or a
+    photo has no text layer, so this legitimately returns almost nothing -
+    the caller checks and says so rather than silently indexing an empty
+    document. Images (.png/.jpg) are NOT supported: they would need OCR,
+    which is a genuinely different pipeline, so we reject them at upload with
+    a clear message instead of pretending to read them.
     """
+    suffix = path.suffix.lower()
+
+    if suffix == ".docx":
+        from docx import Document  # python-docx
+
+        document = Document(str(path))
+        parts = [p.text for p in document.paragraphs]
+        # Tables carry real syllabus content (unit breakdowns, mark schemes),
+        # so they're pulled in too rather than silently dropped.
+        for table in document.tables:
+            for row in table.rows:
+                cells = [c.text.strip() for c in row.cells if c.text.strip()]
+                if cells:
+                    parts.append(" | ".join(cells))
+        return "\n\n".join(p for p in parts if p.strip()).strip()
+
+    if suffix in {".txt", ".md"}:
+        return path.read_text(encoding="utf-8", errors="ignore").strip()
+
     reader = PdfReader(str(path))
     pages = [page.extract_text() or "" for page in reader.pages]
     return "\n\n".join(pages).strip()
@@ -293,7 +309,7 @@ def build_index(unit_id: int, chunks: list[str]) -> int:
     `generate_tutorial`'s existing offline fallback.
     """
     metadatas = [{"unit_id": unit_id, "chunk": position} for position in range(len(chunks))]
-    embeddings = get_embeddings() if api_key_present() else FakeEmbeddings(size=64)
+    embeddings = get_embeddings()
     store = FAISS.from_texts(chunks, embeddings, metadatas=metadatas)
     target = index_path(unit_id)
     target.mkdir(parents=True, exist_ok=True)
@@ -314,13 +330,13 @@ def load_index(unit_id: int) -> FAISS:
 def retrieve(unit_id: int, query: str, k: int = TOP_K) -> list[str]:
     """Top-k chunks for this query.
 
-    Without an API key we cannot embed the query, so fall back to reading the
-    stored chunks straight out of the index's docstore - unordered, but real
-    text from the right unit, which is what the offline tutorial needs.
+    Embedding runs locally now, so this no longer depends on any API key or
+    quota. Falls back to raw docstore chunks only if the index can't be read.
     """
-    if not api_key_present():
+    try:
+        store = load_index(unit_id)
+    except Exception:
         return raw_chunks(unit_id, k)
-    store = load_index(unit_id)
     return [document.page_content for document in store.similarity_search(query, k=k)]
 
 
@@ -458,7 +474,7 @@ def offline_tutorial(unit_id: int, chunks: list[str], learning_mode: str) -> dic
         "quiz": quiz,
         "teacher_note": (
             "Offline mode: built by extracting sentences, not by the model. "
-            "Set GOOGLE_API_KEY for an adapted tutorial."
+            "Set GROQ_API_KEY for an adapted tutorial."
         ),
         "source_chunks": len(chunks),
         "learning_mode": learning_mode,
@@ -517,37 +533,10 @@ def generate_tutorial(
 # --- image generation --------------------------------------------------------
 
 
-#  Only applies to the Gemini fallback, which returns PNG - Unsplash images
-#  are hotlinked, never written to disk. Saving under the right extension
-#  keeps the static server's guessed Content-Type (mimetypes, by extension)
-#  truthful.
+# Kept for the mimetype of images written to disk by earlier versions, which
+# are still served from /static/images. Nothing new is written there - Unsplash
+# images are hotlinked.
 _MIME_EXTENSIONS = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
-
-
-def _generate_via_gemini(styled_prompt: str) -> tuple[bytes, str] | None:
-    """Gemini's image-output model. Requires billing enabled on the API key's
-    Google Cloud project - the free AI Studio tier grants zero quota for
-    image models, unlike the text models this app already uses elsewhere.
-    """
-    if not api_key_present():
-        return None
-    try:
-        client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
-        response = client.models.generate_content(
-            model=GEMINI_IMAGE_MODEL,
-            contents=[styled_prompt],
-        )
-    except Exception:
-        # network error, quota (incl. the free-tier's zero image-gen quota),
-        # or a safety block from the SDK itself
-        return None
-
-    for candidate in response.candidates or []:
-        for part in candidate.content.parts or []:
-            inline_data = getattr(part, "inline_data", None)
-            if inline_data is not None and inline_data.data:
-                return inline_data.data, (inline_data.mime_type or "image/png")
-    return None
 
 
 # pollinations.ai was removed here deliberately. It generated each image on
@@ -577,27 +566,38 @@ def unsplash_key_present() -> bool:
     return os.getenv("UNSPLASH_ACCESS_KEY", "").strip().strip('"') not in PLACEHOLDER_KEYS
 
 
-def _unsplash_query(prompt: str) -> str:
+def _unsplash_keywords(prompt: str) -> list[str]:
     words = re.findall(r"[A-Za-z][A-Za-z'-]+", prompt.lower())
-    keywords = [w for w in words if w not in _UNSPLASH_STOPWORDS]
-    return " ".join(keywords[:UNSPLASH_MAX_KEYWORDS]) or prompt.strip()[:80]
+    return [w for w in words if w not in _UNSPLASH_STOPWORDS and len(w) > 2]
 
 
-def _fetch_via_unsplash(prompt: str) -> str | None:
-    """Returns a HOTLINKED Unsplash CDN URL (not downloaded bytes).
+def _unsplash_queries(prompt: str) -> list[str]:
+    """Progressively BROADER search terms, most specific first.
 
-    Deliberately different from the generator providers below: Unsplash's API
-    guidelines require hotlinking their CDN rather than re-hosting copies, and
-    it's also what the teacher asked for on speed/storage grounds - a real
-    photo arrives in one fast API call instead of waiting on image synthesis,
-    and we store nothing.
+    A photo library has nothing for "barriers faced by nepalese entrepreneurs",
+    which is exactly why lessons on abstract topics were coming back with no
+    picture at all. Narrowing 5 keywords -> 2 -> 1 -> a generic topic term means
+    a specific match wins when one exists, and every other lesson still gets a
+    relevant image instead of an empty placeholder.
     """
-    if not unsplash_key_present():
-        return None
+    kw = _unsplash_keywords(prompt)
+    queries = []
+    for n in (UNSPLASH_MAX_KEYWORDS, 3, 2, 1):
+        if len(kw) >= n:
+            q = " ".join(kw[:n])
+            if q not in queries:
+                queries.append(q)
+    if not queries:
+        queries.append((prompt.strip()[:60] or "education"))
+    queries.append("education learning classroom")  # never leave a lesson blank
+    return queries
+
+
+def _unsplash_search(query: str) -> str | None:
     try:
         response = requests.get(
             UNSPLASH_SEARCH_URL,
-            params={"query": _unsplash_query(prompt), "per_page": 1, "orientation": "landscape"},
+            params={"query": query, "per_page": 1, "orientation": "landscape"},
             headers={
                 "Authorization": f"Client-ID {os.getenv('UNSPLASH_ACCESS_KEY', '').strip().strip(chr(34))}",
                 "Accept-Version": "v1",
@@ -610,60 +610,48 @@ def _fetch_via_unsplash(prompt: str) -> str | None:
         if not results:
             return None
         urls = results[0].get("urls") or {}
-        # `regular` (~1080px) is the right size for a lesson card; `small` is
-        # the fallback if a result somehow lacks it.
         return urls.get("regular") or urls.get("small") or urls.get("full")
     except Exception:
         return None
+
+
+def _fetch_via_unsplash(prompt: str) -> str | None:
+    """Returns a HOTLINKED Unsplash CDN URL (not downloaded bytes).
+
+    Unsplash's API guidelines require hotlinking their CDN rather than
+    re-hosting copies, and it's also far faster than image synthesis - a real
+    photo arrives in one search call and we store nothing.
+    """
+    if not unsplash_key_present():
+        return None
+    for query in _unsplash_queries(prompt):
+        hit = _unsplash_search(query)
+        if hit:
+            return hit
+    return None
 
 
 def generate_visual_image(prompt: str, unit_id: int) -> str | None:
     """Turn a visual_suggestion (a hint written for a human artist) into an
     actual picture.
 
-    Order: Unsplash (a real photo, one fast search call, hotlinked - nothing
-    downloaded or stored) -> Gemini. pollinations.ai was removed; see the note
-    above _fetch_via_unsplash for why. Gemini stays purely as a last resort
-    for topics Unsplash has no photo for, and is itself a no-op unless the
-    API key's project has image-gen billing enabled.
+    Unsplash only. Both earlier generators are gone: pollinations was slow and
+    throttled under a curriculum-sized burst, and Gemini's image model needs
+    billing enabled so it never actually produced anything on the free tier -
+    it just added a wasted round-trip per lesson. Progressive keyword
+    broadening (see _unsplash_queries) means every lesson resolves to a photo,
+    which is what fixes lessons rendering "No picture for this lesson yet".
 
-    Returns either an absolute Unsplash CDN URL or our own relative
-    /static/images/... path - the frontend's resolveMediaUrl() handles both.
+    Returns an absolute Unsplash CDN URL; the frontend's resolveMediaUrl()
+    also still handles the relative /static/images/... paths of anything
+    generated before this change.
 
-    Never raises - if every provider comes back empty, the caller falls back
-    to showing the text suggestion, same contract as `offline_tutorial`. A
-    dead demo helps nobody.
+    Never raises - if it comes back empty the caller just shows text, same
+    contract as `offline_tutorial`. A dead demo helps nobody.
     """
     if not (prompt or "").strip():
         return None
-
-    hotlinked = _fetch_via_unsplash(prompt)
-    if hotlinked:
-        return hotlinked
-
-    styled_prompt = (
-        "Create a simple, clean educational illustration for a student, based on this "
-        f"description: {prompt.strip()}\n"
-        "Style: flat vector illustration, bright and friendly, minimal or no text baked "
-        "into the image itself, high contrast, easy to understand at a glance."
-    )
-
-    result = _generate_via_gemini(styled_prompt)
-    if not result:
-        return None
-    image_bytes, mime_type = result
-
-    IMAGE_DIR.mkdir(parents=True, exist_ok=True)
-    digest = hashlib.sha1(f"{prompt}{time.time()}".encode()).hexdigest()[:10]
-    extension = _MIME_EXTENSIONS.get(mime_type, ".png")
-    filename = f"visual_{unit_id}_{digest}{extension}"
-    target = IMAGE_DIR / filename
-    try:
-        target.write_bytes(image_bytes)
-    except OSError:
-        return None
-
-    return f"/static/images/{filename}"
+    return _fetch_via_unsplash(prompt)
 
 
 # --- full-document curriculum generation --------------------------------------
@@ -981,55 +969,25 @@ def _generate_speech_via_groq(text: str) -> bytes | None:
     return None
 
 
-def _generate_speech_via_gemini(text: str, voice: str) -> bytes | None:
-    if not api_key_present():
-        return None
-    try:
-        client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
-        response = client.models.generate_content(
-            model=GEMINI_TTS_MODEL,
-            contents=[text],
-            config=genai_types.GenerateContentConfig(
-                response_modalities=["AUDIO"],
-                speech_config=genai_types.SpeechConfig(
-                    voice_config=genai_types.VoiceConfig(
-                        prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(voice_name=voice)
-                    )
-                ),
-            ),
-        )
-    except Exception:
-        return None
-
-    for candidate in response.candidates or []:
-        for part in candidate.content.parts or []:
-            inline_data = getattr(part, "inline_data", None)
-            if inline_data is not None and inline_data.data:
-                return _wrap_pcm_as_wav(inline_data.data)
-    return None
-
-
-def generate_speech(text: str, voice: str = DEFAULT_TTS_VOICE, allow_gemini_fallback: bool = True) -> str | None:
-    """Groq TTS first (already returns a playable WAV), Gemini TTS second.
-    Content-hash cached (PLAN §20: never regenerate the same text+voice
-    pair) - unlike generate_visual_image's hash, this one does NOT mix in
-    time.time(), because identical narration for the same lesson should
+def generate_speech(text: str, voice: str = DEFAULT_TTS_VOICE, allow_gemini_fallback: bool = False) -> str | None:
+    """Groq TTS. Content-hash cached (PLAN §20: never regenerate the same
+    text+voice pair) - unlike generate_visual_image's hash, this one does NOT
+    mix in time.time(), because identical narration for the same lesson should
     always resolve to the same cached file rather than a fresh clip.
 
-    `allow_gemini_fallback=False` is for BULK pre-generation on the worker
-    (every lesson of a curriculum at once): Gemini's free TTS quota is tiny
-    (~a handful/day, observed: 5 of 21 lessons before it ran out), so bulk
-    use should only touch the free Groq path and leave the rest to the
-    player's browser-speech fallback rather than burning that scarce quota
-    and starving the on-demand "Listen" button. On-demand single clips keep
-    the default (Gemini fine for the one lesson a student actually asked to
-    hear). Groq TTS is free and high-limit once its terms are accepted, at
-    which point bulk pre-gen covers every lesson.
+    Gemini TTS was removed along with the rest of the Google dependency: its
+    free tier allowed only a handful of clips per day (observed: 5 of 21
+    lessons before it ran out), so it could never actually narrate a
+    curriculum. Groq TTS covers every lesson for free once its model terms are
+    accepted in the Groq console; until then this returns None and the player
+    falls back to the browser's own speechSynthesis, so AUDIO mode still
+    speaks every lesson either way.
 
-    Never raises - a missing key, quota, terms-not-accepted, or an
-    unsupported voice all just mean "no audio today"; the caller (frontend)
-    falls back to the browser's own speechSynthesis, same contract as the
-    rest of this app's AI features.
+    `allow_gemini_fallback` is retained only so existing call sites keep
+    working; it no longer does anything.
+
+    Never raises - a missing key, rate limit, or terms-not-accepted all just
+    mean "no server-side clip"; the frontend speaks it locally instead.
     """
     text = (text or "").strip()
     if not text:
@@ -1043,8 +1001,6 @@ def generate_speech(text: str, voice: str = DEFAULT_TTS_VOICE, allow_gemini_fall
         return f"/static/audio/{filename}"
 
     audio_bytes = _generate_speech_via_groq(text)
-    if not audio_bytes and allow_gemini_fallback:
-        audio_bytes = _generate_speech_via_gemini(text, voice)
     if not audio_bytes:
         return None
 
