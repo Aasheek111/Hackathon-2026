@@ -27,6 +27,7 @@ export const AudioControlBar: React.FC = () => {
     listening,
     lastHeard,
     micError,
+    numberedTargets,
     micSupported,
     readPage,
     stop,
@@ -143,6 +144,22 @@ export const AudioControlBar: React.FC = () => {
           Say &ldquo;read screen&rdquo;, &ldquo;open lessons&rdquo;, &ldquo;my progress&rdquo;,
           &ldquo;sign practice&rdquo;, &ldquo;help&rdquo;, or &ldquo;log out&rdquo;.
         </p>
+      )}
+
+      {/* What 1-9 do on THIS screen. Without this the numbers are invisible
+          knowledge, and the classroom page in particular looked like it had
+          no keyboard navigation at all. */}
+      {numberedTargets.length > 0 && (
+        <ul className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-2 text-xs text-gray-200 list-none p-0">
+          {numberedTargets.map((t, i) => (
+            <li key={`${t.label}-${i}`}>
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-yellow-400 text-black font-bold mr-1">
+                {i + 1}
+              </span>
+              {t.label}
+            </li>
+          ))}
+        </ul>
       )}
 
       {/* Voice can fail even where the API exists - Brave and most Chromium

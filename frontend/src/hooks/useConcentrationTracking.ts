@@ -45,6 +45,28 @@ export function useConcentrationTracking(
   const [score, setScore] = useState<number | null>(null);
   const [faceDetected, setFaceDetected] = useState(false);
 
+  /**
+   * Whether this tab is actually being looked at.
+   *
+   * Unmount cleanup already released the camera correctly, but switching to
+   * another TAB doesn't unmount anything - the component stays alive and the
+   * webcam light stays on while nobody is even looking at the page. That is a
+   * privacy problem, not just a resource one, and it also makes the focus
+   * samples meaningless (nobody is there to be focused).
+   *
+   * Folding visibility into the same guard as `enabled` means a hidden tab
+   * tears the camera down through the existing, already-correct cleanup path,
+   * and re-acquires it on return.
+   */
+  const [pageVisible, setPageVisible] = useState(
+    typeof document === 'undefined' ? true : !document.hidden,
+  );
+  useEffect(() => {
+    const onVisibility = () => setPageVisible(!document.hidden);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
+
   const lessonRef = useRef(lessonOrder);
   const modeRef = useRef(mode);
   useEffect(() => {
@@ -55,7 +77,7 @@ export function useConcentrationTracking(
   }, [mode]);
 
   useEffect(() => {
-    if (!enabled || !unitId) return;
+    if (!enabled || !unitId || !pageVisible) return;
     let cancelled = false;
     let intervalId: ReturnType<typeof setInterval> | null = null;
     let stream: MediaStream | null = null;
@@ -130,7 +152,7 @@ export function useConcentrationTracking(
       if (video) video.srcObject = null;
       setActive(false);
     };
-  }, [enabled, unitId]);
+  }, [enabled, unitId, pageVisible]);
 
   return { active, score, faceDetected };
 }
