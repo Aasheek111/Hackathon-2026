@@ -17,6 +17,7 @@ from PIL import Image, UnidentifiedImageError
 
 from . import rag_engine as engine
 from .models import (
+    GenerateVisualRequest,
     HealthResponse,
     ImageUploadResponse,
     PdfUploadResponse,
@@ -104,6 +105,18 @@ async def upload_image(unit_id: int = Form(...), file: UploadFile = File(...)) -
         await file.close()
 
     return ImageUploadResponse(status="success", image_url=f"/static/images/{filename}")
+
+
+@router.post("/generate-visual", response_model=ImageUploadResponse, tags=["generate"])
+def generate_visual(request: GenerateVisualRequest) -> ImageUploadResponse:
+    """Turn a visual_suggestion (or a student's custom request) into a picture."""
+    image_url = engine.generate_visual_image(request.prompt, request.unit_id)
+    if not image_url:
+        raise HTTPException(
+            status_code=502,
+            detail="Could not generate an image right now (no API key, or the request was blocked/failed)",
+        )
+    return ImageUploadResponse(status="success", image_url=image_url)
 
 
 @router.post("/generate-tutorial", response_model=TutorialResponse, tags=["generate"])

@@ -51,6 +51,59 @@ async function assignRagUnitId(unitId: string): Promise<number> {
   return nextId;
 }
 
+/**
+ * Fires right after a document finishes indexing - not awaited by the upload
+ * request. Builds one generic (no student diagnosis) tutorial + picture for
+ * the unit, so it looks alive before any specific student opens it, instead
+ * of every unit waiting for its first visitor to trigger generation.
+ */
+async function queueUnitPreview(unitId: string, ragUnitId: number): Promise<void> {
+  await prisma.unitPreview.upsert({
+    where: { unitId },
+    create: { unitId, status: 'PROCESSING' },
+    update: { status: 'PROCESSING', errorMessage: null }
+  });
+
+  try {
+    const tutorialResponse = await axios.post(
+      `${RAG_SERVICE_URL}/generate-tutorial`,
+      { unit_id: ragUnitId, learning_mode: 'VISUAL' },
+      { timeout: 60000 }
+    );
+    const data = tutorialResponse.data;
+
+    let imageUrl: string | null = null;
+    if (data.visual_suggestion) {
+      try {
+        const visualResponse = await axios.post(
+          `${RAG_SERVICE_URL}/generate-visual`,
+          { unit_id: ragUnitId, prompt: data.visual_suggestion },
+          { timeout: 60000 }
+        );
+        imageUrl = visualResponse.data?.image_url ?? null;
+      } catch {
+        // no key / safety block / quota - the text preview still stands on its own
+      }
+    }
+
+    await prisma.unitPreview.update({
+      where: { unitId },
+      data: {
+        tutorialText: data.tutorial_text || null,
+        visualSuggestion: data.visual_suggestion || null,
+        imageUrl,
+        status: 'READY',
+        errorMessage: null
+      }
+    });
+  } catch (error: any) {
+    const message = error.response?.data?.detail || error.message || 'Preview generation failed';
+    await prisma.unitPreview
+      .update({ where: { unitId }, data: { status: 'FAILED', errorMessage: String(message) } })
+      .catch(() => {});
+  }
+}
+
 router.post(
   '/:id/documents',
   requireApprovedTeacher,
@@ -104,6 +157,10 @@ router.post(
         await prisma.unit.update({ where: { id: unit.id }, data: { indexStatus: 'READY' } });
 
         res.status(201).json({ document: updated });
+
+        // Not awaited - the upload request already returned. Runs after the
+        // response is sent so a slow LLM/image call never delays the upload.
+        queueUnitPreview(unit.id, ragUnitId).catch(() => {});
       } catch (ragError: any) {
         const message =
           ragError.response?.data?.detail || ragError.message || 'rag-service is unreachable';
@@ -143,6 +200,31 @@ router.get('/:id/documents', async (req: Request, res: Response) => {
     res.json({ documents, indexStatus: unit.indexStatus });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch documents' });
+  }
+});
+
+router.get('/:id/preview', async (req: Request, res: Response) => {
+  try {
+    const unit = await prisma.unit.findUnique({
+      where: { id: req.params['id'] as string },
+      include: { subject: { include: { classroom: true } } }
+    });
+    if (!unit) return res.status(404).json({ error: 'Unit not found' });
+
+    const isOwner = unit.subject.classroom.teacherId === req.user!.id;
+    if (!isOwner) {
+      const enrolled = await prisma.enrolment.findUnique({
+        where: {
+          classroomId_studentId: { classroomId: unit.subject.classroomId, studentId: req.user!.id }
+        }
+      });
+      if (!enrolled) return res.status(403).json({ error: 'Not enrolled in this classroom' });
+    }
+
+    const preview = await prisma.unitPreview.findUnique({ where: { unitId: unit.id } });
+    res.json({ preview });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch preview' });
   }
 });
 

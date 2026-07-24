@@ -1,83 +1,134 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle, X, Send, Image as ImageIcon, Volume2, BookOpen } from 'lucide-react';
+import React, { useState, useRef, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  MessageCircle,
+  X,
+  Send,
+  Image as ImageIcon,
+  Volume2,
+  BookOpen,
+} from "lucide-react";
 
-type LearningMode = 'TEXT' | 'AUDIO' | 'VISUAL' | 'AR';
+type LearningMode = "TEXT" | "AUDIO" | "VISUAL" | "AR";
 
 interface ChatMessage {
-  from: 'bot' | 'student';
+  from: "bot" | "student";
   text: string;
 }
 
 interface TutorialAssistantProps {
   currentMode: LearningMode;
   onModeChange: (mode: LearningMode) => void;
+  onCustomizeVisual: (
+    instruction: string,
+  ) => Promise<{ ok: boolean; message: string }>;
 }
 
-const SUGGESTIONS: Array<{ label: string; icon: typeof ImageIcon; mode: LearningMode }> = [
-  { label: 'More pictures', icon: ImageIcon, mode: 'VISUAL' },
-  { label: 'Read it to me', icon: Volume2, mode: 'AUDIO' },
-  { label: 'Just text', icon: BookOpen, mode: 'TEXT' }
+const SUGGESTIONS: Array<{
+  label: string;
+  icon: typeof ImageIcon;
+  mode: LearningMode;
+}> = [
+  { label: "More pictures", icon: ImageIcon, mode: "VISUAL" },
+  { label: "Read it to me", icon: Volume2, mode: "AUDIO" },
+  { label: "Just text", icon: BookOpen, mode: "TEXT" },
 ];
 
 function matchMode(input: string): LearningMode | null {
   const text = input.toLowerCase();
-  if (/listen|audio|read.*(to|for) me|say it|hear/.test(text)) return 'AUDIO';
-  if (/visual|picture|image|draw|diagram|show me/.test(text)) return 'VISUAL';
-  if (/text|words? only|just read|plain/.test(text)) return 'TEXT';
+  if (/listen|audio|read.*(to|for) me|say it|hear/.test(text)) return "AUDIO";
+  if (/visual|picture|image|draw|diagram|show me/.test(text)) return "VISUAL";
+  if (/text|words? only|just read|plain/.test(text)) return "TEXT";
   return null;
 }
 
+const VISUAL_INTENT = /visual|picture|image|draw|diagram|show me/i;
+
+/**
+ * Distinguishes "make it visual" (a bare mode switch) from "draw a red
+ * rocket with stars" (an actual description of what to draw) so short
+ * requests keep the instant mode-switch behaviour and longer ones become a
+ * real image-customization request.
+ */
+function isDescriptiveVisualRequest(input: string): boolean {
+  return VISUAL_INTENT.test(input) && input.trim().split(/\s+/).length > 4;
+}
+
 const MODE_LABEL: Record<LearningMode, string> = {
-  TEXT: 'Text',
-  AUDIO: 'Audio',
-  VISUAL: 'Visual',
-  AR: 'AR'
+  TEXT: "Text",
+  AUDIO: "Audio",
+  VISUAL: "Visual",
+  AR: "AR",
 };
 
-export const TutorialAssistant: React.FC<TutorialAssistantProps> = ({ currentMode, onModeChange }) => {
+export const TutorialAssistant: React.FC<TutorialAssistantProps> = ({
+  currentMode,
+  onModeChange,
+  onCustomizeVisual,
+}) => {
   const [open, setOpen] = useState(false);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
-      from: 'bot',
-      text: "Hi! I'm your Tutorial Buddy — tell me how you'd like this lesson, or tap a suggestion below!"
-    }
+      from: "bot",
+      text: "Hi! I'm your Tutorial Buddy — tell me how you'd like this lesson, or tap a suggestion below!",
+    },
   ]);
+  const [drawing, setDrawing] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+    scrollRef.current?.scrollTo({
+      top: scrollRef.current.scrollHeight,
+      behavior: "smooth",
+    });
   }, [messages, open]);
 
   const requestMode = (mode: LearningMode, fromText?: string) => {
     setMessages((prev) => [
       ...prev,
-      ...(fromText ? [{ from: 'student' as const, text: fromText }] : []),
+      ...(fromText ? [{ from: "student" as const, text: fromText }] : []),
       {
-        from: 'bot',
+        from: "bot",
         text:
           mode === currentMode
             ? `You're already in ${MODE_LABEL[mode]} mode!`
-            : `Switching to ${MODE_LABEL[mode]} mode for you!`
-      }
+            : `Switching to ${MODE_LABEL[mode]} mode for you!`,
+      },
     ]);
     if (mode !== currentMode) onModeChange(mode);
   };
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const value = input.trim();
-    if (!value) return;
-    setInput('');
+    if (!value || drawing) return;
+    setInput("");
+
+    if (isDescriptiveVisualRequest(value)) {
+      setMessages((prev) => [
+        ...prev,
+        { from: "student", text: value },
+        { from: "bot", text: "Let me draw that for you..." },
+      ]);
+      setDrawing(true);
+      const result = await onCustomizeVisual(value);
+      setDrawing(false);
+      setMessages((prev) => [...prev, { from: "bot", text: result.message }]);
+      return;
+    }
+
     const mode = matchMode(value);
     if (mode) {
       requestMode(mode, value);
     } else {
       setMessages((prev) => [
         ...prev,
-        { from: 'student', text: value },
-        { from: 'bot', text: "I can switch between text, audio narration, and visual cards — tap one of the buttons below!" }
+        { from: "student", text: value },
+        {
+          from: "bot",
+          text: "I can switch between text, audio narration, and visual cards — tap one of the buttons below!",
+        },
       ]);
     }
   };
@@ -90,30 +141,39 @@ export const TutorialAssistant: React.FC<TutorialAssistantProps> = ({ currentMod
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            transition={{ type: 'spring', damping: 22, stiffness: 260 }}
+            transition={{ type: "spring", damping: 22, stiffness: 260 }}
             className="mb-4 w-80 sm:w-96 bg-white rounded-3xl border border-slate-200/80 shadow-xl overflow-hidden flex flex-col"
-            style={{ maxHeight: '28rem' }}
+            style={{ maxHeight: "28rem" }}
           >
             <div className="px-5 py-3.5 border-b border-emerald-100 flex items-center justify-between bg-emerald-50/80">
               <div className="flex items-center gap-2 font-bold text-emerald-900 text-sm">
-                <MessageCircle className="w-5 h-5 text-emerald-600" /> Tutorial Buddy
+                <MessageCircle className="w-5 h-5 text-emerald-600" /> Tutorial
+                Buddy
               </div>
-              <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-700">
+              <button
+                onClick={() => setOpen(false)}
+                className="text-slate-400 hover:text-slate-700"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+            <div
+              ref={scrollRef}
+              className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
+            >
               {messages.map((m, i) => (
                 <motion.div
                   key={i}
-                  initial={{ opacity: 0, x: m.from === 'bot' ? -10 : 10 }}
+                  initial={{ opacity: 0, x: m.from === "bot" ? -10 : 10 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className={`flex ${m.from === 'student' ? 'justify-end' : 'justify-start'}`}
+                  className={`flex ${m.from === "student" ? "justify-end" : "justify-start"}`}
                 >
                   <div
                     className={`px-4 py-2.5 rounded-2xl text-xs leading-relaxed max-w-[85%] font-medium ${
-                      m.from === 'student' ? 'bg-emerald-500 text-white shadow-xs font-bold' : 'bg-[#FAF9F5] border border-slate-200/70 text-slate-800'
+                      m.from === "student"
+                        ? "bg-emerald-500 text-white shadow-xs font-bold"
+                        : "bg-[#FAF9F5] border border-slate-200/70 text-slate-800"
                     }`}
                   >
                     {m.text}
@@ -134,7 +194,10 @@ export const TutorialAssistant: React.FC<TutorialAssistantProps> = ({ currentMod
               ))}
             </div>
 
-            <form onSubmit={submit} className="p-3 border-t border-slate-100 bg-[#FAF9F5] flex gap-2">
+            <form
+              onSubmit={submit}
+              className="p-3 border-t border-slate-100 bg-[#FAF9F5] flex gap-2"
+            >
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -162,13 +225,17 @@ export const TutorialAssistant: React.FC<TutorialAssistantProps> = ({ currentMod
       >
         <AnimatePresence mode="wait" initial={false}>
           <motion.span
-            key={open ? 'close' : 'open'}
+            key={open ? "close" : "open"}
             initial={{ opacity: 0, rotate: -45 }}
             animate={{ opacity: 1, rotate: 0 }}
             exit={{ opacity: 0, rotate: 45 }}
             transition={{ duration: 0.15 }}
           >
-            {open ? <X className="w-6 h-6" /> : <MessageCircle className="w-6 h-6" />}
+            {open ? (
+              <X className="w-6 h-6" />
+            ) : (
+              <MessageCircle className="w-6 h-6" />
+            )}
           </motion.span>
         </AnimatePresence>
       </motion.button>
@@ -177,4 +244,3 @@ export const TutorialAssistant: React.FC<TutorialAssistantProps> = ({ currentMod
 };
 
 export default TutorialAssistant;
-
