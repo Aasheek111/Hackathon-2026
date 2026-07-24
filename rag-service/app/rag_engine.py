@@ -733,8 +733,67 @@ def plan_curriculum(unit_id: int) -> dict:
             {"title": f"Part {c['position'] + 1}", "chunk_start": c["position"], "chunk_end": c["position"]}
             for c in chunks
         ]
+    else:
+        lessons = _fill_coverage_gaps(lessons, chunks)
 
     return {"title": str(plan.get("title") or "Curriculum"), "lessons": lessons, "total_chunks": len(chunks)}
+
+
+# How many consecutive uncovered chunks to bundle into one "gap" lesson - keeps
+# a big missed tail from exploding into dozens of tiny one-chunk lessons.
+COVERAGE_GAP_LESSON_SIZE = 4
+
+
+def _fill_coverage_gaps(lessons: list[dict], chunks: list[dict]) -> list[dict]:
+    """Guarantee the WHOLE document is represented (TODO.md Phase 2 / user
+    ask: "cover all, not a portion of the PDF").
+
+    The planner LLM sometimes stops early - e.g. it plans lessons for chunks
+    0-12 of a 40-chunk document and silently drops the rest, or leaves an
+    interior gap. This scans for chunk positions no lesson covers and appends
+    grouped "continued" lessons for them. Pure bookkeeping over chunk ranges,
+    no extra LLM call here (each appended lesson's text is still generated
+    later, grounded in its own chunks, exactly like a planned one).
+    """
+    positions = sorted(c["position"] for c in chunks)
+    covered: set[int] = set()
+    for lesson in lessons:
+        for p in range(lesson["chunk_start"], lesson["chunk_end"] + 1):
+            covered.add(p)
+
+    missing = [p for p in positions if p not in covered]
+    if not missing:
+        return lessons
+
+    # Group consecutive missing positions into a few lessons rather than one
+    # per chunk.
+    extra: list[dict] = []
+    run_start = missing[0]
+    prev = missing[0]
+    part = len(lessons) + 1
+
+    def flush(start: int, end: int, part_no: int) -> None:
+        # Split a long run into COVERAGE_GAP_LESSON_SIZE-chunk lessons.
+        s = start
+        n = part_no
+        while s <= end:
+            e = min(s + COVERAGE_GAP_LESSON_SIZE - 1, end)
+            extra.append({"title": f"Part {n} (continued)", "chunk_start": s, "chunk_end": e})
+            s = e + 1
+            n += 1
+
+    for p in missing[1:]:
+        if p == prev + 1:
+            prev = p
+            continue
+        flush(run_start, prev, part)
+        part += 1
+        run_start = p
+        prev = p
+    flush(run_start, prev, part)
+
+    # Keep the reading order sensible: sort all lessons by where they start.
+    return sorted(lessons + extra, key=lambda l: l["chunk_start"])
 
 
 def generate_lesson_content(unit_id: int, lesson_title: str, chunk_start: int, chunk_end: int) -> dict:
