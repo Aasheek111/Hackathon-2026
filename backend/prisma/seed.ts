@@ -118,6 +118,42 @@ async function main() {
     }
   });
 
+  // A third teacher functioning as a Clinical Therapist
+  const therapistPassword = await bcrypt.hash('Therapist@1234', 12);
+  const clinicalTherapist = await prisma.user.create({
+    data: {
+      name: 'Dr. Maharjan',
+      email: 'therapist@neurolearn.com',
+      password: therapistPassword,
+      role: Role.TEACHER,
+      teacherStatus: 'APPROVED'
+    }
+  });
+
+  const therapyClassroom = await prisma.classroom.create({
+    data: {
+      name: 'Therapy & Rehabilitation Center',
+      description: 'A clinical environment focused on Speech and Occupational Therapy, leveraging adaptive AR games and visual tracking.',
+      teacherId: clinicalTherapist.id,
+      admissionCriteria: {
+        create: {
+          preferredModes: JSON.stringify(['AR', 'VISUAL', 'AUDIO'])
+        }
+      }
+    }
+  });
+
+  const speechTherapySubject = await prisma.subject.create({
+    data: { classroomId: therapyClassroom.id, name: 'Speech & Vocalization Therapy' }
+  });
+  
+  await prisma.unit.createMany({
+    data: [
+      { subjectId: speechTherapySubject.id, title: 'Unit 1 - Vowel Sounds and Breathing', order: 1 },
+      { subjectId: speechTherapySubject.id, title: 'Unit 2 - Common Objects Vocabulary', order: 2 }
+    ]
+  });
+
   // Seed Students
   const studentPassword = await bcrypt.hash('Student@1234', 12);
   await prisma.user.create({
@@ -210,7 +246,9 @@ async function main() {
     { title: 'Solar System Exploration', subject: 'science', type: 'ar', learningMode: LearningMode.AR, content: { arModelUrl: 'https://example.com/solar-system.glb' } },
     { title: 'History of Mount Everest', subject: 'nepal', type: 'article', learningMode: LearningMode.TEXT, content: { text: 'Mount Everest, known as Sagarmatha in Nepal, is the highest peak in the world...' } },
     { title: 'Nepali Traditional Music', subject: 'nepal', type: 'audio', learningMode: LearningMode.AUDIO, content: { url: 'https://example.com/nepali-music.mp3' } },
-    { title: 'Festivals of Nepal', subject: 'nepal', type: 'video', learningMode: LearningMode.VISUAL, content: { videoUrl: 'https://example.com/nepal-festivals.mp4' } }
+    { title: 'Festivals of Nepal', subject: 'nepal', type: 'video', learningMode: LearningMode.VISUAL, content: { videoUrl: 'https://example.com/nepal-festivals.mp4' } },
+    { title: 'Breathing Exercises for Speech', subject: 'therapy', type: 'ar', learningMode: LearningMode.AR, content: { arModelUrl: 'https://example.com/breathing-balloon.glb' } },
+    { title: 'Vowel Sound Pronunciation', subject: 'therapy', type: 'audio', learningMode: LearningMode.AUDIO, content: { url: 'https://example.com/vowel-sounds.mp3' } }
   ];
 
   for (const m of materials) {
