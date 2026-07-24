@@ -536,6 +536,10 @@ model TutorialProgress {
   curriculumId       String
   curriculum         TutorialCurriculum @relation(fields: [curriculumId], references: [id], onDelete: Cascade)
   currentLessonOrder Int                @default(0)
+  // Which presentation the student last used (TEXT/AUDIO/VISUAL/AR). Purely a
+  // display preference over the one shared curriculum - switching it never
+  // regenerates content, and progress is kept whichever mode they pick.
+  preferredMode      LearningMode       @default(TEXT)
   completed          Boolean            @default(false)
   completedAt        DateTime?
   updatedAt          DateTime           @updatedAt

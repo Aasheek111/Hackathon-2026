@@ -3,6 +3,7 @@ import axios from 'axios';
 import prisma from '../lib/prisma';
 import { requireAuth, requireRole, requireApprovedTeacher } from '../middleware/auth';
 import { awardXp } from '../lib/progress';
+import { LearningMode } from '@prisma/client';
 
 const router = Router();
 router.use(requireAuth);
@@ -39,6 +40,55 @@ router.get('/:id/generation-job', async (req: Request, res: Response) => {
     res.json({ job });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch generation job' });
+  }
+});
+
+/**
+ * AR balloon-game questions for a unit, assembled entirely from MCQs the
+ * curriculum ALREADY has (each lesson's knowledge-check + the final
+ * assessment) - deliberately ZERO AI calls, so "AR mode" costs nothing to
+ * generate. The board has 4 balloons, so only 4-option questions qualify;
+ * shorter ones are skipped rather than padded with fake options.
+ */
+router.get('/:id/ar-game', async (req: Request, res: Response) => {
+  try {
+    const { unit, allowed } = await unitAccess(req.user!.id, req.params['id'] as string);
+    if (!unit) return res.status(404).json({ error: 'Unit not found' });
+    if (!allowed) return res.status(403).json({ error: 'Not allowed to view this unit' });
+
+    const curriculum = await prisma.tutorialCurriculum.findUnique({
+      where: { unitId: unit.id },
+      include: {
+        lessons: { include: { knowledgeCheck: true }, orderBy: { order: 'asc' } },
+        finalAssessmentQuestions: { orderBy: { order: 'asc' } }
+      }
+    });
+    if (!curriculum) return res.status(404).json({ error: 'No curriculum generated for this unit yet' });
+
+    type ArQuestion = { q: string; options: string[]; answer: string };
+    const seen = new Set<string>();
+    const questions: ArQuestion[] = [];
+    const add = (question: string, options: string[], answer: string) => {
+      // Exactly 4 options (one per balloon), a correct answer that is one of
+      // them, and no duplicate questions across lessons + final assessment.
+      if (!question || options.length !== 4 || !options.includes(answer)) return;
+      const key = question.trim().toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      questions.push({ q: question, options, answer });
+    };
+
+    for (const lesson of curriculum.lessons) {
+      const kc = lesson.knowledgeCheck;
+      if (kc) add(kc.question, kc.options as string[], kc.correct);
+    }
+    for (const q of curriculum.finalAssessmentQuestions) {
+      add(q.question, q.options as string[], q.correct);
+    }
+
+    res.json({ title: curriculum.title, questions });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to build AR game' });
   }
 });
 
@@ -101,7 +151,14 @@ router.get('/:id/curriculum', async (req: Request, res: Response) => {
 router.patch('/:id/curriculum/progress', requireRole('STUDENT'), async (req: Request, res: Response) => {
   try {
     const studentId = req.user!.id;
-    const { currentLessonOrder, completed } = req.body as { currentLessonOrder?: number; completed?: boolean };
+    const { currentLessonOrder, completed, preferredMode } = req.body as {
+      currentLessonOrder?: number;
+      completed?: boolean;
+      preferredMode?: LearningMode;
+    };
+    const validMode = (['TEXT', 'AUDIO', 'VISUAL', 'AR'] as const).includes(preferredMode as any)
+      ? (preferredMode as LearningMode)
+      : undefined;
 
     const curriculum = await prisma.tutorialCurriculum.findUnique({ where: { unitId: req.params['id'] as string } });
     if (!curriculum) return res.status(404).json({ error: 'No curriculum for this unit' });
@@ -116,11 +173,13 @@ router.patch('/:id/curriculum/progress', requireRole('STUDENT'), async (req: Req
         studentId,
         curriculumId: curriculum.id,
         currentLessonOrder: currentLessonOrder ?? 0,
+        ...(validMode ? { preferredMode: validMode } : {}),
         completed: !!completed,
         completedAt: completed ? new Date() : null
       },
       update: {
         ...(typeof currentLessonOrder === 'number' ? { currentLessonOrder } : {}),
+        ...(validMode ? { preferredMode: validMode } : {}),
         ...(typeof completed === 'boolean' ? { completed, completedAt: completed ? new Date() : null } : {})
       }
     });
