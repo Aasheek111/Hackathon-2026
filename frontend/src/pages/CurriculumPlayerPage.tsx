@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft, Volume2, Loader2, AlertCircle, ChevronRight, ChevronLeft, Sparkles, Trophy, Check, X
+  ArrowLeft, Volume2, Loader2, AlertCircle, ChevronRight, ChevronLeft, Sparkles, Trophy, Check, X,
+  BookOpen, Image as ImageIcon, Gamepad2
 } from 'lucide-react';
 import Button from '../components/ui/Button';
 import api from '../lib/api';
@@ -136,12 +137,103 @@ interface Progress {
   currentLessonOrder: number;
   completed: boolean;
 }
+type LearningMode = 'TEXT' | 'AUDIO' | 'VISUAL' | 'AR';
+
 interface Personalization {
-  preferredMode: 'TEXT' | 'AUDIO' | 'VISUAL' | 'AR';
+  preferredMode: LearningMode;
   attentionSpanScore: number;
 }
 
 type View = 'lesson' | 'final-assessment' | 'complete';
+
+const MODES: { key: LearningMode; label: string; icon: React.FC<{ className?: string }> }[] = [
+  { key: 'TEXT', label: 'Text', icon: BookOpen },
+  { key: 'AUDIO', label: 'Audio', icon: Volume2 },
+  { key: 'VISUAL', label: 'Visual', icon: ImageIcon },
+  { key: 'AR', label: 'AR Game', icon: Gamepad2 }
+];
+
+/**
+ * AR presentation of a unit: the balloon game (public/ar-game.html) embedded
+ * in an iframe and seeded with THIS unit's own MCQs (knowledge-checks + final
+ * assessment) via postMessage - no extra AI generation, the questions already
+ * exist. A ready/questions handshake avoids racing the iframe's scene setup;
+ * an 'ar-complete' message reports the score back so AR counts as real work.
+ */
+const ArLessonGame: React.FC<{ unitId: string; onComplete: (score: number, total: number) => void }> = ({
+  unitId,
+  onComplete
+}) => {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [questions, setQuestions] = useState<Array<{ q: string; options: string[]; answer: string }> | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get(`/units/${unitId}/ar-game`)
+      .then(({ data }) => {
+        if (!cancelled) setQuestions(data.questions || []);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.response?.data?.error || 'Could not load the AR game');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [unitId]);
+
+  const postQuestions = useCallback(() => {
+    if (questions && questions.length > 0) {
+      iframeRef.current?.contentWindow?.postMessage({ type: 'ar-questions', questions }, '*');
+    }
+  }, [questions]);
+
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || typeof data !== 'object') return;
+      if (data.type === 'ar-ready') postQuestions();
+      if (data.type === 'ar-complete') onComplete(data.score, data.total);
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [postQuestions, onComplete]);
+
+  // Also push as soon as questions arrive, in case the iframe signalled ready
+  // before the fetch resolved (either ordering works).
+  useEffect(() => {
+    postQuestions();
+  }, [postQuestions]);
+
+  if (error) {
+    return (
+      <div className="glass-strong p-8 rounded-3xl text-center text-gray-300">
+        <AlertCircle className="w-8 h-8 text-amber-400 mx-auto mb-3" />
+        {error}
+      </div>
+    );
+  }
+  if (questions && questions.length === 0) {
+    return (
+      <div className="glass-strong p-8 rounded-3xl text-center text-gray-300">
+        <Gamepad2 className="w-8 h-8 text-primary mx-auto mb-3" />
+        This unit doesn&apos;t have any 4-option questions for the balloon game yet. Try another mode, or
+        ask your teacher to regenerate the lesson plan.
+      </div>
+    );
+  }
+  return (
+    <iframe
+      ref={iframeRef}
+      src="/ar-game.html"
+      title="AR balloon game"
+      onLoad={postQuestions}
+      allow="camera; microphone; accelerometer; gyroscope; magnetometer"
+      className="w-full h-[75vh] rounded-3xl border border-white/10 bg-black"
+    />
+  );
+};
 
 /** One lesson's inline check-for-understanding question. Resets whenever the lesson changes. */
 const KnowledgeCheckCard: React.FC<{ unitId: string; lesson: Lesson }> = ({ unitId, lesson }) => {
@@ -291,6 +383,12 @@ export const CurriculumPlayerPage: React.FC = () => {
   const [newBadges, setNewBadges] = useState<Array<{ name: string }>>([]);
   const [personalization, setPersonalization] = useState<Personalization | null>(null);
   const [isPreview, setIsPreview] = useState(false);
+  // Presentation mode over the ONE shared curriculum. Switching it never
+  // refetches or regenerates - same lessons, different layout - and progress
+  // is kept whichever mode is active (the "switch freely, never lose place"
+  // requirement). Seeded from the student's last-used mode, then their
+  // assessment's preferred mode, then TEXT.
+  const [mode, setMode] = useState<LearningMode>('TEXT');
 
   useEffect(() => {
     let cancelled = false;
@@ -302,6 +400,7 @@ export const CurriculumPlayerPage: React.FC = () => {
         setProgress(data.progress);
         setPersonalization(data.personalization || null);
         setIsPreview(!!data.preview);
+        setMode(data.progress?.preferredMode || data.personalization?.preferredMode || 'TEXT');
         const resumeIndex = Math.min(
           Math.max(data.progress?.currentLessonOrder ?? 0, 0),
           Math.max(data.curriculum.lessons.length - 1, 0)
@@ -318,10 +417,14 @@ export const CurriculumPlayerPage: React.FC = () => {
   }, [unitId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveProgress = useCallback(
-    (nextIndex: number, completed?: boolean) => {
+    (nextIndex: number, completed?: boolean, nextMode?: LearningMode) => {
       if (isPreview) return; // a teacher previewing isn't "a student progressing"
       api
-        .patch(`/units/${unitId}/curriculum/progress`, { currentLessonOrder: nextIndex, completed })
+        .patch(`/units/${unitId}/curriculum/progress`, {
+          currentLessonOrder: nextIndex,
+          completed,
+          ...(nextMode ? { preferredMode: nextMode } : {})
+        })
         .then(({ data }) => {
           if (data.newBadges?.length) setNewBadges(data.newBadges);
         })
@@ -332,6 +435,13 @@ export const CurriculumPlayerPage: React.FC = () => {
     },
     [unitId, isPreview]
   );
+
+  const changeMode = (next: LearningMode) => {
+    if (next === mode) return;
+    stopSpeaking();
+    setMode(next);
+    saveProgress(lessonIndex, undefined, next); // remember the choice, keep place
+  };
 
   const goTo = (index: number) => {
     if (!curriculum) return;
@@ -353,18 +463,18 @@ export const CurriculumPlayerPage: React.FC = () => {
     }
   };
 
-  // Adaptive presentation (PLAN §23) - same canonical content, read aloud
-  // automatically for a student whose own assessment says they prefer AUDIO,
-  // mirroring the legacy TutorialPage's AUDIO-mode auto-narration.
+  // AUDIO mode auto-narrates each lesson as you land on it (the pre-generated
+  // clip when available, else live TTS, else the browser voice) - same
+  // canonical content, just read aloud. Mirrors the legacy TutorialPage.
   useEffect(() => {
-    if (!curriculum || view !== 'lesson' || personalization?.preferredMode !== 'AUDIO') return;
+    if (!curriculum || view !== 'lesson' || mode !== 'AUDIO') return;
     const activeLesson = curriculum.lessons[lessonIndex];
     if (!activeLesson) return;
     speak(
       `${activeLesson.title}. ${activeLesson.explanation} ${activeLesson.example || ''}`,
       activeLesson.audioUrl
     );
-  }, [curriculum, lessonIndex, view, personalization]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [curriculum, lessonIndex, view, mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
@@ -465,86 +575,154 @@ export const CurriculumPlayerPage: React.FC = () => {
                 ✓ Completed
               </span>
             )}
-            <span className="text-xs px-3 py-1 rounded-full bg-dark-card border border-white/10">
-              Lesson {lessonIndex + 1} of {curriculum.lessons.length}
-            </span>
+            {mode !== 'AR' && (
+              <span className="text-xs px-3 py-1 rounded-full bg-dark-card border border-white/10">
+                Lesson {lessonIndex + 1} of {curriculum.lessons.length}
+              </span>
+            )}
           </div>
         </div>
-        <h1 className="text-lg font-display font-bold mb-2">{curriculum.title}</h1>
-        <div className="w-full h-2 bg-dark-card rounded-full overflow-hidden">
-          <motion.div
-            className="h-full bg-gradient-to-r from-primary to-primary-light"
-            initial={false}
-            animate={{ width: `${progressPercent}%` }}
-            transition={{ type: 'spring', damping: 20 }}
-          />
+        <h1 className="text-lg font-display font-bold mb-3">{curriculum.title}</h1>
+
+        {/* Presentation modes - the same lessons shown four ways. Switching is
+            instant (no regeneration) and keeps your place. */}
+        <div className="flex flex-wrap gap-2 mb-3">
+          {MODES.map((m) => {
+            const Icon = m.icon;
+            const active = mode === m.key;
+            return (
+              <button
+                key={m.key}
+                onClick={() => changeMode(m.key)}
+                className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border transition-all ${
+                  active
+                    ? 'bg-primary/20 text-primary-light border-primary/50'
+                    : 'bg-dark-card text-gray-400 border-white/10 hover:border-white/30 hover:text-white'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" /> {m.label}
+              </button>
+            );
+          })}
         </div>
-      </header>
 
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 pt-8">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={lesson.id}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="glass-strong p-6 sm:p-10 rounded-3xl mb-6"
-          >
-            <h2 className="text-2xl font-display font-bold mb-4">{lesson.title}</h2>
-
-            {lesson.imageUrl && (
-              <img
-                src={`${RAG_SERVICE_URL}${lesson.imageUrl}`}
-                alt={lesson.title}
-                className="w-full max-h-96 object-contain rounded-2xl mb-6 bg-black/20"
-              />
-            )}
-
-            <div ref={lessonContentRef}>
-              <p className={`text-gray-200 leading-relaxed mb-4 ${isSimplified ? 'text-xl' : 'text-lg'}`}>{lesson.explanation}</p>
-
-              {lesson.example && (
-                <div className="bg-dark/50 rounded-xl p-4 text-sm text-gray-400 mb-4">
-                  <span className="text-primary-light font-medium">Example: </span>{lesson.example}
-                </div>
-              )}
-            </div>
-
-            <button
-              onClick={() => speak(`${lesson.title}. ${lesson.explanation} ${lesson.example || ''}`, lesson.audioUrl)}
-              disabled={ttsLoading}
-              className="flex items-center gap-2 text-sm text-blue-300 hover:text-blue-200 disabled:opacity-60"
-            >
-              {ttsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Volume2 className="w-4 h-4" />}
-              {ttsLoading ? 'Loading audio…' : 'Listen to this lesson'}
-            </button>
-          </motion.div>
-        </AnimatePresence>
-
-        <SelectionListenButton containerRef={lessonContentRef} onListen={speak} />
-
-        {!isPreview && <KnowledgeCheckCard unitId={unitId as string} lesson={lesson} />}
-        {isPreview && lesson.knowledgeCheck && (
-          <div className="glass p-6 rounded-2xl mb-6 opacity-70">
-            <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">Quick check (student view only)</p>
-            <p className="font-medium">{lesson.knowledgeCheck.question}</p>
+        {mode !== 'AR' && (
+          <div className="w-full h-2 bg-dark-card rounded-full overflow-hidden">
+            <motion.div
+              className="h-full bg-gradient-to-r from-primary to-primary-light"
+              initial={false}
+              animate={{ width: `${progressPercent}%` }}
+              transition={{ type: 'spring', damping: 20 }}
+            />
           </div>
         )}
+      </header>
 
-        <div className="flex items-center justify-between gap-3">
-          <Button variant="ghost" onClick={() => goTo(lessonIndex - 1)} disabled={onFirstLesson} className="gap-2">
-            <ChevronLeft className="w-4 h-4" /> Previous
-          </Button>
-          {onLastLesson ? (
-            <Button onClick={finishCurriculum} className="gap-2">
-              <Sparkles className="w-4 h-4" /> {isPreview ? 'End preview' : 'Finish curriculum'}
-            </Button>
-          ) : (
-            <Button onClick={() => goTo(lessonIndex + 1)} className="gap-2">
-              Next <ChevronRight className="w-4 h-4" />
-            </Button>
-          )}
-        </div>
+      <main className={`mx-auto px-4 sm:px-6 pt-8 ${mode === 'AR' ? 'max-w-5xl' : 'max-w-3xl'}`}>
+        {mode === 'AR' ? (
+          <div>
+            <ArLessonGame
+              unitId={unitId as string}
+              onComplete={(score, total) => {
+                // Finishing the balloon game counts as completing the unit's
+                // active work - mark progress so AR isn't a dead end.
+                if (!isPreview) saveProgress(lessonIndex, true, 'AR');
+                setFinalScore({ scoreCorrect: score, scoreTotal: total });
+              }}
+            />
+            <p className="text-center text-xs text-gray-500 mt-4">
+              Pop the balloon with the correct answer. Switch back to Text, Audio, or Visual any time — your
+              place is saved.
+            </p>
+          </div>
+        ) : (
+          <>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={lesson.id}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="glass-strong p-6 sm:p-10 rounded-3xl mb-6"
+              >
+                <h2 className="text-2xl font-display font-bold mb-4">{lesson.title}</h2>
+
+                {/* VISUAL mode leads with the picture, larger; other modes show
+                    it as a supporting image when present. */}
+                {lesson.imageUrl ? (
+                  <img
+                    src={`${RAG_SERVICE_URL}${lesson.imageUrl}`}
+                    alt={lesson.title}
+                    className={`w-full object-contain rounded-2xl mb-6 bg-black/20 ${
+                      mode === 'VISUAL' ? 'max-h-[32rem]' : 'max-h-96'
+                    }`}
+                  />
+                ) : (
+                  mode === 'VISUAL' && (
+                    <div className="w-full h-48 rounded-2xl mb-6 bg-black/20 border border-white/10 flex items-center justify-center text-gray-500 text-sm">
+                      <ImageIcon className="w-5 h-5 mr-2" /> No picture for this lesson yet
+                    </div>
+                  )
+                )}
+
+                <div ref={lessonContentRef}>
+                  <p
+                    className={`text-gray-200 leading-relaxed mb-4 ${
+                      isSimplified || mode === 'VISUAL' ? 'text-xl' : 'text-lg'
+                    }`}
+                  >
+                    {lesson.explanation}
+                  </p>
+
+                  {lesson.example && (
+                    <div className="bg-dark/50 rounded-xl p-4 text-sm text-gray-400 mb-4">
+                      <span className="text-primary-light font-medium">Example: </span>
+                      {lesson.example}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => speak(`${lesson.title}. ${lesson.explanation} ${lesson.example || ''}`, lesson.audioUrl)}
+                  disabled={ttsLoading}
+                  className={`flex items-center gap-2 text-sm disabled:opacity-60 ${
+                    mode === 'AUDIO'
+                      ? 'w-full justify-center bg-sky-500/15 border border-sky-500/30 text-sky-300 py-3 rounded-2xl font-bold hover:bg-sky-500/25'
+                      : 'text-blue-300 hover:text-blue-200'
+                  }`}
+                >
+                  {ttsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Volume2 className="w-4 h-4" />}
+                  {ttsLoading ? 'Loading audio…' : mode === 'AUDIO' ? 'Replay narration' : 'Listen to this lesson'}
+                </button>
+              </motion.div>
+            </AnimatePresence>
+
+            <SelectionListenButton containerRef={lessonContentRef} onListen={speak} />
+
+            {!isPreview && <KnowledgeCheckCard unitId={unitId as string} lesson={lesson} />}
+            {isPreview && lesson.knowledgeCheck && (
+              <div className="glass p-6 rounded-2xl mb-6 opacity-70">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">Quick check (student view only)</p>
+                <p className="font-medium">{lesson.knowledgeCheck.question}</p>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between gap-3">
+              <Button variant="ghost" onClick={() => goTo(lessonIndex - 1)} disabled={onFirstLesson} className="gap-2">
+                <ChevronLeft className="w-4 h-4" /> Previous
+              </Button>
+              {onLastLesson ? (
+                <Button onClick={finishCurriculum} className="gap-2">
+                  <Sparkles className="w-4 h-4" /> {isPreview ? 'End preview' : 'Finish curriculum'}
+                </Button>
+              ) : (
+                <Button onClick={() => goTo(lessonIndex + 1)} className="gap-2">
+                  Next <ChevronRight className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
+          </>
+        )}
       </main>
     </div>
   );
