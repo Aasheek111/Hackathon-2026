@@ -88,11 +88,30 @@ export const SubscriptionPage: React.FC = () => {
             onClick={handlePayment}
             loading={loading}
           >
+<<<<<<< Updated upstream
             Pay with eSewa
           </Button>
           <div className="mt-4 flex items-center justify-center text-sm text-gray-400">
             <Shield className="w-4 h-4 mr-2" /> Secured by eSewa payment gateway
           </div>
+=======
+            <span>
+              {loading
+                ? "Redirecting to eSewa..."
+                : "Pay securely with eSewa (Testing)"}
+            </span>
+            {!loading && <ArrowRight className="w-5 h-5 shrink-0" />}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleTestActivate}
+            disabled={loading}
+            className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 px-6 rounded-2xl shadow-md border-b-4 border-amber-700 active:translate-y-0.5 active:border-b-2 transition-all flex items-center justify-center gap-1 text-xs sm:text-sm cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            <span>⚡ Sandbox Quick Complete (Bypass Payment)</span>
+          </button>
+>>>>>>> Stashed changes
         </div>
       </div>
     </motion.div>
