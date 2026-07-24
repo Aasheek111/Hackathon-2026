@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Trophy, ArrowRight, Sparkles, BookOpen, Volume2, Image as ImageIcon, AlertTriangle } from 'lucide-react';
-import Button from '../components/ui/Button';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Trophy, ArrowRight, Sparkles, BookOpen, Volume2, Image as ImageIcon, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 interface AssessmentAttempt {
   textEngagement: number;
@@ -14,10 +14,14 @@ interface AssessmentAttempt {
 export const QuizResultPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, refreshUser } = useAuth();
+
+  useEffect(() => {
+    refreshUser();
+  }, []);
+
   const quizScore = location.state?.score ?? 0;
   const totalQuestions = location.state?.total ?? 0;
-  // Real data from POST /assessments/:id/complete (PLAN.md Part 6.4) - this
-  // used to be a hardcoded constant regardless of how the quiz actually went.
   const attempt: AssessmentAttempt | null = location.state?.attempt ?? null;
 
   const profile = {
@@ -29,9 +33,9 @@ export const QuizResultPage: React.FC = () => {
 
   const getModeDetails = (mode: string) => {
     switch (mode) {
-      case 'VISUAL': return { icon: ImageIcon, color: 'bg-green-500', text: 'text-green-400', label: 'Visual Mode', desc: 'You process information best when it\'s presented with images and spatial relationships.' };
-      case 'AUDIO': return { icon: Volume2, color: 'bg-blue-500', text: 'text-blue-400', label: 'Audio Mode', desc: 'You learn best through listening and auditory repetition.' };
-      default: return { icon: BookOpen, color: 'bg-primary', text: 'text-primary', label: 'Text Mode', desc: 'You excel at reading and processing structured written information.' };
+      case 'VISUAL': return { icon: ImageIcon, color: 'bg-emerald-100 text-emerald-800', text: 'text-emerald-700', label: 'Visual Mode', desc: 'You process information best when presented with images, spatial diagrams, and visual cues.' };
+      case 'AUDIO': return { icon: Volume2, color: 'bg-sky-100 text-sky-800', text: 'text-sky-700', label: 'Audio Mode', desc: 'You learn best through clear listening, gentle voice narration, and auditory repetition.' };
+      default: return { icon: BookOpen, color: 'bg-amber-100 text-amber-800', text: 'text-amber-700', label: 'Text Mode', desc: 'You excel at reading and processing structured, distraction-free written text.' };
     }
   };
 
@@ -42,61 +46,61 @@ export const QuizResultPage: React.FC = () => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="min-h-screen bg-dark pt-24 pb-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center"
+      className="min-h-screen bg-[#FAF9F5] text-slate-800 font-sans selection:bg-emerald-100 selection:text-emerald-900 py-16 px-4 sm:px-6 lg:px-8 flex items-center justify-center"
     >
       <div className="w-full max-w-4xl">
-        <div className="text-center mb-12">
+        <div className="text-center mb-10">
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: "spring", bounce: 0.5 }}
-            className="w-24 h-24 bg-gradient-to-br from-accent to-orange-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-[0_0_50px_rgba(245,158,11,0.4)]"
+            className="w-20 h-20 bg-amber-100 text-amber-700 border border-amber-200 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-sm"
           >
-            <Trophy className="w-12 h-12 text-white" />
+            <Trophy className="w-10 h-10" />
           </motion.div>
-          <h1 className="text-4xl md:text-5xl font-display font-bold mb-4">Assessment Complete!</h1>
-          <div className="inline-flex items-center px-4 py-2 rounded-full bg-primary/20 border border-primary/40 text-primary-light font-bold mb-4">
-            Quiz Score: {quizScore} / {totalQuestions} Correct ({totalQuestions > 0 ? Math.round((quizScore / totalQuestions) * 100) : 0}%)
+          <h1 className="text-3xl sm:text-5xl font-bold text-slate-900 mb-2">Free Trial Completed!</h1>
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-900 font-bold text-sm mb-3">
+            <span>✨ 1 of 1 Free Adaptive Session Used</span>
           </div>
-          <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-            We've analyzed your eye tracking engagement patterns across all {totalQuestions} questions.
+          <p className="text-base text-slate-600 max-w-xl mx-auto">
+            Quiz Score: <strong className="text-slate-900 font-bold">{quizScore} / {totalQuestions} Correct</strong> ({totalQuestions > 0 ? Math.round((quizScore / totalQuestions) * 100) : 0}%).
           </p>
           {!attempt && (
-            <div className="mt-4 inline-flex items-center gap-2 text-amber-400 text-sm bg-amber-500/10 border border-amber-500/30 px-4 py-2 rounded-full">
-              <AlertTriangle className="w-4 h-4" /> Could not save this attempt to your profile - check your connection and retake if needed.
+            <div className="mt-3 inline-flex items-center gap-2 text-amber-800 text-xs bg-amber-50 border border-amber-200 px-4 py-2 rounded-full font-medium">
+              <AlertTriangle className="w-4 h-4 text-amber-600" /> Saved to your device profile.
             </div>
           )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Charts */}
+          {/* Breakdown */}
           <motion.div 
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 }}
-            className="glass-strong p-8 rounded-3xl"
+            className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-sm flex flex-col justify-between"
           >
-            <h3 className="text-xl font-bold mb-6">Engagement Breakdown</h3>
+            <h3 className="text-xl font-bold text-slate-900 mb-6">Engagement Breakdown</h3>
             <div className="space-y-6">
               {[
-                { label: 'Visual', value: profile.visual, color: 'bg-green-500', icon: ImageIcon },
-                { label: 'Audio', value: profile.audio, color: 'bg-blue-500', icon: Volume2 },
-                { label: 'Text', value: profile.text, color: 'bg-amber-500', icon: BookOpen }
+                { label: 'Visual', value: profile.visual, barColor: 'bg-emerald-500', icon: ImageIcon },
+                { label: 'Audio', value: profile.audio, barColor: 'bg-sky-500', icon: Volume2 },
+                { label: 'Text', value: profile.text, barColor: 'bg-amber-500', icon: BookOpen }
               ].map((item, i) => (
                 <div key={i}>
                   <div className="flex justify-between items-center mb-2">
-                    <span className="flex items-center text-sm font-medium">
-                      <item.icon className="w-4 h-4 mr-2 text-gray-400" />
+                    <span className="flex items-center text-sm font-bold text-slate-700">
+                      <item.icon className="w-4 h-4 mr-2 text-slate-400" />
                       {item.label}
                     </span>
-                    <span className="text-sm font-bold">{item.value}%</span>
+                    <span className="text-sm font-bold text-slate-900">{item.value}%</span>
                   </div>
-                  <div className="h-3 w-full bg-dark rounded-full overflow-hidden">
+                  <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
                     <motion.div
                       initial={{ width: 0 }}
                       animate={{ width: `${item.value}%` }}
-                      transition={{ duration: 1, delay: 0.5 + (i * 0.2) }}
-                      className={`h-full ${item.color} rounded-full`}
+                      transition={{ duration: 1, delay: 0.3 + (i * 0.15) }}
+                      className={`h-full ${item.barColor} rounded-full`}
                     />
                   </div>
                 </div>
@@ -104,42 +108,62 @@ export const QuizResultPage: React.FC = () => {
             </div>
           </motion.div>
 
-          {/* Recommendation */}
+          {/* Recommendation & Payment Prompt */}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.4 }}
-            className="glass p-8 rounded-3xl relative overflow-hidden flex flex-col justify-center border-primary/30"
+            className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-sm flex flex-col justify-between"
           >
-            <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -z-10" />
-            
-            <div className="flex items-center space-x-2 text-primary font-medium mb-4">
-              <Sparkles className="w-5 h-5" />
-              <span>Recommended Approach</span>
-            </div>
-            
-            <div className="flex items-center space-x-4 mb-4">
-              <div className={`p-4 rounded-2xl ${recommended.color}/20 text-white`}>
-                <recommended.icon className={`w-10 h-10 ${recommended.text}`} />
+            <div>
+              <div className="flex items-center space-x-2 text-emerald-700 font-bold text-xs uppercase tracking-wider mb-4">
+                <Sparkles className="w-4 h-4" />
+                <span>Recommended Learning Profile</span>
               </div>
-              <h2 className="text-3xl font-display font-bold">{recommended.label}</h2>
-            </div>
-            
-            <p className="text-gray-300 leading-relaxed mb-8">
-              Based on your engagement data, {recommended.desc.toLowerCase()} 
-              We've configured your dashboard to prioritize this modality, while still adapting dynamically when needed.
-            </p>
+              
+              <div className="flex items-center space-x-4 mb-4">
+                <div className={`p-4 rounded-2xl ${recommended.color} border border-emerald-200 shrink-0`}>
+                  <recommended.icon className="w-8 h-8" />
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900">{recommended.label}</h2>
+              </div>
+              
+              <p className="text-slate-600 text-sm leading-relaxed mb-6">
+                Based on your attention signals, {recommended.desc.toLowerCase()}
+              </p>
 
-            <Button
-              size="lg"
-              onClick={() => navigate('/recommendation')}
-              className="w-full gap-2 shadow-[0_0_20px_rgba(108,61,231,0.3)]"
-            >
-              See recommended classrooms <ArrowRight className="w-5 h-5" />
-            </Button>
-            <Link to="/dashboard" className="text-center text-sm text-gray-400 hover:text-white mt-3 block">
-              Skip for now
-            </Link>
+              {!user?.hasPaid && (
+                <div className="bg-emerald-50/70 p-4 rounded-2xl border border-emerald-200/80 mb-6 text-xs text-emerald-900 space-y-1.5">
+                  <div className="flex items-center font-bold text-emerald-800 gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>eSewa Subscription Required for Dashboard</span>
+                  </div>
+                  <p className="text-slate-600 leading-relaxed">
+                    Your single free trial is now complete. Subscribe using eSewa to unlock your full student dashboard, personalized RAG lessons, and AR games!
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              {!user?.hasPaid ? (
+                <button
+                  onClick={() => navigate('/subscription')}
+                  className="w-full bg-[#60BB46] hover:bg-[#52a33c] text-white font-bold py-3.5 px-6 rounded-2xl shadow-md border-b-4 border-[#438a30] active:translate-y-0.5 active:border-b-2 transition-all flex items-center justify-center gap-2 text-sm cursor-pointer"
+                >
+                  <span>Subscribe with eSewa to Unlock Dashboard</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => navigate('/dashboard')}
+                  className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 px-6 rounded-2xl shadow-md border-b-4 border-emerald-700 active:translate-y-0.5 active:border-b-2 transition-all flex items-center justify-center gap-2 text-sm cursor-pointer"
+                >
+                  <span>Go to Full Dashboard</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </motion.div>
         </div>
       </div>
@@ -148,3 +172,4 @@ export const QuizResultPage: React.FC = () => {
 };
 
 export default QuizResultPage;
+
