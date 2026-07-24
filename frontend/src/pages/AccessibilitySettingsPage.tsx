@@ -17,7 +17,7 @@ import DashboardShell, { NavItem } from "../components/DashboardShell";
 import { useAuth } from "../contexts/AuthContext";
 import { useAccessibility, FontSize } from "../contexts/AccessibilityContext";
 import { DISABILITY_PROFILES } from "../data/disabilityProfiles";
-import { usePageAudio } from "../contexts/AudioNavigationContext";
+import { usePageAudio, useAudioNavigation } from "../contexts/AudioNavigationContext";
 
 const FONT_SIZE_OPTIONS: { value: FontSize; label: string; sample: string }[] = [
   { value: "SMALL", label: "Small", sample: "text-sm" },
@@ -67,6 +67,11 @@ const ToggleRow: React.FC<ToggleRowProps> = ({ icon: Icon, title, description, c
 export const AccessibilitySettingsPage: React.FC = () => {
   const { user } = useAuth();
   const { prefs, updatePrefs, loading } = useAccessibility();
+  const {
+    enabled: audioEnabled,
+    applicable: audioApplicable,
+    setEnabled: setAudioEnabled,
+  } = useAudioNavigation();
   const [savingProfile, setSavingProfile] = React.useState(false);
 
   usePageAudio("Accessibility Settings", () =>
@@ -186,6 +191,18 @@ export const AccessibilitySettingsPage: React.FC = () => {
 
         {/* Toggles */}
         <section className="space-y-3">
+          {/* The permanent home for audio navigation. The floating bar hides
+              itself once dismissed (and never appears for a deaf profile), so
+              this is the reliable way to find it again. */}
+          {audioApplicable && (
+            <ToggleRow
+              icon={Headphones}
+              title="Audio navigation"
+              description="Read any screen aloud, navigate by voice, and use Alt+R / Alt+S / Alt+V. Adds a control bar at the bottom of every page."
+              checked={audioEnabled}
+              onChange={setAudioEnabled}
+            />
+          )}
           <ToggleRow
             icon={Contrast}
             title="High contrast mode"

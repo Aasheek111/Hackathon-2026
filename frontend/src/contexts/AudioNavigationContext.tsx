@@ -44,6 +44,10 @@ import { homePathFor } from '../lib/homePath';
 interface AudioNavigationContextType {
   /** Audio navigation is switched on for this user. */
   enabled: boolean;
+  /** False when audio navigation makes no sense for this profile (deaf). */
+  applicable: boolean;
+  /** The learner explicitly turned it off - don't re-offer it unprompted. */
+  dismissed: boolean;
   /** The browser has let us play sound at least once. */
   unlocked: boolean;
   listening: boolean;
@@ -77,6 +81,14 @@ const AudioNavigationContext = createContext<AudioNavigationContextType | undefi
 // a confident "sound is on" claim that turns out to be false on a cold load.
 const UNLOCK_KEY = 'pragya_audio_unlocked';
 const ENABLED_KEY = 'pragya_audio_nav_enabled';
+// Set when the learner explicitly presses "Turn off". Distinct from
+// ENABLED_KEY=false because it also suppresses the collapsed "turn it on"
+// affordance - being offered again, immediately, by the thing you just
+// dismissed is nagging. Settings keeps a permanent, findable toggle.
+const DISMISSED_KEY = 'pragya_audio_nav_dismissed';
+// Which profile the current on/off decision was made for, so changing your
+// profile re-evaluates the default instead of being stuck with the old one.
+const PROFILE_KEY = 'pragya_audio_nav_profile';
 
 export const AudioNavigationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
@@ -87,12 +99,20 @@ export const AudioNavigationProvider: React.FC<{ children: React.ReactNode }> = 
 
   const isBlindProfile = user?.disabilityType === 'BLINDNESS';
 
+  // Audio navigation is pointless for a deaf learner - offering it, and
+  // continuing to offer it after they dismiss it, is just noise in their way.
+  const isDeafProfile = user?.disabilityType === 'DEAFNESS';
+  const applicable = !isDeafProfile;
+
   // On by default for a blind learner; otherwise opt-in, remembered per tab.
   const [enabled, setEnabledState] = useState<boolean>(() => {
     const stored = sessionStorage.getItem(ENABLED_KEY);
     if (stored !== null) return stored === 'true';
     return false;
   });
+  const [dismissed, setDismissed] = useState<boolean>(
+    () => sessionStorage.getItem(DISMISSED_KEY) === 'true',
+  );
   const [unlocked, setUnlocked] = useState<boolean>(
     () => sessionStorage.getItem(UNLOCK_KEY) === 'true',
   );
@@ -102,19 +122,36 @@ export const AudioNavigationProvider: React.FC<{ children: React.ReactNode }> = 
   const pageCommandsRef = useRef<VoiceCommand[]>([]);
   const [pageCommandsVersion, setPageCommandsVersion] = useState(0);
 
-  // A blind learner shouldn't have to discover and switch this on - but only
-  // force it once per session, so an explicit "turn it off" is respected.
+  // Apply the right default for the CURRENT profile, and re-apply it whenever
+  // the profile changes. Keyed on the profile the last decision was made for,
+  // so switching (say) blindness -> deafness in Settings actually takes effect
+  // instead of leaving the previous profile's choice stuck in sessionStorage,
+  // and an explicit turn-off within one profile is still respected.
   useEffect(() => {
-    if (!isBlindProfile) return;
-    if (sessionStorage.getItem(ENABLED_KEY) !== null) return;
-    setEnabledState(true);
-    sessionStorage.setItem(ENABLED_KEY, 'true');
-  }, [isBlindProfile]);
+    if (!token) return;
+    const profile = user?.disabilityType ?? 'NONE';
+    const decidedFor = sessionStorage.getItem(PROFILE_KEY);
+    if (decidedFor === profile) return;
+
+    sessionStorage.setItem(PROFILE_KEY, profile);
+    // A changed profile is a fresh decision - clear any previous dismissal.
+    sessionStorage.removeItem(DISMISSED_KEY);
+    setDismissed(false);
+
+    const shouldEnable = profile === 'BLINDNESS';
+    setEnabledState(shouldEnable);
+    sessionStorage.setItem(ENABLED_KEY, String(shouldEnable));
+    if (!shouldEnable) stopSpeech();
+  }, [user?.disabilityType, token, stopSpeech]);
 
   const setEnabled = useCallback(
     (on: boolean) => {
       setEnabledState(on);
       sessionStorage.setItem(ENABLED_KEY, String(on));
+      // Turning it off explicitly also stops us re-offering it for this
+      // session; Settings is the permanent, findable way back on.
+      sessionStorage.setItem(DISMISSED_KEY, String(!on));
+      setDismissed(!on);
       if (!on) stopSpeech();
     },
     [stopSpeech],
@@ -256,7 +293,9 @@ export const AudioNavigationProvider: React.FC<{ children: React.ReactNode }> = 
   }, [readPage, stopSpeech, toggleMic, micSupported]);
 
   const value: AudioNavigationContextType = {
-    enabled,
+    enabled: enabled && applicable,
+    applicable,
+    dismissed,
     unlocked: unlocked && !blocked,
     listening,
     micSupported,
