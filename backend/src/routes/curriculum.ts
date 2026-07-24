@@ -93,6 +93,142 @@ router.get('/:id/ar-game', async (req: Request, res: Response) => {
 });
 
 /**
+ * Concentration ingestion from the tutorial player's webcam/CV loop. Stored
+ * as running sums per (student, unit, lesson) so this is a single cheap
+ * upsert-increment - no per-frame rows, no external AI (the CV compute is
+ * local). Best-effort by nature; a dropped sample just slightly changes an
+ * average.
+ */
+router.post('/:id/engagement', requireRole('STUDENT'), async (req: Request, res: Response) => {
+  try {
+    const studentId = req.user!.id;
+    const { unit, allowed } = await unitAccess(studentId, req.params['id'] as string);
+    if (!unit) return res.status(404).json({ error: 'Unit not found' });
+    if (!allowed) return res.status(403).json({ error: 'Not enrolled in this classroom' });
+
+    const lessonOrder = Math.max(0, Math.round(Number(req.body?.lessonOrder) || 0));
+    const score = Math.max(0, Math.min(100, Number(req.body?.score) || 0));
+    const focused = Boolean(req.body?.focused);
+    const mode = (['TEXT', 'AUDIO', 'VISUAL', 'AR'] as const).includes(req.body?.mode)
+      ? (req.body.mode as LearningMode)
+      : 'TEXT';
+
+    await prisma.unitEngagementSample.upsert({
+      where: { studentId_unitId_lessonOrder: { studentId, unitId: unit.id, lessonOrder } },
+      create: {
+        studentId,
+        unitId: unit.id,
+        lessonOrder,
+        mode,
+        totalScore: score,
+        samples: 1,
+        focusedSamples: focused ? 1 : 0
+      },
+      update: {
+        totalScore: { increment: score },
+        samples: { increment: 1 },
+        focusedSamples: { increment: focused ? 1 : 0 },
+        mode
+      }
+    });
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to record engagement' });
+  }
+});
+
+/**
+ * Teacher-only per-unit analytics: the data behind the concentration heatmap
+ * (each enrolled student x each lesson = average focus) plus per-student
+ * performance (knowledge-check accuracy, final-assessment score, completion).
+ * One indexed query set, no AI.
+ */
+router.get('/:id/analytics', requireApprovedTeacher, async (req: Request, res: Response) => {
+  try {
+    const unit = await prisma.unit.findUnique({
+      where: { id: req.params['id'] as string },
+      include: {
+        subject: { include: { classroom: { include: { enrolments: { include: { student: true } } } } } },
+        curriculum: {
+          include: {
+            lessons: { include: { knowledgeCheck: true }, orderBy: { order: 'asc' } },
+            finalAssessmentQuestions: true
+          }
+        }
+      }
+    });
+    if (!unit || unit.subject.classroom.teacherId !== req.user!.id) {
+      return res.status(404).json({ error: 'Unit not found or not yours' });
+    }
+
+    const curriculum = unit.curriculum;
+    const lessons = curriculum?.lessons ?? [];
+    const students = unit.subject.classroom.enrolments.map((e) => e.student);
+    const studentIds = students.map((s) => s.id);
+
+    const [samples, progresses, kcAttempts, finalAttempts] = await Promise.all([
+      prisma.unitEngagementSample.findMany({ where: { unitId: unit.id, studentId: { in: studentIds } } }),
+      curriculum
+        ? prisma.tutorialProgress.findMany({ where: { curriculumId: curriculum.id, studentId: { in: studentIds } } })
+        : Promise.resolve([]),
+      curriculum
+        ? prisma.knowledgeCheckAttempt.findMany({
+            where: { studentId: { in: studentIds }, question: { lesson: { curriculumId: curriculum.id } } }
+          })
+        : Promise.resolve([]),
+      curriculum
+        ? prisma.finalAssessmentAttempt.findMany({
+            where: { curriculumId: curriculum.id, studentId: { in: studentIds } },
+            orderBy: { completedAt: 'desc' }
+          })
+        : Promise.resolve([])
+    ]);
+
+    const sampleKey = (studentId: string, order: number) => `${studentId}:${order}`;
+    const sampleMap = new Map(samples.map((s) => [sampleKey(s.studentId, s.lessonOrder), s]));
+
+    const studentRows = students.map((student) => {
+      const perLesson = lessons.map((lesson) => {
+        const s = sampleMap.get(sampleKey(student.id, lesson.order));
+        const avgScore = s && s.samples > 0 ? Math.round(s.totalScore / s.samples) : null;
+        const focusedRatio = s && s.samples > 0 ? Math.round((s.focusedSamples / s.samples) * 100) : null;
+        return { order: lesson.order, avgScore, focusedRatio, samples: s?.samples ?? 0 };
+      });
+      const withData = perLesson.filter((l) => l.avgScore !== null) as Array<{ avgScore: number }>;
+      const overallAvgFocus = withData.length
+        ? Math.round(withData.reduce((a, l) => a + l.avgScore, 0) / withData.length)
+        : null;
+
+      const myKc = kcAttempts.filter((a) => a.studentId === student.id);
+      const kcCorrect = myKc.filter((a) => a.correct).length;
+      const latestFinal = finalAttempts.find((a) => a.studentId === student.id) || null;
+      const progress = progresses.find((p) => p.studentId === student.id) || null;
+
+      return {
+        id: student.id,
+        name: student.name,
+        completed: !!progress?.completed,
+        currentLessonOrder: progress?.currentLessonOrder ?? 0,
+        preferredMode: progress?.preferredMode ?? null,
+        knowledgeChecks: { correct: kcCorrect, total: myKc.length },
+        finalScore: latestFinal ? { correct: latestFinal.scoreCorrect, total: latestFinal.scoreTotal } : null,
+        lessons: perLesson,
+        overallAvgFocus
+      };
+    });
+
+    res.json({
+      unit: { id: unit.id, title: unit.title },
+      hasCurriculum: !!curriculum,
+      lessons: lessons.map((l) => ({ order: l.order, title: l.title })),
+      students: studentRows
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to build analytics' });
+  }
+});
+
+/**
  * The canonical curriculum for a unit, plus this student's progress pointer
  * into it (created on first view - PLAN §23: one shared curriculum, a thin
  * per-student pointer, not a content copy per student). The owning teacher

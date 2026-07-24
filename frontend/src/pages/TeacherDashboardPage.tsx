@@ -7,6 +7,7 @@ import {
   BookOpen,
   ClipboardCheck,
   Settings,
+  BarChart3,
   Clock,
   Check,
   X,
@@ -181,6 +182,11 @@ export const TeacherDashboardPage: React.FC = () => {
       path: "",
       active: activeTab === "youtube",
       onClick: () => setActiveTab("youtube"),
+    },
+    {
+      icon: BarChart3,
+      label: "Insights",
+      path: "/teacher/insights",
     },
   ];
 

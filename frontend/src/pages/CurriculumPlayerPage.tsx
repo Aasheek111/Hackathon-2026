@@ -3,10 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Volume2, Loader2, AlertCircle, ChevronRight, ChevronLeft, Sparkles, Trophy, Check, X,
-  BookOpen, Image as ImageIcon, Gamepad2
+  BookOpen, Image as ImageIcon, Gamepad2, Eye, EyeOff
 } from 'lucide-react';
 import Button from '../components/ui/Button';
 import api from '../lib/api';
+import { useConcentrationTracking, hasCameraConsent } from '../hooks/useConcentrationTracking';
 
 /**
  * Gemini TTS (rag-service `/generate-speech`, cached by content hash) with a
@@ -389,6 +390,17 @@ export const CurriculumPlayerPage: React.FC = () => {
   // requirement). Seeded from the student's last-used mode, then their
   // assessment's preferred mode, then TEXT.
   const [mode, setMode] = useState<LearningMode>('TEXT');
+  // Concentration tracking: on by default once the student has given camera
+  // consent (and never while a teacher is previewing). Feeds the teacher's
+  // per-unit heatmap. The student can toggle it off any time.
+  const [focusTracking, setFocusTracking] = useState(() => hasCameraConsent());
+  const trackingOn = focusTracking && !isPreview && view === 'lesson';
+  const { active: trackingActive, score: focusScore } = useConcentrationTracking(
+    unitId as string,
+    lessonIndex,
+    mode,
+    trackingOn
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -570,6 +582,24 @@ export const CurriculumPlayerPage: React.FC = () => {
             <ArrowLeft className="w-5 h-5" /> Back
           </button>
           <div className="flex items-center gap-2">
+            {!isPreview && (
+              <button
+                onClick={() => setFocusTracking((v) => !v)}
+                title={
+                  focusTracking
+                    ? 'Focus tracking is on - your camera helps your teacher see where lessons lose you'
+                    : 'Focus tracking is off'
+                }
+                className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border transition-colors ${
+                  focusTracking
+                    ? 'bg-primary/15 text-primary-light border-primary/40'
+                    : 'bg-dark-card text-gray-500 border-white/10 hover:text-gray-300'
+                }`}
+              >
+                {focusTracking ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                {focusTracking ? (trackingActive ? (focusScore ?? '…') : 'Focus') : 'Focus off'}
+              </button>
+            )}
             {progress?.completed && (
               <span className="text-xs px-3 py-1 rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
                 ✓ Completed

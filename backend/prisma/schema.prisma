@@ -117,6 +117,7 @@ model User {
   knowledgeCheckAttempts  KnowledgeCheckAttempt[]
   finalAssessmentAttempts FinalAssessmentAttempt[]
   rawDocProgress          RawDocProgress[]
+  engagementSamples       UnitEngagementSample[]
 
   // Full-curriculum pipeline (teacher side)
   generationJobs  TutorialGenerationJob[]
@@ -315,6 +316,7 @@ model Unit {
   // not a separate generated copy per student)
   curriculum       TutorialCurriculum?
   generationJobs   TutorialGenerationJob[]
+  engagementSamples UnitEngagementSample[]
 
   ragUnitId   Int?         @unique // the integer id rag-service indexes under
   indexStatus IndexStatus  @default(NOT_INDEXED)
@@ -354,6 +356,28 @@ model SyllabusDocument {
 
   generationJobs TutorialGenerationJob[]
   rawDocProgress RawDocProgress[]
+}
+
+// Per-(student, unit, lesson) concentration rollup, fed by the webcam/CV
+// engagement loop while a student is in the tutorial player. Stored as running
+// sums (not per-frame rows) so ingestion is a cheap increment and the teacher
+// heatmap is one indexed query per unit. avgScore = totalScore/samples;
+// focusedRatio = focusedSamples/samples.
+model UnitEngagementSample {
+  id             String       @id @default(cuid())
+  studentId      String
+  student        User         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  unitId         String
+  unit           Unit         @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  lessonOrder    Int
+  mode           LearningMode @default(TEXT)
+  totalScore     Float        @default(0)
+  samples        Int          @default(0)
+  focusedSamples Int          @default(0)
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([studentId, unitId, lessonOrder])
+  @@index([unitId])
 }
 
 // A student reading the ORIGINAL uploaded PDF (the "raw docs" door, distinct
