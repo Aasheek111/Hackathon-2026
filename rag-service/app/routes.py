@@ -139,7 +139,7 @@ def celery_ping_status(task_id: str) -> dict:
 @router.post("/generate-visual", response_model=ImageUploadResponse, tags=["generate"])
 def generate_visual(request: GenerateVisualRequest) -> ImageUploadResponse:
     """Turn a visual_suggestion (or a student's custom request) into a picture."""
-    image_url = engine.generate_visual_image(request.prompt, request.unit_id)
+    image_url = engine.generate_visual_image(request.prompt, request.unit_id, request.image_query)
     if not image_url:
         raise HTTPException(
             status_code=502,

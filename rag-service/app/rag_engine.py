@@ -593,13 +593,54 @@ def _unsplash_queries(prompt: str) -> list[str]:
     return queries
 
 
-def _unsplash_search(query: str) -> str | None:
+def _photo_haystack(photo: dict) -> str:
+    """Everything Unsplash tells us a photo actually depicts."""
+    tags = photo.get("tags") or []
+    tag_titles = " ".join(t.get("title", "") for t in tags if isinstance(t, dict))
+    return " ".join(
+        [
+            str(photo.get("description") or ""),
+            str(photo.get("alt_description") or ""),
+            tag_titles,
+        ]
+    ).lower()
+
+
+def _pick_best_photo(results: list, terms: list[str]) -> dict | None:
+    """Choose the result whose own description best matches the lesson.
+
+    Taking results[0] blindly was a real source of irrelevant pictures: a search
+    for a niche topic returns Unsplash's most *popular* match, not its most
+    *relevant* one. Scoring the candidates against the lesson's own vocabulary
+    costs nothing extra (same request, more results) and picks a photo that
+    demonstrably depicts the subject.
+    """
+    if not results:
+        return None
+    if not terms:
+        return results[0]
+
+    best, best_score = results[0], -1
+    for index, photo in enumerate(results):
+        haystack = _photo_haystack(photo)
+        score = sum(1 for term in terms if term in haystack)
+        # Tiny tie-break toward Unsplash's own ranking, so equal matches keep
+        # the better-quality photo rather than an arbitrary one.
+        score = score * 10 - index
+        if score > best_score:
+            best, best_score = photo, score
+    return best
+
+
+def _unsplash_search(query: str, terms: list[str] | None = None) -> str | None:
     try:
         response = requests.get(
             UNSPLASH_SEARCH_URL,
             params={
                 "query": query,
-                "per_page": 1,
+                # Several candidates so we can pick the most relevant rather
+                # than the most popular - one request either way.
+                "per_page": 10,
                 "orientation": "landscape",
                 # These lessons are shown to children, so we ask Unsplash for
                 # its strictest safety filtering. It is not a guarantee - the
@@ -616,9 +657,10 @@ def _unsplash_search(query: str) -> str | None:
         if response.status_code != 200:
             return None
         results = response.json().get("results") or []
-        if not results:
+        photo = _pick_best_photo(results, terms or [])
+        if not photo:
             return None
-        urls = results[0].get("urls") or {}
+        urls = photo.get("urls") or {}
         return urls.get("regular") or urls.get("small") or urls.get("full")
     except Exception:
         return None
@@ -652,22 +694,40 @@ def _download_image(url: str, unit_id: int) -> str | None:
         return None
 
 
-def _fetch_via_unsplash(prompt: str) -> str | None:
+def _fetch_via_unsplash(prompt: str, image_query: str | None = None) -> str | None:
     """Finds a safe, on-topic photo and returns its Unsplash CDN URL.
+
+    `image_query` is the search phrase the language model wrote for this
+    lesson (see LESSON_SYSTEM_PROMPT's image_query field). It is tried first
+    because it is far better than anything keyword-stripping can produce: the
+    model turns an abstract lesson title into something a camera can actually
+    photograph, where "Revenue Streams and Cost Structures" would otherwise be
+    searched literally and return meaningless stock imagery. Costs no extra
+    API call - it comes back with the lesson text.
 
     Callers should pass the result through _download_image() - see
     generate_visual_image().
     """
     if not unsplash_key_present():
         return None
-    for query in _unsplash_queries(prompt):
-        hit = _unsplash_search(query)
+
+    queries: list[str] = []
+    if (image_query or "").strip():
+        queries.append(image_query.strip())
+    queries.extend(q for q in _unsplash_queries(prompt) if q not in queries)
+
+    # Score candidate photos against both the model's query and the lesson's
+    # own words, so a match on either counts as relevant.
+    terms = _unsplash_keywords(f"{image_query or ''} {prompt}")
+
+    for query in queries:
+        hit = _unsplash_search(query, terms)
         if hit:
             return hit
     return None
 
 
-def generate_visual_image(prompt: str, unit_id: int) -> str | None:
+def generate_visual_image(prompt: str, unit_id: int, image_query: str | None = None) -> str | None:
     """Turn a visual_suggestion (a hint written for a human artist) into an
     actual picture.
 
@@ -688,10 +748,10 @@ def generate_visual_image(prompt: str, unit_id: int) -> str | None:
     Never raises - if it comes back empty the caller just shows text, same
     contract as `offline_tutorial`. A dead demo helps nobody.
     """
-    if not (prompt or "").strip():
+    if not (prompt or "").strip() and not (image_query or "").strip():
         return None
 
-    remote_url = _fetch_via_unsplash(prompt)
+    remote_url = _fetch_via_unsplash(prompt, image_query)
     if not remote_url:
         return None
     return _download_image(remote_url, unit_id) or remote_url
@@ -728,7 +788,7 @@ LESSON_SYSTEM_PROMPT = (
     "grounded only in the textbook excerpt provided - do not introduce facts that "
     "are not in the excerpt.\n"
     "Generate JSON with keys: explanation, example, needs_visual, visual_suggestion, "
-    "knowledge_check.\n"
+    "image_query, knowledge_check.\n"
     "'explanation': 2-4 plain-language sentences teaching the concept.\n"
     "'example': one concrete example grounded in the excerpt (empty string if none fits).\n"
     "'needs_visual': boolean - true only when a picture would genuinely help understand "
@@ -736,6 +796,12 @@ LESSON_SYSTEM_PROMPT = (
     "abstract or purely verbal content do not need one.\n"
     "'visual_suggestion': if needs_visual is true, describe one concrete, simple diagram "
     "or illustration; empty string otherwise.\n"
+    "'image_query': 2-4 words to search a PHOTO library. Name something a camera can "
+    "actually see - a physical object, person, place or activity. Never abstract nouns "
+    "('strategy', 'analysis', 'structure', 'management'); they return meaningless stock "
+    "imagery. Translate the idea into a real scene. E.g. 'Mission Statements' -> "
+    "'team planning whiteboard'; 'Revenue Streams' -> 'small shop cash register'; "
+    "'Nepalese Entrepreneurs' -> 'nepal street market stall'.\n"
     "'knowledge_check': {\"question\", \"options\" (2-4 strings), \"correct\"} - a single "
     "check-for-understanding question. Before finalizing, verify 'correct' is exactly one "
     "of the 'options' values."
@@ -917,6 +983,7 @@ def generate_lesson_content(
         "example": str(data.get("example", "")),
         "needs_visual": bool(data.get("needs_visual")),
         "visual_suggestion": str(data.get("visual_suggestion", "")),
+        "image_query": str(data.get("image_query", "")),
         "knowledge_check": knowledge_check,
     }
 

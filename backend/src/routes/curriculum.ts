@@ -516,7 +516,7 @@ router.post('/:id/regenerate-visuals', requireApprovedTeacher, async (req: Reque
 
     const curriculum = await prisma.tutorialCurriculum.findUnique({
       where: { unitId: unit.id },
-      include: { lessons: { select: { id: true, title: true, explanation: true } } }
+      include: { lessons: { select: { id: true, title: true, explanation: true, imageQuery: true } } }
     });
     if (!curriculum) return res.status(404).json({ error: 'No curriculum generated for this unit yet' });
 
@@ -529,14 +529,16 @@ router.post('/:id/regenerate-visuals', requireApprovedTeacher, async (req: Reque
 
 async function regenerateVisuals(
   ragUnitId: number,
-  lessons: Array<{ id: string; title: string; explanation: string }>
+  lessons: Array<{ id: string; title: string; explanation: string; imageQuery: string | null }>
 ): Promise<void> {
   for (const lesson of lessons) {
     try {
       const prompt = `${lesson.title}. ${lesson.explanation}`;
+      // Reuse the model's own photo-search phrase so regeneration is as
+      // relevant as the original generation was.
       const response = await axios.post(
         `${RAG_SERVICE_URL}/generate-visual`,
-        { unit_id: ragUnitId, prompt },
+        { unit_id: ragUnitId, prompt, image_query: lesson.imageQuery || undefined },
         { timeout: 60000 }
       );
       const imageUrl = response.data?.image_url;

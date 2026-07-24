@@ -58,6 +58,7 @@ interface LessonPayload {
   explanation: string;
   example?: string | null;
   imageUrl?: string | null;
+  imageQuery?: string | null;
   audioUrl?: string | null;
   sourceChunkStart?: number | null;
   sourceChunkEnd?: number | null;
@@ -101,6 +102,7 @@ router.post('/jobs/:jobId/curriculum', async (req: Request, res: Response) => {
               explanation: lesson.explanation,
               example: lesson.example || null,
               imageUrl: lesson.imageUrl || null,
+              imageQuery: lesson.imageQuery || null,
               audioUrl: lesson.audioUrl || null,
               sourceChunkStart: lesson.sourceChunkStart ?? null,
               sourceChunkEnd: lesson.sourceChunkEnd ?? null,
