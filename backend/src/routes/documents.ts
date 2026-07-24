@@ -23,11 +23,12 @@ const upload = multer({
   }),
   limits: { fileSize: 25 * 1024 * 1024 }, // 25MB cap before it ever reaches rag-service
   fileFilter: (_req, file, cb) => {
-    const allowed = ['.pdf'];
-    // rag-service is PDF-only today (PLAN.md 15) - reject early with a clear
-    // message rather than letting a docx/txt fail deep inside the pipeline
+    // Mirrors SUPPORTED_EXTENSIONS in rag-service/app/rag_engine.py. Images
+    // are deliberately excluded: reading them would need OCR, a different
+    // pipeline, so we say so up front rather than indexing an empty document.
+    const allowed = ['.pdf', '.docx', '.txt', '.md'];
     if (!allowed.includes(path.extname(file.originalname).toLowerCase())) {
-      cb(new Error('Only PDF files are supported right now'));
+      cb(new Error('Supported formats: PDF, Word (.docx), and plain text (.txt, .md). Scanned images need OCR and are not supported yet.'));
       return;
     }
     cb(null, true);

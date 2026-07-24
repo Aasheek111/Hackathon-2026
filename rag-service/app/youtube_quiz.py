@@ -134,7 +134,7 @@ def generate_quiz_from_transcript(transcript: str) -> dict:
     this pipeline.
     """
     if not engine.any_llm_configured():
-        raise RuntimeError("Neither GROQ_API_KEY nor GOOGLE_API_KEY is set - cannot generate a quiz without one.")
+        raise RuntimeError("GROQ_API_KEY is not set - cannot generate a quiz without it.")
 
     data = engine._coerce_json(
         engine.invoke_json(
