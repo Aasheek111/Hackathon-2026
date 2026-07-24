@@ -45,10 +45,10 @@ const LETTERS = ["A", "B", "C", "D"];
 /** Pause after spoken feedback before the next question, so it doesn't run over the answer. */
 const NEXT_QUESTION_DELAY_MS = 3500;
 
-export const BlindQuizPage: React.FC = () => {
+export const AudioQuizPage: React.FC = () => {
   const navigate = useNavigate();
   const { refreshUser } = useAuth();
-  const { speak, stop: stopSpeaking } = useSpeech();
+  const { speak, stop: stopSpeaking, blocked } = useSpeech();
 
   const [index, setIndex] = useState(0);
   const [score, setScore] = useState(0);
@@ -56,6 +56,12 @@ export const BlindQuizPage: React.FC = () => {
   const [announcement, setAnnouncement] = useState("");
   const [finished, setFinished] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // Browsers refuse to start audio OR speechSynthesis until the user has
+  // interacted with the page, so a quiz that began reading on mount was
+  // silently mute on a fresh load. Starting behind an explicit button makes
+  // that first tap the unlock gesture - and "press start" is natural for a
+  // quiz anyway, so it costs the learner nothing.
+  const [started, setStarted] = useState(false);
 
   const attemptIdRef = useRef<string | null>(null);
   const startedAtRef = useRef(Date.now());
@@ -193,7 +199,7 @@ export const BlindQuizPage: React.FC = () => {
         run: () => question && announce(questionScript(question, index)),
       },
       { phrases: ["stop", "be quiet"], description: "Stop reading", run: () => stopSpeaking() },
-      { phrases: ["go back", "exit", "leave quiz"], description: "Leave the quiz", run: () => { stopSpeaking(); navigate("/dashboard/blind"); } },
+      { phrases: ["go back", "exit", "leave quiz"], description: "Leave the quiz", run: () => { stopSpeaking(); navigate("/dashboard/audio"); } },
     ];
   }, [answerWith, question, announce, questionScript, index, stopSpeaking, navigate]);
 
@@ -202,16 +208,46 @@ export const BlindQuizPage: React.FC = () => {
     !finished,
   );
 
-  // Read the first question once, on arrival.
-  const startedRef = useRef(false);
-  useEffect(() => {
-    if (startedRef.current || !question) return;
-    startedRef.current = true;
-    announce(
-      `Voice quiz. ${AUDIO_QUESTIONS.length} questions. Turn on voice control, or use the buttons. ` +
-        questionScript(question, 0),
-    );
+  // The first tap doubles as the browser's audio-unlock gesture - see the
+  // `started` state above for why this can't happen automatically on mount.
+  const beginQuiz = useCallback(() => {
+    setStarted(true);
+    if (question) {
+      announce(
+        `Voice quiz. ${AUDIO_QUESTIONS.length} questions. Turn on voice control, or use the buttons. ` +
+          questionScript(question, 0),
+      );
+    }
   }, [question, announce, questionScript]);
+
+  if (!started) {
+    return (
+      <div className="min-h-screen bg-black text-white font-sans flex items-center justify-center p-6">
+        <main className="max-w-xl w-full text-center">
+          <h1 className="text-4xl font-bold text-yellow-300 mb-4">Voice quiz</h1>
+          <p className="text-xl text-gray-200 mb-2">
+            {AUDIO_QUESTIONS.length} questions. Every question and answer is read aloud.
+          </p>
+          <p className="text-lg text-gray-400 mb-8">
+            You can answer by voice or with the buttons. Press the button below to begin.
+          </p>
+          <button
+            autoFocus
+            onClick={beginQuiz}
+            className="w-full flex items-center justify-center gap-3 p-6 rounded-2xl bg-yellow-400 text-black text-2xl font-bold hover:bg-yellow-300 focus:outline-none focus:ring-4 focus:ring-white"
+          >
+            <Volume2 className="w-8 h-8" aria-hidden="true" /> Start quiz
+          </button>
+          <button
+            onClick={() => navigate("/dashboard/audio")}
+            className="mt-3 text-lg font-bold text-gray-300 underline hover:text-white focus:outline-none focus:ring-4 focus:ring-yellow-300 rounded px-2 py-1"
+          >
+            Back to dashboard
+          </button>
+        </main>
+      </div>
+    );
+  }
 
   if (finished) {
     return (
@@ -233,7 +269,7 @@ export const BlindQuizPage: React.FC = () => {
               <Volume2 className="w-6 h-6" /> Read my score
             </button>
             <button
-              onClick={() => navigate("/dashboard/blind")}
+              onClick={() => navigate("/dashboard/audio")}
               disabled={submitting}
               className="flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-yellow-400 text-black text-xl font-bold hover:bg-yellow-300 focus:outline-none focus:ring-4 focus:ring-white disabled:opacity-60"
             >
@@ -254,7 +290,7 @@ export const BlindQuizPage: React.FC = () => {
 
       <header className="border-b-2 border-yellow-400/40 px-5 py-4 flex items-center justify-between gap-4">
         <button
-          onClick={() => { stopSpeaking(); navigate("/dashboard/blind"); }}
+          onClick={() => { stopSpeaking(); navigate("/dashboard/audio"); }}
           className="flex items-center gap-2 text-lg font-bold text-white hover:text-yellow-300 focus:outline-none focus:ring-4 focus:ring-yellow-300 rounded px-2 py-1"
         >
           <ArrowLeft className="w-6 h-6" /> Back
@@ -290,6 +326,24 @@ export const BlindQuizPage: React.FC = () => {
             {listening ? "Stop voice" : "Voice"}
           </button>
         </div>
+
+        {/* Never fail silently on an audio-first screen: if no sound came out,
+            say so in text and offer a retry (which carries a fresh gesture). */}
+        {blocked && (
+          <div role="alert" className="text-lg text-yellow-100 bg-yellow-950/60 border-2 border-yellow-600 rounded-xl p-4">
+            <p className="font-bold mb-2">The question could not be read aloud.</p>
+            <p className="mb-3">
+              Your browser may be blocking sound, or it may be muted. The full question and every
+              option are written on this page, so you can still answer.
+            </p>
+            <button
+              onClick={() => question && announce(questionScript(question, index))}
+              className="px-5 py-3 rounded-xl bg-yellow-400 text-black text-lg font-bold hover:bg-yellow-300 focus:outline-none focus:ring-4 focus:ring-white"
+            >
+              Try reading it again
+            </button>
+          </div>
+        )}
 
         {!supported && (
           <p className="text-lg text-yellow-200 bg-yellow-950/60 border-2 border-yellow-700 rounded-xl p-4">
@@ -336,4 +390,4 @@ export const BlindQuizPage: React.FC = () => {
   );
 };
 
-export default BlindQuizPage;
+export default AudioQuizPage;

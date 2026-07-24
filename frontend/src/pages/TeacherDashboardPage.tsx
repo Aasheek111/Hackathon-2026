@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
@@ -23,6 +23,7 @@ import {
   RefreshCw,
   Image as ImageIcon,
   ArrowRight,
+  ChevronRight,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import DashboardShell, { NavItem } from "../components/DashboardShell";
@@ -116,6 +117,10 @@ export const TeacherDashboardPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<
     "overview" | "content" | "requests" | "roster" | "criteria" | "youtube"
   >("overview");
+  // Set when a notification names a unit (see NotificationBell) - ContentTab
+  // scrolls to and flashes this unit once, then reports back via
+  // onHighlightConsumed so re-opening the same notification re-triggers it.
+  const [highlightUnitId, setHighlightUnitId] = useState<string | null>(null);
 
   const [newClassroom, setNewClassroom] = useState({
     name: "",
@@ -165,7 +170,7 @@ export const TeacherDashboardPage: React.FC = () => {
     },
     {
       icon: Users,
-      label: "Roster",
+      label: "Students",
       path: "",
       active: activeTab === "roster",
       onClick: () => setActiveTab("roster"),
@@ -283,7 +288,12 @@ export const TeacherDashboardPage: React.FC = () => {
               {classroom.description || "No description provided."}
             </p>
           </div>
-          <NotificationBell />
+          <NotificationBell
+            onOpenUnit={(unitId) => {
+              setActiveTab("content");
+              setHighlightUnitId(unitId);
+            }}
+          />
         </div>
 
         <TeacherTabButtons
@@ -294,7 +304,12 @@ export const TeacherDashboardPage: React.FC = () => {
 
         {activeTab === "overview" && <OverviewTab classroom={classroom} />}
         {activeTab === "content" && (
-          <ContentTab classroom={classroom} onChanged={load} />
+          <ContentTab
+            classroom={classroom}
+            onChanged={load}
+            highlightUnitId={highlightUnitId}
+            onHighlightConsumed={() => setHighlightUnitId(null)}
+          />
         )}
         {activeTab === "requests" && (
           <RequestsTab classroom={classroom} onChanged={load} />
@@ -319,7 +334,7 @@ const TeacherTabButtons: React.FC<{
       ["overview", "Overview"],
       ["content", "Content"],
       ["requests", `Requests${pendingCount ? ` (${pendingCount})` : ""}`],
-      ["roster", "Roster"],
+      ["roster", "Students"],
       ["criteria", "Criteria"],
       ["youtube", "YouTube Quiz"],
     ].map(([id, label]) => (
@@ -395,6 +410,7 @@ interface NotificationItem {
   type: "GENERATION_COMPLETE" | "GENERATION_FAILED";
   title: string;
   body: string;
+  unitId: string | null;
   read: boolean;
   createdAt: string;
 }
@@ -403,8 +419,14 @@ interface NotificationItem {
  * In-app notifications - written automatically when a background
  * curriculum-generation job finishes or fails. Polled rather than pushed
  * since there's no websocket/SSE infra in this app.
+ *
+ * Clicking one marks it read AND, when it names a unit, jumps to that unit
+ * in "Subjects & Content" and briefly highlights it - previously the button
+ * only called markRead with no visible effect, which read as broken.
+ * YouTube-quiz notifications currently don't carry a unitId (see
+ * internalJobs.ts) so those just mark read and close, same as before.
  */
-const NotificationBell: React.FC = () => {
+const NotificationBell: React.FC<{ onOpenUnit: (unitId: string) => void }> = ({ onOpenUnit }) => {
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -425,9 +447,13 @@ const NotificationBell: React.FC = () => {
     return () => clearInterval(interval);
   }, [load]);
 
-  const markRead = async (id: string) => {
-    await api.patch(`/notifications/${id}/read`).catch(() => {});
-    load();
+  const handleClick = async (n: NotificationItem) => {
+    setOpen(false);
+    if (n.unitId) onOpenUnit(n.unitId);
+    if (!n.read) {
+      await api.patch(`/notifications/${n.id}/read`).catch(() => {});
+      load();
+    }
   };
 
   return (
@@ -459,8 +485,8 @@ const NotificationBell: React.FC = () => {
               notifications.map((n) => (
                 <button
                   key={n.id}
-                  onClick={() => markRead(n.id)}
-                  className={`w-full text-left px-4 py-3 border-b border-slate-100 hover:bg-[#FAF9F5] ${!n.read ? "bg-emerald-50/50" : ""}`}
+                  onClick={() => handleClick(n)}
+                  className={`w-full text-left px-4 py-3 border-b border-slate-100 hover:bg-[#FAF9F5] transition-colors ${!n.read ? "bg-emerald-50/50" : ""}`}
                 >
                   <p
                     className={`text-sm font-bold ${n.type === "GENERATION_FAILED" ? "text-rose-700" : "text-emerald-700"}`}
@@ -470,6 +496,11 @@ const NotificationBell: React.FC = () => {
                   <p className="text-xs text-slate-500 mt-1 line-clamp-2">
                     {n.body}
                   </p>
+                  {n.unitId && (
+                    <p className="text-[11px] font-bold text-slate-400 mt-1.5 flex items-center gap-1">
+                      View unit <ArrowRight className="w-3 h-3" />
+                    </p>
+                  )}
                 </button>
               ))
             )}
@@ -720,11 +751,26 @@ const GenerationProgressBadge: React.FC<{ unitId: string; ready: boolean }> = ({
 const ContentTab: React.FC<{
   classroom: Classroom;
   onChanged: () => Promise<void>;
-}> = ({ classroom, onChanged }) => {
+  highlightUnitId?: string | null;
+  onHighlightConsumed?: () => void;
+}> = ({ classroom, onChanged, highlightUnitId, onHighlightConsumed }) => {
   const [subjectName, setSubjectName] = useState("");
   const [unitTitleFor, setUnitTitleFor] = useState<Record<string, string>>({});
   const [uploadingUnit, setUploadingUnit] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState("");
+  const [flashUnitId, setFlashUnitId] = useState<string | null>(null);
+  const unitRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  useEffect(() => {
+    if (!highlightUnitId) return;
+    const node = unitRefs.current[highlightUnitId];
+    if (node) node.scrollIntoView({ behavior: "smooth", block: "center" });
+    setFlashUnitId(highlightUnitId);
+    onHighlightConsumed?.();
+    const timer = setTimeout(() => setFlashUnitId(null), 2500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightUnitId]);
 
   const addSubject = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -834,7 +880,12 @@ const ContentTab: React.FC<{
             {subject.units.map((unit) => (
               <div
                 key={unit.id}
-                className="bg-[#FAF9F5] border border-slate-200/70 rounded-2xl p-4 flex flex-col gap-2"
+                ref={(node) => { unitRefs.current[unit.id] = node; }}
+                className={`bg-[#FAF9F5] border rounded-2xl p-4 flex flex-col gap-2 transition-colors duration-500 ${
+                  flashUnitId === unit.id
+                    ? "border-emerald-400 ring-2 ring-emerald-300"
+                    : "border-slate-200/70"
+                }`}
               >
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                   <div className="flex items-center gap-3">
@@ -1221,7 +1272,9 @@ const RequestsTab: React.FC<{
   );
 };
 
-const RosterTab: React.FC<{ classroom: Classroom }> = ({ classroom }) => (
+const RosterTab: React.FC<{ classroom: Classroom }> = ({ classroom }) => {
+  const navigate = useNavigate();
+  return (
   <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
     <table className="w-full text-left border-collapse">
       <thead>
@@ -1234,6 +1287,7 @@ const RosterTab: React.FC<{ classroom: Classroom }> = ({ classroom }) => (
           <th className="p-4">Streak</th>
           <th className="p-4">Badges</th>
           <th className="p-4">Joined</th>
+          <th className="p-4 sr-only">View details</th>
         </tr>
       </thead>
       <tbody className="text-sm">
@@ -1243,7 +1297,17 @@ const RosterTab: React.FC<{ classroom: Classroom }> = ({ classroom }) => (
           return (
             <tr
               key={e.id}
-              className="border-b border-slate-100 hover:bg-[#FAF9F5]"
+              onClick={() => navigate(`/teacher/students/${e.student.id}`)}
+              onKeyDown={(ev) => {
+                if (ev.key === "Enter" || ev.key === " ") {
+                  ev.preventDefault();
+                  navigate(`/teacher/students/${e.student.id}`);
+                }
+              }}
+              tabIndex={0}
+              role="link"
+              aria-label={`View full details for ${e.student.name}`}
+              className="border-b border-slate-100 hover:bg-[#FAF9F5] cursor-pointer focus:outline-none focus:bg-emerald-50 focus:ring-2 focus:ring-inset focus:ring-emerald-400"
             >
               <td className="p-4">
                 <div className="font-bold text-slate-900">{e.student.name}</div>
@@ -1278,12 +1342,15 @@ const RosterTab: React.FC<{ classroom: Classroom }> = ({ classroom }) => (
               <td className="p-4 text-slate-500 text-xs font-medium">
                 {new Date(e.joinedAt).toLocaleDateString()}
               </td>
+              <td className="p-4 text-right">
+                <ChevronRight className="w-4 h-4 text-slate-300 inline-block" aria-hidden="true" />
+              </td>
             </tr>
           );
         })}
         {classroom.enrolments.length === 0 && (
           <tr>
-            <td colSpan={8} className="p-8 text-center text-slate-400 text-xs">
+            <td colSpan={9} className="p-8 text-center text-slate-400 text-xs">
               No students enrolled in this classroom yet.
             </td>
           </tr>
@@ -1291,7 +1358,8 @@ const RosterTab: React.FC<{ classroom: Classroom }> = ({ classroom }) => (
       </tbody>
     </table>
   </div>
-);
+  );
+};
 
 const CriteriaTab: React.FC<{
   classroom: Classroom;

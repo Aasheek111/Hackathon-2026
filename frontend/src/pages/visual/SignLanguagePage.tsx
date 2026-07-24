@@ -14,10 +14,14 @@ import {
 } from "lucide-react";
 import DashboardShell, { NavItem } from "../../components/DashboardShell";
 import AiAssistantPanel from "../../components/AiAssistantPanel";
+import HandshapeDiagram from "../../components/HandshapeDiagram";
+import { handshapeFor } from "../../data/handshapes";
 import {
   SIGNS,
   SIGN_CATEGORIES,
+  SIGN_SYSTEMS,
   SignCategory,
+  SignSystemId,
   Sign,
   signsInCategory,
   searchSigns,
@@ -40,11 +44,18 @@ const SignCard: React.FC<{
   onToggleFavourite: (id: string) => void;
 }> = ({ sign, isFavourite, onToggleFavourite }) => (
   <li className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 flex gap-3">
-    <div className="w-12 h-12 shrink-0 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center">
-      <span className="text-lg font-bold text-emerald-800">
-        {sign.category === "Alphabet" || sign.category === "Numbers" ? sign.term : <Hand className="w-5 h-5" aria-hidden="true" />}
-      </span>
-    </div>
+    {/* Alphabet and number signs get a schematic handshape diagram; words
+        don't, because a single static hand can't honestly represent a sign
+        with movement (see handshapes.ts). Those keep the hand glyph. */}
+    {handshapeFor(sign.term) ? (
+      <div className="shrink-0 rounded-xl bg-emerald-50 border border-emerald-200 p-1">
+        <HandshapeDiagram term={sign.term} size={64} showMotion={false} />
+      </div>
+    ) : (
+      <div className="w-12 h-12 shrink-0 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+        <Hand className="w-5 h-5 text-emerald-800" aria-hidden="true" />
+      </div>
+    )}
     <div className="min-w-0 flex-1">
       <div className="flex items-start justify-between gap-2">
         <h3 className="font-bold text-slate-900 text-sm">{sign.term}</h3>
@@ -80,11 +91,13 @@ export const SignLanguagePage: React.FC = () => {
   const [category, setCategory] = useState<SignCategory | "Favourites">("Alphabet");
   const [query, setQuery] = useState("");
   const [favourites, setFavourites] = useState<string[]>(() => loadFavourites());
+  const [systemId, setSystemId] = useState<SignSystemId>("ASL");
+  const system = SIGN_SYSTEMS.find((s) => s.id === systemId)!;
 
   const navItems: NavItem[] = [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard/deaf" },
-    { icon: Hand, label: "Sign Language", path: "/dashboard/deaf/sign-language", active: true },
-    { icon: ClipboardList, label: "Sign Quiz", path: "/dashboard/deaf/sign-quiz" },
+    { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard/visual" },
+    { icon: Hand, label: "Sign Language", path: "/dashboard/visual/sign-language", active: true },
+    { icon: ClipboardList, label: "Sign Quiz", path: "/dashboard/visual/sign-quiz" },
     { icon: BookOpen, label: "My Classroom", path: "/classroom" },
     { icon: TrendingUp, label: "My Progress", path: "/progress" },
     { icon: SettingsIcon, label: "Settings", path: "/settings" },
@@ -102,10 +115,12 @@ export const SignLanguagePage: React.FC = () => {
   // typing a word wants it found wherever it lives, not filtered to the tab
   // they happen to be on.
   const visible = useMemo(() => {
-    if (query.trim()) return searchSigns(query);
-    if (category === "Favourites") return SIGNS.filter((s) => favourites.includes(s.id));
-    return signsInCategory(category);
-  }, [query, category, favourites]);
+    if (!system.available) return [];
+    if (query.trim()) return searchSigns(query, systemId);
+    if (category === "Favourites")
+      return SIGNS.filter((s) => s.system === systemId && favourites.includes(s.id));
+    return signsInCategory(category, systemId);
+  }, [query, category, favourites, systemId, system.available]);
 
   return (
     <DashboardShell navItems={navItems}>
@@ -113,19 +128,80 @@ export const SignLanguagePage: React.FC = () => {
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Sign Language</h1>
           <p className="text-slate-500 text-sm mt-1">
-            Learn the ASL alphabet, numbers, and everyday words. Star any sign to save it.
+            Learn the alphabet, numbers, and everyday words. Star any sign to save it.
           </p>
+        </div>
+
+        {/* Sign languages are separate languages, not translations of each
+            other - so this is a language picker, not a locale switch. */}
+        <div>
+          <span className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+            Sign language
+          </span>
+          <div role="radiogroup" aria-label="Sign language" className="flex flex-wrap gap-2">
+            {SIGN_SYSTEMS.map((s) => {
+              const active = systemId === s.id;
+              return (
+                <button
+                  key={s.id}
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => setSystemId(s.id)}
+                  className={`text-left px-3 py-2 rounded-xl border-2 transition-all ${
+                    active
+                      ? "border-emerald-500 bg-emerald-50"
+                      : "border-slate-200 bg-white hover:border-slate-300"
+                  }`}
+                >
+                  <span className={`block text-xs font-bold ${active ? "text-emerald-900" : "text-slate-700"}`}>
+                    {s.label}
+                    {!s.available && (
+                      <span className="ml-1.5 text-[10px] font-bold text-amber-700">Coming soon</span>
+                    )}
+                  </span>
+                  <span className="block text-[10px] text-slate-500 mt-0.5">
+                    {s.nativeLabel ? `${s.nativeLabel} · ` : ""}
+                    {s.region}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Being straight with the learner about what these cards are. */}
         <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
           <Info className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" aria-hidden="true" />
           <p className="text-xs text-amber-900 leading-relaxed">
-            These are <strong>written descriptions</strong> of how each sign is formed, based on the
-            standard ASL manual alphabet and common vocabulary — not video. For live signing
-            practice, work with a qualified ASL tutor or a Deaf mentor.
+            Letters and numbers show a <strong>schematic hand diagram</strong> — which fingers are up,
+            curled or folded — alongside a written description. They are drawn from the standard ASL
+            manual alphabet, <strong>not photos or video</strong>, and cannot show movement, wrist
+            angle, or facial expression, which are all real parts of signing. Words with movement
+            show the description only. For live practice, work with a qualified ASL tutor or a Deaf
+            mentor.
           </p>
         </div>
+
+        {/* An honest empty state beats a fabricated catalogue. */}
+        {!system.available ? (
+          <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-8 text-center">
+            <Hand className="w-10 h-10 text-slate-300 mx-auto mb-3" aria-hidden="true" />
+            <h2 className="font-bold text-slate-900 mb-2">
+              {system.label}
+              {system.nativeLabel ? ` (${system.nativeLabel})` : ""} is not available yet
+            </h2>
+            <p className="text-sm text-slate-600 leading-relaxed max-w-xl mx-auto">
+              {system.unavailableReason}
+            </p>
+            <button
+              onClick={() => setSystemId("ASL")}
+              className="mt-4 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold"
+            >
+              Browse American Sign Language instead
+            </button>
+          </div>
+        ) : (
+          <>
 
         <div className="relative">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" aria-hidden="true" />
@@ -147,7 +223,9 @@ export const SignLanguagePage: React.FC = () => {
             {[...SIGN_CATEGORIES, "Favourites" as const].map((cat) => {
               const active = category === cat;
               const count =
-                cat === "Favourites" ? favourites.length : signsInCategory(cat as SignCategory).length;
+                cat === "Favourites"
+                    ? SIGNS.filter((s) => s.system === systemId && favourites.includes(s.id)).length
+                    : signsInCategory(cat as SignCategory, systemId).length;
               return (
                 <button
                   key={cat}
@@ -193,7 +271,7 @@ export const SignLanguagePage: React.FC = () => {
         )}
 
         <Link
-          to="/dashboard/deaf/sign-quiz"
+          to="/dashboard/visual/sign-quiz"
           className="group flex items-center justify-between gap-4 bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs hover:border-emerald-300 hover:shadow-md transition-all"
         >
           <div className="flex items-center gap-3">
@@ -207,6 +285,8 @@ export const SignLanguagePage: React.FC = () => {
           </div>
           <ArrowRight className="w-5 h-5 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all shrink-0" />
         </Link>
+          </>
+        )}
 
         <AiAssistantPanel context="The learner is studying American Sign Language: the manual alphabet, numbers, and everyday vocabulary such as greetings, school words and feelings." />
       </div>

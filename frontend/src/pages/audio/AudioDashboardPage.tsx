@@ -40,16 +40,16 @@ interface ProgressSummary {
 }
 
 const ACTIONS = [
-  { key: "quiz", label: "Start quiz", detail: "Take a voice quiz. Questions and options are read aloud.", path: "/dashboard/blind/quiz", icon: ClipboardList },
+  { key: "quiz", label: "Start quiz", detail: "Take a voice quiz. Questions and options are read aloud.", path: "/dashboard/audio/quiz", icon: ClipboardList },
   { key: "lessons", label: "Open lessons", detail: "Your classroom units, with every lesson narrated.", path: "/classroom", icon: BookOpen },
   { key: "progress", label: "My progress", detail: "Your scores, streak and badges.", path: "/progress", icon: TrendingUp },
   { key: "settings", label: "Settings", detail: "Change your accessibility profile, text size and narration.", path: "/settings", icon: SettingsIcon },
 ] as const;
 
-export const BlindDashboardPage: React.FC = () => {
+export const AudioDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { speak, stop: stopSpeaking, loading: ttsLoading } = useSpeech();
+  const { speak, stop: stopSpeaking, loading: ttsLoading, blocked } = useSpeech();
 
   const [progress, setProgress] = useState<ProgressSummary | null>(null);
   const [announcement, setAnnouncement] = useState("");
@@ -121,7 +121,7 @@ export const BlindDashboardPage: React.FC = () => {
 
   const commands: VoiceCommand[] = useMemo(
     () => [
-      { phrases: ["start quiz", "open quiz", "take quiz", "begin quiz"], description: "Start quiz", run: () => go("/dashboard/blind/quiz", "the quiz") },
+      { phrases: ["start quiz", "open quiz", "take quiz", "begin quiz"], description: "Start quiz", run: () => go("/dashboard/audio/quiz", "the quiz") },
       { phrases: ["open lessons", "my lessons", "open classroom", "lessons"], description: "Open lessons", run: () => go("/classroom", "lessons") },
       { phrases: ["my progress", "open progress", "progress"], description: "My progress", run: () => go("/progress", "progress") },
       { phrases: ["open settings", "settings"], description: "Settings", run: () => go("/settings", "settings") },
@@ -166,6 +166,24 @@ export const BlindDashboardPage: React.FC = () => {
       <div aria-live="polite" aria-atomic="true" className="sr-only">
         {announcement}
       </div>
+
+      {/* The greeting on arrival is often blocked on a fresh page load -
+          browsers won't start audio before the user has interacted. Rather
+          than being mysteriously mute, say so and offer a one-tap unlock. */}
+      {blocked && (
+        <div role="alert" className="bg-yellow-950/70 border-b-2 border-yellow-600 px-5 py-4">
+          <p className="text-lg text-yellow-100 font-bold mb-2">Sound is not playing yet.</p>
+          <p className="text-base text-yellow-100/90 mb-3">
+            Your browser blocks sound until you interact with the page.
+          </p>
+          <button
+            onClick={() => announce(screenSummary)}
+            className="px-5 py-3 rounded-xl bg-yellow-400 text-black text-lg font-bold hover:bg-yellow-300 focus:outline-none focus:ring-4 focus:ring-white"
+          >
+            Turn on sound and read this screen
+          </button>
+        </div>
+      )}
 
       <header className="border-b-2 border-yellow-400/40 px-5 py-4">
         <h1 className="text-3xl font-bold text-yellow-300">Audio Dashboard</h1>
@@ -322,4 +340,4 @@ export const BlindDashboardPage: React.FC = () => {
   );
 };
 
-export default BlindDashboardPage;
+export default AudioDashboardPage;

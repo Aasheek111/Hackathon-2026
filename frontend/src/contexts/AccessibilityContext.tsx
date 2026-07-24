@@ -27,11 +27,15 @@ const DEFAULT_PREFS: AccessibilityPrefs = {
   audiobookMode: false,
 };
 
-// Pixel size a scoped page should use for its own root font-size (inline
-// style, e.g. CurriculumPlayerPage/StorybookView) - deliberately NOT applied
-// globally via document.documentElement, matching the same "scoped to
-// specific files, never touch shared CSS" convention already used for the
-// light/dark theme toggle, so pages that haven't opted in are unaffected.
+// Applied to <html>'s own font-size, which is what Tailwind's text-* classes
+// scale from (they're all rem, and rem is always relative to the ROOT
+// element, never the nearest ancestor - setting this on a wrapper div, which
+// is what an earlier version of this file did, has NO effect on rem-sized
+// text and is why the setting looked broken outside two hand-patched pages).
+// Root-level IS the right amount of "global" here specifically because rem
+// scaling is purely additive - every page gets proportionally bigger text
+// and spacing with no risk of the color/contrast breakage that kept the
+// light/dark theme toggle deliberately page-scoped.
 export const FONT_SCALE_PX: Record<FontSize, string> = {
   SMALL: '15px',
   MEDIUM: '16px',
@@ -85,6 +89,16 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
       cancelled = true;
     };
   }, [token, user?.role]);
+
+  // Root-level font scaling - see FONT_SCALE_PX's doc comment for why this
+  // has to be the actual <html> element rather than a wrapper. Reset to the
+  // browser default (not just MEDIUM's 16px) on logout/non-student so a
+  // teacher/admin session, or the logged-out landing page, is never left at
+  // a previous student's size.
+  useEffect(() => {
+    document.documentElement.style.fontSize =
+      token && user?.role === 'STUDENT' ? FONT_SCALE_PX[prefs.fontSize] : '';
+  }, [token, user?.role, prefs.fontSize]);
 
   const updatePrefs = useCallback(
     async (patch: AccessibilityPatch) => {

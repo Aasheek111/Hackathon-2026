@@ -62,7 +62,7 @@ export const RegisterPage: React.FC = () => {
       if (role === "TEACHER") navigate("/teacher");
       // A blind student takes the voice quiz as their trial rather than the
       // webcam consent flow - same reasoning as ProtectedRoute's trialPath.
-      else if (disabilityType === "BLINDNESS") navigate("/dashboard/blind/quiz");
+      else if (disabilityType === "BLINDNESS") navigate("/dashboard/audio/quiz");
       else navigate("/consent");
     } catch (err: any) {
       setError(
