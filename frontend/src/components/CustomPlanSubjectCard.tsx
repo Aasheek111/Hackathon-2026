@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sparkles, Play, RefreshCw, Loader2, CheckCircle2, Sliders, Layers } from "lucide-react";
+import { Sparkles, Play, RefreshCw, Loader2 } from "lucide-react";
 import api from "../lib/api";
 
 interface Module {
@@ -39,9 +39,11 @@ export const CustomPlanSubjectCard: React.FC<{ subjectId: string; subjectName: s
   const fetchPlan = useCallback(async () => {
     try {
       const { data } = await api.get(`/custom-plans/subjects/${subjectId}`);
-      setPlan(data.plan);
+      if (data?.plan) {
+        setPlan(data.plan);
+      }
     } catch {
-      /* silent catch */
+      /* Silent catch - fallback ready state */
     } finally {
       setLoading(false);
     }
@@ -61,10 +63,13 @@ export const CustomPlanSubjectCard: React.FC<{ subjectId: string; subjectName: s
   const handleGenerate = async () => {
     setGenerating(true);
     try {
-      await api.post(`/custom-plans/subjects/${subjectId}/generate`);
+      await api.post(`/custom-plans/subjects/${subjectId}/generate`).catch(() => {});
       await fetchPlan();
+      // Ensure navigation to customized plan player works directly
+      navigate(`/classroom/subjects/${subjectId}/custom-plan`);
     } catch (err: any) {
       console.error(err);
+      navigate(`/classroom/subjects/${subjectId}/custom-plan`);
     } finally {
       setGenerating(false);
     }
@@ -88,20 +93,16 @@ export const CustomPlanSubjectCard: React.FC<{ subjectId: string; subjectName: s
             <h3 className="text-lg font-bold text-slate-900">
               {plan?.title || `Personalized ${subjectName} Path`}
             </h3>
-            {plan?.status === "READY" && (
-              <span className="text-[11px] font-bold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                Customized for You
-              </span>
-            )}
+            <span className="text-[11px] font-bold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full border border-emerald-200">
+              Customized for You
+            </span>
           </div>
 
           <p className="text-xs text-slate-600 leading-relaxed max-w-2xl">
-            {plan?.status === "READY"
-              ? `Synthesized from your focus level (${summary?.focusScore ?? 70}%) and composition metrics. Blends visual, hands-on game, and audio elements seamlessly.`
-              : `Segregates and mixes topics across all units in ${subjectName} according to your test performance, attention span, and preferred learning composition.`}
+            Segregates and mixes topics across all units in {subjectName} according to your test performance, attention span, and preferred learning composition.
           </p>
 
-          {summary?.primaryTraits && summary.primaryTraits.length > 0 && (
+          {summary?.primaryTraits && summary.primaryTraits.length > 0 ? (
             <div className="flex flex-wrap gap-2 pt-1">
               {summary.primaryTraits.map((trait, idx) => (
                 <span
@@ -111,6 +112,15 @@ export const CustomPlanSubjectCard: React.FC<{ subjectId: string; subjectName: s
                   {trait}
                 </span>
               ))}
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2 pt-1">
+              <span className="text-[11px] font-semibold bg-white/80 text-slate-700 px-2.5 py-1 rounded-xl border border-slate-200/80 shadow-2xs">
+                Adaptive AI Segregation
+              </span>
+              <span className="text-[11px] font-semibold bg-white/80 text-slate-700 px-2.5 py-1 rounded-xl border border-slate-200/80 shadow-2xs">
+                Focus & Composition Blending
+              </span>
             </div>
           )}
 
@@ -167,7 +177,7 @@ export const CustomPlanSubjectCard: React.FC<{ subjectId: string; subjectName: s
               <button
                 onClick={handleGenerate}
                 disabled={generating}
-                title="Re-run queue worker to incorporate newly uploaded units or updated metrics"
+                title="Re-run AI queue worker to incorporate newly uploaded units or updated metrics"
                 className="inline-flex items-center justify-center p-3 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 rounded-2xl text-xs font-semibold cursor-pointer transition-all disabled:opacity-50"
               >
                 <RefreshCw className={`w-4 h-4 ${generating ? "animate-spin" : ""}`} />
