@@ -15,6 +15,7 @@ import DashboardPage from './pages/DashboardPage';
 import AdminPage from './pages/AdminPage';
 import ArGamePage from './pages/ArGamePage';
 import TeacherDashboardPage from './pages/TeacherDashboardPage';
+import TeacherInsightsPage from './pages/TeacherInsightsPage';
 import RecommendationPage from './pages/RecommendationPage';
 import MyClassroomPage from './pages/MyClassroomPage';
 import TutorialRouter from './pages/TutorialRouter';
@@ -69,6 +70,7 @@ const App: React.FC = () => {
 
           {/* Teacher */}
           <Route path="/teacher" element={<ProtectedRoute allowRoles={['TEACHER']}><TeacherDashboardPage /></ProtectedRoute>} />
+          <Route path="/teacher/insights" element={<ProtectedRoute allowRoles={['TEACHER']}><TeacherInsightsPage /></ProtectedRoute>} />
 
           {/* Student: classroom system */}
           <Route path="/recommendation" element={<ProtectedRoute allowRoles={['STUDENT']}><RecommendationPage /></ProtectedRoute>} />

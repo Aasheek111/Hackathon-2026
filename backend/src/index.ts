@@ -21,6 +21,7 @@ import internalJobsRouter from './routes/internalJobs';
 import notificationsRouter from './routes/notifications';
 import youtubeQuizRouter from './routes/youtubeQuiz';
 import ttsRouter from './routes/tts';
+import analyticsRouter from './routes/analytics';
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -59,6 +60,7 @@ app.use('/api/progress', progressRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/youtube-quiz', youtubeQuizRouter);
 app.use('/api/tts', ttsRouter);
+app.use('/api', analyticsRouter); // defines /analytics/class itself
 // Service-to-service only (shared-secret header, not user JWT) - the Celery
 // worker calls back into these to report job progress and persist results.
 app.use('/internal', internalJobsRouter);
