@@ -1,254 +1,549 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
-import { Play, Brain, BookOpen, Headphones, Image as ImageIcon, Gamepad2, Eye, BarChart3, CheckCircle2, ChevronDown } from 'lucide-react';
-import Button from '../components/ui/Button';
+import React from "react";
+import { motion } from "framer-motion";
+import { Link } from "react-router-dom";
+import {
+  Play,
+  Brain,
+  BookOpen,
+  Headphones,
+  Image as ImageIcon,
+  Gamepad2,
+  Eye,
+  BarChart3,
+  CheckCircle2,
+  ChevronDown,
+  Sparkles,
+  Heart,
+  ShieldCheck,
+  Smile,
+  ArrowRight,
+  Star,
+} from "lucide-react";
 
 export const LandingPage: React.FC = () => {
   const fadeUp = {
-    hidden: { opacity: 0, y: 30 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.6 } }
+    hidden: { opacity: 0, y: 24 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
   };
 
   const staggerContainer = {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
-      transition: { staggerChildren: 0.2 }
-    }
+      transition: { staggerChildren: 0.15 },
+    },
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="pt-24"
-    >
+    <div className="bg-[#FAF9F5] text-slate-800 font-sans min-h-screen selection:bg-emerald-100 selection:text-emerald-900">
       {/* Hero Section */}
-      <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden py-20">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-primary/20 via-dark to-dark -z-10" />
-        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-primary/30 rounded-full blur-[100px] animate-pulse-glow" />
-        <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-accent/20 rounded-full blur-[100px] animate-pulse-glow" style={{ animationDelay: '1s' }} />
+      <section className="relative py-16 md:py-24 overflow-hidden">
+        {/* Soft Pastel Background Blobs */}
+        <div className="absolute top-10 left-1/2 -translate-x-1/2 w-full max-w-7xl h-96 pointer-events-none -z-10 overflow-hidden">
+          <div className="absolute -top-10 left-10 w-80 h-80 bg-amber-100/60 rounded-full blur-3xl" />
+          <div className="absolute top-20 right-10 w-96 h-96 bg-sky-100/70 rounded-full blur-3xl" />
+          <div className="absolute top-40 left-1/3 w-72 h-72 bg-emerald-100/60 rounded-full blur-3xl" />
+        </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
-          <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="max-w-4xl mx-auto">
-            <motion.h1 variants={fadeUp} className="text-5xl md:text-7xl font-display font-bold tracking-tight mb-6">
-              Learn the Way <br className="hidden md:block" />
-              <span className="gradient-text">Your Mind Works</span>
-            </motion.h1>
-            <motion.p variants={fadeUp} className="text-xl text-gray-400 mb-10 max-w-2xl mx-auto">
-              An adaptive learning platform for autistic students that responds to real-time engagement and personalizes the educational journey.
-            </motion.p>
-            <motion.div variants={fadeUp} className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
-              <Link to="/register">
-                <Button size="lg" className="w-full sm:w-auto text-lg shadow-[0_0_30px_rgba(108,61,231,0.5)]">
-                  Start Free Demo
-                </Button>
-              </Link>
-              <Button variant="ghost" size="lg" className="w-full sm:w-auto text-lg gap-2">
-                <Play className="w-5 h-5" /> Watch Demo
-              </Button>
+        <div className="max-w-6xl mx-auto px-6 text-center">
+          <motion.div
+            variants={staggerContainer}
+            initial="hidden"
+            animate="visible"
+            className="max-w-3xl mx-auto space-y-8"
+          >
+            {/* Friendly Badge */}
+            <motion.div
+              variants={fadeUp}
+              className="inline-flex items-center gap-2 bg-white border border-slate-200/80 px-4 py-2 rounded-full shadow-sm"
+            >
+              <Smile className="w-5 h-5 text-amber-500" />
+              <span className="text-sm font-bold text-slate-700">
+                Adaptive Education Platform
+              </span>
             </motion.div>
-            
-            <motion.div variants={fadeUp} className="mt-20 grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[
-                { title: "500+ Students", desc: "Actively learning daily" },
-                { title: "3 Learning Modes", desc: "Text, Audio, & Visual" },
-                { title: "AR Powered", desc: "Immersive interaction" }
-              ].map((stat, i) => (
-                <div key={i} className="glass p-6 rounded-2xl animate-float" style={{ animationDelay: `${i * 0.2}s` }}>
-                  <h3 className="text-2xl font-display font-bold text-white mb-1">{stat.title}</h3>
-                  <p className="text-gray-400 text-sm">{stat.desc}</p>
-                </div>
-              ))}
+
+            {/* Main Headline */}
+            <motion.h1
+              variants={fadeUp}
+              className="text-4xl sm:text-6xl md:text-7xl font-bold tracking-tight text-slate-900 leading-[1.15]"
+            >
+              Learn the way <br className="hidden sm:block" />
+              <span className="text-emerald-600 bg-emerald-100/70 px-4 py-1 rounded-3xl inline-block mt-2">
+                your mind works best
+              </span>
+            </motion.h1>
+
+            {/* Subheading */}
+            <motion.p
+              variants={fadeUp}
+              className="text-lg sm:text-xl text-slate-600 leading-relaxed font-normal max-w-2xl mx-auto"
+            >
+              A calm, supportive platform that automatically adapts lessons
+              between{" "}
+              <strong className="text-slate-800 font-semibold">Text</strong>,{" "}
+              <strong className="text-slate-800 font-semibold">Audio</strong>,{" "}
+              <strong className="text-slate-800 font-semibold">Visual</strong>,
+              and{" "}
+              <strong className="text-slate-800 font-semibold">
+                3D AR Games
+              </strong>{" "}
+              based on attention and comfort.
+            </motion.p>
+
+            {/* Touch-Friendly Big Buttons */}
+            <motion.div
+              variants={fadeUp}
+              className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4"
+            >
+              <Link to="/register" className="w-full sm:w-auto">
+                <button className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-lg px-8 py-4 rounded-2xl shadow-md border-b-4 border-emerald-700 active:translate-y-0.5 active:border-b-2 transition-all flex items-center justify-center gap-3">
+                  <span>Start Free Adaptive Quiz</span>
+                  <ArrowRight className="w-5 h-5" />
+                </button>
+              </Link>
+              <a href="#modes" className="w-full sm:w-auto">
+                <button className="w-full sm:w-auto bg-white hover:bg-slate-50 text-slate-700 font-bold text-lg px-8 py-4 rounded-2xl shadow-sm border border-slate-200 border-b-4 border-b-slate-300 active:translate-y-0.5 active:border-b-2 transition-all flex items-center justify-center gap-2">
+                  <Play className="w-5 h-5 text-emerald-600 fill-emerald-600" />
+                  <span>How Modes Work</span>
+                </button>
+              </a>
+            </motion.div>
+
+            {/* Trust Pills */}
+            <motion.div
+              variants={fadeUp}
+              className="pt-6 flex flex-wrap justify-center gap-6 text-sm text-slate-500 font-medium"
+            >
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                <span>Privacy-First Attention Sensing</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Heart className="w-4 h-4 text-rose-500" />
+                <span>Zero Distractions or Pressure</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Star className="w-4 h-4 text-amber-500" />
+                <span>Self-Paced & Gentle</span>
+              </div>
             </motion.div>
           </motion.div>
         </div>
       </section>
 
-      {/* About Section */}
-      <section id="about" className="py-24 bg-dark-card/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
-            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer}>
-              <motion.h2 variants={fadeUp} className="text-3xl md:text-5xl font-display font-bold mb-6">
-                Adaptive Education Built for <span className="text-primary">Every Mind</span>
-              </motion.h2>
-              <motion.div variants={fadeUp} className="space-y-4 text-gray-300 text-lg leading-relaxed">
-                <p>
-                  NeuroLearn bridges the gap in special education by utilizing real-time computer vision to monitor engagement. 
-                  When a student loses focus, the platform seamlessly adapts its teaching methodology.
-                </p>
-                <p>
-                  Whether shifting from dense text to engaging visuals, or from silence to a comforting voice, 
-                  we ensure the learning environment constantly molds itself to the student, rather than forcing the student to adapt to it.
-                </p>
-              </motion.div>
-            </motion.div>
-            <motion.div 
-              initial={{ opacity: 0, x: 50 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.8 }}
-              className="relative"
+      {/* Interactive 4 Learning Modes Banner */}
+      <section id="modes" className="py-16 bg-white border-y border-slate-100">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+              4 Gentle Learning Modalities
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mt-3">
+              One Concept. Four Adaptations.
+            </h2>
+            <p className="text-slate-600 mt-2 max-w-xl mx-auto text-base">
+              When focus drifts, NeuroLearn automatically pivots to keep
+              learning comforting and engaging.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Mode 1: Text */}
+            <motion.div
+              whileHover={{ y: -4 }}
+              className="bg-[#FAF9F5] p-6 rounded-3xl border border-slate-200/70 shadow-sm flex flex-col justify-between"
             >
-              <div className="glass-strong p-8 rounded-3xl border-primary/20 shadow-[0_0_50px_rgba(108,61,231,0.15)] relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-32 bg-primary/10 rounded-full blur-3xl -z-10" />
-                <Brain className="w-16 h-16 text-primary mb-6" />
-                <h3 className="text-2xl font-bold mb-4">Platform Impact</h3>
-                <ul className="space-y-4">
+              <div>
+                <div className="w-14 h-14 bg-amber-100 text-amber-700 rounded-2xl flex items-center justify-center mb-5 shadow-xs">
+                  <BookOpen className="w-7 h-7" />
+                </div>
+                <div className="text-xs font-bold text-amber-800 bg-amber-100/80 w-max px-2.5 py-0.5 rounded-full mb-2">
+                  Default Mode
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 mb-2">
+                  Text Mode
+                </h3>
+                <p className="text-slate-600 text-sm leading-relaxed">
+                  Clean, structured text with optimal typography designed for
+                  reading clarity and steady concentration.
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Mode 2: Audio */}
+            <motion.div
+              whileHover={{ y: -4 }}
+              className="bg-[#FAF9F5] p-6 rounded-3xl border border-slate-200/70 shadow-sm flex flex-col justify-between"
+            >
+              <div>
+                <div className="w-14 h-14 bg-sky-100 text-sky-700 rounded-2xl flex items-center justify-center mb-5 shadow-xs">
+                  <Headphones className="w-7 h-7" />
+                </div>
+                <div className="text-xs font-bold text-sky-800 bg-sky-100/80 w-max px-2.5 py-0.5 rounded-full mb-2">
+                  Auditory Pivot
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 mb-2">
+                  Audio Mode
+                </h3>
+                <p className="text-slate-600 text-sm leading-relaxed">
+                  Soothing text-to-speech narration and auditory prompts that
+                  guide students gently without screen strain.
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Mode 3: Visual */}
+            <motion.div
+              whileHover={{ y: -4 }}
+              className="bg-[#FAF9F5] p-6 rounded-3xl border border-slate-200/70 shadow-sm flex flex-col justify-between"
+            >
+              <div>
+                <div className="w-14 h-14 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center mb-5 shadow-xs">
+                  <ImageIcon className="w-7 h-7" />
+                </div>
+                <div className="text-xs font-bold text-emerald-800 bg-emerald-100/80 w-max px-2.5 py-0.5 rounded-full mb-2">
+                  Visual Pivot
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 mb-2">
+                  Visual Mode
+                </h3>
+                <p className="text-slate-600 text-sm leading-relaxed">
+                  Rich, clear image-based concepts and diagrammatic
+                  representations for visual-spatial thinkers.
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Mode 4: AR Game */}
+            <motion.div
+              whileHover={{ y: -4 }}
+              className="bg-[#FAF9F5] p-6 rounded-3xl border border-slate-200/70 shadow-sm flex flex-col justify-between"
+            >
+              <div>
+                <div className="w-14 h-14 bg-purple-100 text-purple-700 rounded-2xl flex items-center justify-center mb-5 shadow-xs">
+                  <Gamepad2 className="w-7 h-7" />
+                </div>
+                <div className="text-xs font-bold text-purple-800 bg-purple-100/80 w-max px-2.5 py-0.5 rounded-full mb-2">
+                  Sensory Reward
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 mb-2">
+                  AR 3D Game
+                </h3>
+                <p className="text-slate-600 text-sm leading-relaxed">
+                  Interactive WebXR balloon-popping break game to refresh energy
+                  and reinforce learning with joy.
+                </p>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* About Section */}
+      <section id="about" className="py-20 md:py-28">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="bg-white rounded-3xl p-8 sm:p-12 border border-slate-200/80 shadow-sm">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+              <div className="space-y-6">
+                <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 px-3 py-1 rounded-full text-xs font-bold">
+                  <Heart className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Empathy-First Technology</span>
+                </div>
+                <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 leading-tight">
+                  Adaptive education built around the child, not the clock
+                </h2>
+                <div className="space-y-4 text-slate-600 text-base leading-relaxed">
+                  <p>
+                    Autistic students often experience sensory fatigue or focus
+                    shifts when presented with rigid, uniform learning
+                    materials.
+                  </p>
+                  <p>
+                    NeuroLearn uses gentle local computer vision to observe eye
+                    contact and engagement. If a student grows disengaged from
+                    text, the platform seamlessly switches to audio narration or
+                    colorful visual cards.
+                  </p>
+                  <p>
+                    This eliminates frustration before it starts, keeping
+                    learning positive, self-paced, and encouraging.
+                  </p>
+                </div>
+              </div>
+
+              {/* Friendly Feature Card Stack */}
+              <div className="bg-[#F4F7FB] p-8 rounded-3xl border border-slate-200/60 space-y-4">
+                <div className="w-12 h-12 bg-emerald-500 text-white rounded-2xl flex items-center justify-center font-bold text-xl shadow-sm">
+                  🧠
+                </div>
+                <h3 className="text-2xl font-bold text-slate-900">
+                  Why Families Love NeuroLearn
+                </h3>
+                <ul className="space-y-4 pt-2">
                   {[
-                    "91% engagement improvement",
-                    "3 dynamic learning modes",
-                    "Real-time affective computing adaptation"
+                    "91% improvement in sustained student engagement",
+                    "Real-time affective mode adaptation without pop-ups",
+                    "Private local processing — zero camera recordings stored",
+                    "Custom analytics dashboard for teachers and parents",
                   ].map((item, i) => (
-                    <li key={i} className="flex items-center space-x-3">
-                      <CheckCircle2 className="w-5 h-5 text-accent" />
-                      <span className="text-gray-200">{item}</span>
+                    <li key={i} className="flex items-start gap-3">
+                      <div className="w-6 h-6 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs">
+                        ✓
+                      </div>
+                      <span className="text-slate-700 text-sm font-medium">
+                        {item}
+                      </span>
                     </li>
                   ))}
                 </ul>
               </div>
-            </motion.div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* Features Grid Section */}
+      <section
+        id="features"
+        className="py-20 bg-white border-t border-slate-100"
+      >
+        <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-5xl font-display font-bold mb-4">Powerful Features</h2>
-            <p className="text-xl text-gray-400">Everything needed for a complete, adaptive learning experience.</p>
+            <span className="text-xs font-bold uppercase tracking-wider text-sky-700 bg-sky-50 px-3 py-1 rounded-full border border-sky-200">
+              Thoughtful Features
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mt-3">
+              Everything needed for a calm, joyful journey
+            </h2>
           </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {[
-              { icon: BookOpen, title: "Text Mode", desc: "Structured written content with clear typography designed for readability and focus." },
-              { icon: Headphones, title: "Audio Mode", desc: "Calming text-to-speech narration that guides auditory learners through lessons." },
-              { icon: ImageIcon, title: "Visual Mode", desc: "Rich image-based learning that replaces dense text with clear visual concepts." },
-              { icon: Gamepad2, title: "AR Learning", desc: "Interactive augmented reality games to reward and reinforce learning objectives." },
-              { icon: Eye, title: "Engagement Tracking", desc: "Privacy-first AI that subtly tracks attention to trigger adaptive mode switching." },
-              { icon: BarChart3, title: "Learning Analytics", desc: "Deep personalized insights for parents and educators to track genuine progress." }
-            ].map((feature, i) => (
-              <motion.div 
+              {
+                icon: BookOpen,
+                color: "bg-amber-100 text-amber-800",
+                title: "Readable Text Mode",
+                desc: "Large typography, high-contrast spacing, and distraction-free layouts designed specifically for focus.",
+              },
+              {
+                icon: Headphones,
+                color: "bg-sky-100 text-sky-800",
+                title: "Gentle Voice Narration",
+                desc: "Calming audio narration guides auditory learners through questions and explanations effortlessly.",
+              },
+              {
+                icon: ImageIcon,
+                color: "bg-emerald-100 text-emerald-800",
+                title: "Visual Concept Cards",
+                desc: "Rich image-focused questions that replace heavy blocks of text with intuitive visual cues.",
+              },
+              {
+                icon: Gamepad2,
+                color: "bg-purple-100 text-purple-800",
+                title: "Sensory AR Break Games",
+                desc: "Fun 3D WebXR balloon games offer well-earned sensory breaks and positive reinforcement.",
+              },
+              {
+                icon: Eye,
+                color: "bg-rose-100 text-rose-800",
+                title: "Privacy-First Sensing",
+                desc: "On-device camera processing reads engagement signals locally. Video feeds are never saved or sent anywhere.",
+              },
+              {
+                icon: BarChart3,
+                color: "bg-teal-100 text-teal-800",
+                title: "Parent & Teacher Insights",
+                desc: "Clear, encouraging progress charts that highlight preferred learning modes and growth over time.",
+              },
+            ].map((f, i) => (
+              <motion.div
                 key={i}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className="glass p-8 rounded-2xl hover:-translate-y-2 transition-transform duration-300 group cursor-default"
+                whileHover={{ y: -4 }}
+                className="bg-[#FAF9F5] p-8 rounded-3xl border border-slate-200/70 shadow-sm flex flex-col justify-between"
               >
-                <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <feature.icon className="w-6 h-6 text-primary" />
-                </div>
-                <h3 className="text-xl font-bold mb-3">{feature.title}</h3>
-                <p className="text-gray-400 leading-relaxed">{feature.desc}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Benefits Section */}
-      <section id="benefits" className="py-24 bg-dark-card/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl md:text-5xl font-display font-bold text-center mb-20">Why NeuroLearn Works</h2>
-          <div className="space-y-24">
-            {[
-              { title: "Personalized", desc: "Every mind is unique. Our platform builds a learning profile tailored specifically to how each student processes information best.", reverse: false },
-              { title: "Engaging", desc: "By switching modes dynamically before frustration sets in, we maintain attention spans and turn challenges into triumphs.", reverse: true },
-              { title: "Rewarding", desc: "Integrated AR modules provide necessary sensory breaks and joyful reinforcement, keeping students eager to return.", reverse: false }
-            ].map((benefit, i) => (
-              <div key={i} className={`flex flex-col ${benefit.reverse ? 'md:flex-row-reverse' : 'md:flex-row'} items-center gap-12`}>
-                <div className="flex-1">
-                  <div className="glass aspect-square md:aspect-video rounded-3xl flex items-center justify-center p-12 bg-gradient-to-br from-primary/10 to-transparent border-primary/20">
-                    <span className="text-6xl font-display font-bold text-primary/30">0{i + 1}</span>
+                <div>
+                  <div
+                    className={`w-12 h-12 ${f.color} rounded-2xl flex items-center justify-center mb-5 font-bold`}
+                  >
+                    <f.icon className="w-6 h-6" />
                   </div>
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">
+                    {f.title}
+                  </h3>
+                  <p className="text-slate-600 text-sm leading-relaxed">
+                    {f.desc}
+                  </p>
                 </div>
-                <div className="flex-1 space-y-4 text-center md:text-left">
-                  <h3 className="text-3xl font-display font-bold">{benefit.title}</h3>
-                  <p className="text-xl text-gray-400 leading-relaxed">{benefit.desc}</p>
-                </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>
       </section>
 
       {/* Pricing Section */}
-      <section id="pricing" className="py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section id="pricing" className="py-20 md:py-28 bg-[#FAF9F5]">
+        <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-5xl font-display font-bold mb-4">Simple, Transparent Pricing</h2>
-            <p className="text-xl text-gray-400">Invest in adaptive education today.</p>
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+              Simple & Fair Pricing
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mt-3">
+              Accessible plans for every family & school
+            </h2>
           </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            {/* Plan 1 */}
-            <div className="glass p-8 rounded-3xl flex flex-col">
-              <h3 className="text-xl font-medium text-gray-400 mb-2">1 Month</h3>
-              <div className="text-4xl font-bold mb-6">NPR 499</div>
-              <ul className="space-y-4 mb-8 flex-1">
-                {['Basic adaptive quiz', '3 Learning Modes', 'Standard analytics', 'Email support', 'Cancel anytime'].map((f, i) => (
-                  <li key={i} className="flex items-center text-gray-300"><CheckCircle2 className="w-5 h-5 text-primary mr-3" />{f}</li>
-                ))}
-              </ul>
-              <Button variant="ghost" className="w-full">Choose Plan</Button>
-            </div>
-            
-            {/* Plan 2 */}
-            <div className="glass-strong p-8 rounded-3xl flex flex-col relative transform md:-translate-y-4 shadow-[0_0_30px_rgba(108,61,231,0.2)] border-primary/50">
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-accent text-dark font-bold px-4 py-1 rounded-full text-sm">
-                Most Popular
+            {/* Card 1 */}
+            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between">
+              <div>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  1 Month Pass
+                </span>
+                <div className="text-3xl sm:text-4xl font-bold text-slate-900 my-4">
+                  NPR 499{" "}
+                  <span className="text-sm font-normal text-slate-500">
+                    /mo
+                  </span>
+                </div>
+                <ul className="space-y-3 mb-8 text-sm text-slate-600 font-medium">
+                  {[
+                    "Full adaptive quiz access",
+                    "All 4 learning modes",
+                    "Standard parent analytics",
+                    "Cancel anytime",
+                  ].map((item, idx) => (
+                    <li key={idx} className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <h3 className="text-xl font-medium text-primary-dark mb-2">3 Months</h3>
-              <div className="text-4xl font-bold mb-6">NPR 1,299</div>
-              <ul className="space-y-4 mb-8 flex-1">
-                {['Advanced adaptive learning', 'Full AR module access', 'Detailed parent analytics', 'Priority support', 'Engagement reports'].map((f, i) => (
-                  <li key={i} className="flex items-center text-gray-200"><CheckCircle2 className="w-5 h-5 text-primary mr-3" />{f}</li>
-                ))}
-              </ul>
-              <Button variant="primary" className="w-full">Choose Plan</Button>
+              <Link to="/register">
+                <button className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold py-3 px-6 rounded-2xl transition-all">
+                  Get Started
+                </button>
+              </Link>
             </div>
 
-            {/* Plan 3 */}
-            <div className="glass p-8 rounded-3xl flex flex-col relative">
-               <div className="absolute top-4 right-4 bg-white/10 text-white px-3 py-1 rounded-full text-xs border border-white/20">
-                Best Value
+            {/* Card 2 - Featured */}
+            <div className="bg-white p-8 rounded-3xl border-2 border-emerald-500 shadow-lg relative flex flex-col justify-between transform md:-translate-y-2">
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-emerald-500 text-white text-xs font-bold px-4 py-1 rounded-full shadow-sm">
+                Most Popular
               </div>
-              <h3 className="text-xl font-medium text-gray-400 mb-2">6 Months</h3>
-              <div className="text-4xl font-bold mb-6">NPR 2,299</div>
-              <ul className="space-y-4 mb-8 flex-1">
-                {['Everything in 3 Months', 'Early access features', '1-on-1 onboarding', 'Custom curricula', 'Save 23%'].map((f, i) => (
-                  <li key={i} className="flex items-center text-gray-300"><CheckCircle2 className="w-5 h-5 text-primary mr-3" />{f}</li>
-                ))}
-              </ul>
-              <Button variant="ghost" className="w-full">Choose Plan</Button>
+              <div>
+                <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">
+                  3 Month Pass
+                </span>
+                <div className="text-3xl sm:text-4xl font-bold text-slate-900 my-4">
+                  NPR 1,299{" "}
+                  <span className="text-sm font-normal text-slate-500">
+                    /3 mos
+                  </span>
+                </div>
+                <ul className="space-y-3 mb-8 text-sm text-slate-600 font-medium">
+                  {[
+                    "Everything in 1 Month Pass",
+                    "Full AR 3D module games",
+                    "Detailed progress breakdown",
+                    "Priority support",
+                  ].map((item, idx) => (
+                    <li key={idx} className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <Link to="/register">
+                <button className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 px-6 rounded-2xl shadow-md border-b-4 border-emerald-700 active:translate-y-0.5 active:border-b-2 transition-all">
+                  Start 3-Month Plan
+                </button>
+              </Link>
+            </div>
+
+            {/* Card 3 */}
+            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between">
+              <div>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  6 Month Pass
+                </span>
+                <div className="text-3xl sm:text-4xl font-bold text-slate-900 my-4">
+                  NPR 2,299{" "}
+                  <span className="text-sm font-normal text-slate-500">
+                    /6 mos
+                  </span>
+                </div>
+                <ul className="space-y-3 mb-8 text-sm text-slate-600 font-medium">
+                  {[
+                    "Everything in 3 Month Pass",
+                    "Custom curriculum setup",
+                    "Direct educator guidance",
+                    "Save 23% overall",
+                  ].map((item, idx) => (
+                    <li key={idx} className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <Link to="/register">
+                <button className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold py-3 px-6 rounded-2xl transition-all">
+                  Get Started
+                </button>
+              </Link>
             </div>
           </div>
         </div>
       </section>
 
       {/* FAQ Section */}
-      <section id="faq" className="py-24 bg-dark-card/50">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl md:text-4xl font-display font-bold text-center mb-12">Frequently Asked Questions</h2>
+      <section id="faq" className="py-20 bg-white border-t border-slate-100">
+        <div className="max-w-3xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900">
+              Frequently Asked Questions
+            </h2>
+            <p className="text-slate-600 mt-2 text-sm">
+              Clear answers for parents and educators.
+            </p>
+          </div>
+
           <div className="space-y-4">
             {[
-              { q: "What is NeuroLearn?", a: "NeuroLearn is an AI-powered educational platform designed specifically for autistic children, adapting teaching styles in real-time based on their engagement levels." },
-              { q: "How does the adaptive quiz work?", a: "Using device cameras, it subtly monitors facial cues and engagement. If a student loses focus on text, it automatically switches to audio or visual modes to re-engage them." },
-              { q: "Is my camera data private?", a: "Absolutely. Video feeds are processed entirely locally on the device for engagement metrics. We never record, store, or transmit video data to our servers." },
-              { q: "What is AR Learning?", a: "It's an immersive feature that brings 3D models into the real world via device cameras, providing interactive sensory breaks and reinforcing concepts." },
-              { q: "Can I switch learning modes manually?", a: "Yes, while the AI adapts automatically, parents or students can lock or switch modes manually at any time." },
-              { q: "How does eSewa payment work?", a: "We integrate directly with eSewa's secure gateway. Clicking pay will redirect you to eSewa to securely complete the transaction." }
+              {
+                q: "How does NeuroLearn adapt to the student?",
+                a: "NeuroLearn uses gentle webcam engagement tracking to notice when eye contact or focus dips. It automatically shifts the lesson into text, audio narration, or visual cards to maintain comfort.",
+              },
+              {
+                q: "Is webcam data recorded or stored?",
+                a: "No. Video frames are analyzed locally in real time solely to calculate an attention metric. No video, images, or facial recordings are ever saved or transmitted.",
+              },
+              {
+                q: "Can we manually choose or lock a learning mode?",
+                a: "Yes! While automatic mode switching is active by default, parents or students can lock any specific mode at any time.",
+              },
+              {
+                q: "What is the AR Learning Game?",
+                a: "It's an interactive 3D WebXR balloon game that provides sensory breaks while reinforcing vocabulary and concept retention.",
+              },
+              {
+                q: "How does payment work with eSewa?",
+                a: "We support direct integration with Nepal's eSewa payment gateway for easy, instant subscription access.",
+              },
             ].map((faq, i) => (
-              <details key={i} className="glass rounded-xl group overflow-hidden">
-                <summary className="px-6 py-4 cursor-pointer font-medium flex justify-between items-center list-none outline-none">
-                  {faq.q}
-                  <ChevronDown className="w-5 h-5 group-open:rotate-180 transition-transform text-primary" />
+              <details
+                key={i}
+                className="bg-[#FAF9F5] rounded-2xl border border-slate-200/80 overflow-hidden group"
+              >
+                <summary className="p-5 cursor-pointer font-bold text-slate-800 flex justify-between items-center outline-none list-none">
+                  <span>{faq.q}</span>
+                  <ChevronDown className="w-5 h-5 text-slate-500 group-open:rotate-180 transition-transform shrink-0" />
                 </summary>
-                <div className="px-6 pb-4 text-gray-400">
-                  <p>{faq.a}</p>
+                <div className="px-5 pb-5 text-slate-600 text-sm leading-relaxed border-t border-slate-200/40 pt-3">
+                  {faq.a}
                 </div>
               </details>
             ))}
@@ -257,65 +552,69 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* Contact Section */}
-      <section id="contact" className="py-24 relative overflow-hidden">
-        <div className="absolute top-1/2 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl -z-10" />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="glass p-8 md:p-12 rounded-3xl max-w-4xl mx-auto flex flex-col md:flex-row gap-12">
-            <div className="flex-1">
-              <h2 className="text-3xl font-display font-bold mb-4">Get in Touch</h2>
-              <p className="text-gray-400 mb-8">Have questions about NeuroLearn? Send us a message and our team will get back to you shortly.</p>
-              <div className="space-y-4 text-gray-300">
-                <p>📍 Kathmandu, Nepal</p>
-                <p>📧 contact@neurolearn.com</p>
-                <p>📞 +977 9800000000</p>
+      <section id="contact" className="py-20 bg-[#FAF9F5]">
+        <div className="max-w-4xl mx-auto px-6">
+          <div className="bg-white p-8 sm:p-12 rounded-3xl border border-slate-200 shadow-sm">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                  Get in Touch
+                </span>
+                <h2 className="text-3xl font-bold text-slate-900 mt-4 mb-3">
+                  We are here to help
+                </h2>
+                <p className="text-slate-600 text-sm leading-relaxed mb-6">
+                  Have questions about how NeuroLearn works for your child or
+                  school? Reach out to our team anytime.
+                </p>
+                <div className="space-y-3 text-sm text-slate-700 font-medium">
+                  <p>📍 Kathmandu, Nepal</p>
+                  <p>📧 contact@neurolearn.com</p>
+                  <p>📞 +977 9800000000</p>
+                </div>
               </div>
+
+              <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+                <input
+                  type="text"
+                  placeholder="Your Name"
+                  className="w-full bg-[#FAF9F5] border border-slate-200 rounded-2xl px-4 py-3 text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white text-sm"
+                />
+                <input
+                  type="email"
+                  placeholder="Your Email"
+                  className="w-full bg-[#FAF9F5] border border-slate-200 rounded-2xl px-4 py-3 text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white text-sm"
+                />
+                <textarea
+                  placeholder="Message"
+                  rows={4}
+                  className="w-full bg-[#FAF9F5] border border-slate-200 rounded-2xl px-4 py-3 text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white text-sm resize-none"
+                />
+                <button
+                  type="button"
+                  className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 rounded-2xl shadow-md border-b-4 border-emerald-700 active:translate-y-0.5 active:border-b-2 transition-all text-sm"
+                >
+                  Send Message
+                </button>
+              </form>
             </div>
-            <form className="flex-1 space-y-4" onSubmit={(e) => e.preventDefault()}>
-              <input type="text" placeholder="Name" className="w-full bg-dark/50 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-primary text-white" />
-              <input type="email" placeholder="Email" className="w-full bg-dark/50 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-primary text-white" />
-              <textarea placeholder="Message" rows={4} className="w-full bg-dark/50 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-primary text-white resize-none"></textarea>
-              <Button type="button" className="w-full">Send Message</Button>
-            </form>
           </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-white/10 bg-dark pt-16 pb-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
-            <div className="col-span-1 md:col-span-2">
-              <div className="flex items-center space-x-2 mb-4">
-                <span className="text-2xl">🧠</span>
-                <span className="font-display font-bold text-xl tracking-tight text-white">NeuroLearn</span>
-              </div>
-              <p className="text-gray-400 max-w-sm">
-                Empowering autistic minds through adaptive, compassionate technology.
-              </p>
-            </div>
-            <div>
-              <h4 className="font-bold mb-4">Platform</h4>
-              <ul className="space-y-2 text-gray-400">
-                <li><a href="#features" className="hover:text-primary transition-colors">Features</a></li>
-                <li><a href="#pricing" className="hover:text-primary transition-colors">Pricing</a></li>
-                <li><a href="#about" className="hover:text-primary transition-colors">About Us</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-bold mb-4">Legal</h4>
-              <ul className="space-y-2 text-gray-400">
-                <li><a href="#" className="hover:text-primary transition-colors">Privacy Policy</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">Terms of Service</a></li>
-                <li><a href="#contact" className="hover:text-primary transition-colors">Contact</a></li>
-              </ul>
-            </div>
+      {/* Clean Light Footer */}
+      <footer className="bg-white border-t border-slate-200 py-12">
+        <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-6 text-sm text-slate-500">
+          <div className="flex items-center gap-2">
+            <img src="/logo.png" alt="Pragya Logo" className="h-8 w-auto object-contain" />
+            <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full ml-2">
+              Adaptive Education
+            </span>
           </div>
-          <div className="border-t border-white/10 pt-8 flex flex-col md:flex-row justify-between items-center text-sm text-gray-500">
-            <p>© 2025 NeuroLearn. All rights reserved.</p>
-          </div>
+          <p>© 2026 Pragya. Empowering Every Mind.</p>
         </div>
       </footer>
-    </motion.div>
+    </div>
   );
 };
 
