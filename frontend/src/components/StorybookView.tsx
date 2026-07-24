@@ -156,9 +156,12 @@ export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
     }
   };
 
+  const cardClass =
+    "bg-white border border-slate-200/80 shadow-xs dark:bg-white/[0.09] dark:backdrop-blur-2xl dark:border-white/[0.14] dark:shadow-none";
+
   if (storybook === undefined) {
     return (
-      <div className="max-w-md mx-auto glass-strong p-12 rounded-3xl text-center text-gray-400">
+      <div className={`max-w-md mx-auto ${cardClass} p-12 rounded-3xl text-center text-slate-500 dark:text-gray-400`}>
         Loading…
       </div>
     );
@@ -166,12 +169,12 @@ export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
 
   if (!storybook) {
     return (
-      <div className="max-w-md mx-auto glass-strong p-10 rounded-3xl text-center">
+      <div className={`max-w-md mx-auto ${cardClass} p-10 rounded-3xl text-center`}>
         <Wand2 className="w-10 h-10 text-primary mx-auto mb-4" />
-        <h3 className="text-xl font-display font-bold mb-2">
+        <h3 className="text-xl font-display font-bold mb-2 text-slate-800 dark:text-white">
           Turn this lesson into a story
         </h3>
-        <p className="text-gray-400 mb-6">
+        <p className="text-slate-500 dark:text-gray-400 mb-6">
           We'll write a short 5-page illustrated story from this unit's own
           content - the same ideas, told as a story.
         </p>
@@ -184,7 +187,7 @@ export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
 
   if (GENERATING_STATUSES.has(storybook.status)) {
     return (
-      <div className="max-w-md mx-auto glass-strong p-12 rounded-3xl text-center">
+      <div className={`max-w-md mx-auto ${cardClass} p-12 rounded-3xl text-center`}>
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
@@ -192,10 +195,10 @@ export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
         >
           <Wand2 className="w-10 h-10 text-primary" />
         </motion.div>
-        <p className="text-gray-300 font-medium">
+        <p className="text-slate-700 dark:text-gray-300 font-medium">
           {STATUS_LABEL[storybook.status] || "Working on it…"}
         </p>
-        <p className="text-xs text-gray-500 mt-2">
+        <p className="text-xs text-slate-400 dark:text-gray-500 mt-2">
           This takes a little while the first time - it's saved after, so
           it's instant next time.
         </p>
@@ -205,11 +208,11 @@ export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
 
   if (storybook.status === "FAILED") {
     return (
-      <div className="max-w-md mx-auto glass-strong p-10 rounded-3xl text-center">
-        <AlertCircle className="w-10 h-10 text-amber-400 mx-auto mb-4" />
-        <p className="text-gray-300 mb-2">Couldn't write the story this time.</p>
+      <div className={`max-w-md mx-auto ${cardClass} p-10 rounded-3xl text-center`}>
+        <AlertCircle className="w-10 h-10 text-amber-500 dark:text-amber-400 mx-auto mb-4" />
+        <p className="text-slate-700 dark:text-gray-300 mb-2">Couldn't write the story this time.</p>
         {storybook.errorMessage && (
-          <p className="text-xs text-gray-500 mb-6">{storybook.errorMessage}</p>
+          <p className="text-xs text-slate-400 dark:text-gray-500 mb-6">{storybook.errorMessage}</p>
         )}
         <Button onClick={generate} loading={starting}>
           Try again
@@ -239,7 +242,7 @@ export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
   return (
     <div className="px-4 sm:px-8">
       {storybook.title && (
-        <h2 className="text-xl font-display font-bold text-center mb-4">
+        <h2 className="text-xl font-display font-bold text-center mb-4 text-slate-800 dark:text-white">
           {storybook.title}
         </h2>
       )}
@@ -274,14 +277,13 @@ export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
       </div>
 
       <div className="flex items-center justify-center gap-4 mt-6">
-        <Button
-          variant="ghost"
+        <button
           onClick={() => turn(-1)}
           disabled={onFirstSpread}
-          className="gap-2"
+          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-white/20 dark:text-white dark:hover:bg-white/5 dark:hover:border-white/40 transition-colors font-medium"
         >
           <ChevronLeft className="w-4 h-4" /> Previous
-        </Button>
+        </button>
         <div className="flex gap-1.5">
           {Array.from({ length: totalSpreads }).map((_, i) => (
             <button
@@ -292,7 +294,9 @@ export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
               }}
               aria-label={`Spread ${i + 1}`}
               className={`w-2.5 h-2.5 rounded-full transition-all ${
-                i === spreadIndex ? "bg-primary w-6" : "bg-white/20 hover:bg-white/40"
+                i === spreadIndex
+                  ? "bg-primary w-6"
+                  : "bg-slate-300 hover:bg-slate-400 dark:bg-white/20 dark:hover:bg-white/40"
               }`}
             />
           ))}
@@ -301,7 +305,7 @@ export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
           Next <ChevronRight className="w-4 h-4" />
         </Button>
       </div>
-      <p className="text-center text-xs text-gray-500 mt-3">
+      <p className="text-center text-xs text-slate-400 dark:text-gray-500 mt-3">
         Click the right page to turn forward, the left page to turn back.
       </p>
     </div>
