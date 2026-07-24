@@ -18,6 +18,9 @@ import {
   Smile,
   ArrowRight,
   Star,
+  MapPin,
+  Mail,
+  Phone,
 } from "lucide-react";
 
 export const LandingPage: React.FC = () => {
@@ -35,7 +38,7 @@ export const LandingPage: React.FC = () => {
   };
 
   return (
-    <div className="bg-[#FAF9F5] text-slate-800 font-sans min-h-screen selection:bg-emerald-100 selection:text-emerald-900">
+    <div className="bg-[#FAF9F5] mt-24 text-slate-800 font-sans min-h-screen selection:bg-emerald-100 selection:text-emerald-900">
       {/* Hero Section */}
       <section className="relative py-16 md:py-24 overflow-hidden">
         {/* Soft Pastel Background Blobs */}
@@ -143,7 +146,7 @@ export const LandingPage: React.FC = () => {
               One Concept. Four Adaptations.
             </h2>
             <p className="text-slate-600 mt-2 max-w-xl mx-auto text-base">
-              When focus drifts, NeuroLearn automatically pivots to keep
+              When focus drifts, Pragya automatically pivots to keep
               learning comforting and engaging.
             </p>
           </div>
@@ -260,7 +263,7 @@ export const LandingPage: React.FC = () => {
                     materials.
                   </p>
                   <p>
-                    NeuroLearn uses gentle local computer vision to observe eye
+                    Pragya uses gentle local computer vision to observe eye
                     contact and engagement. If a student grows disengaged from
                     text, the platform seamlessly switches to audio narration or
                     colorful visual cards.
@@ -275,10 +278,10 @@ export const LandingPage: React.FC = () => {
               {/* Friendly Feature Card Stack */}
               <div className="bg-[#F4F7FB] p-8 rounded-3xl border border-slate-200/60 space-y-4">
                 <div className="w-12 h-12 bg-emerald-500 text-white rounded-2xl flex items-center justify-center font-bold text-xl shadow-sm">
-                  🧠
+                  <Brain className="w-6 h-6 text-white" />
                 </div>
                 <h3 className="text-2xl font-bold text-slate-900">
-                  Why Families Love NeuroLearn
+                  Why Families Love Pragya
                 </h3>
                 <ul className="space-y-4 pt-2">
                   {[
@@ -564,13 +567,28 @@ export const LandingPage: React.FC = () => {
                   We are here to help
                 </h2>
                 <p className="text-slate-600 text-sm leading-relaxed mb-6">
-                  Have questions about how NeuroLearn works for your child or
+                  Have questions about how Pragya works for your child or
                   school? Reach out to our team anytime.
                 </p>
-                <div className="space-y-3 text-sm text-slate-700 font-medium">
-                  <p>📍 Kathmandu, Nepal</p>
-                  <p>📧 contact@neurolearn.com</p>
-                  <p>📞 +977 9800000000</p>
+                <div className="space-y-3.5 text-sm text-slate-700 font-medium">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200/80 flex items-center justify-center shrink-0">
+                      <MapPin className="w-4 h-4" />
+                    </div>
+                    <span>Kathmandu, Nepal</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200/80 flex items-center justify-center shrink-0">
+                      <Mail className="w-4 h-4" />
+                    </div>
+                    <span>contact@pragya.edu</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200/80 flex items-center justify-center shrink-0">
+                      <Phone className="w-4 h-4" />
+                    </div>
+                    <span>+977 9800000000</span>
+                  </div>
                 </div>
               </div>
 
@@ -605,9 +623,13 @@ export const LandingPage: React.FC = () => {
       {/* Clean Light Footer */}
       <footer className="bg-white border-t border-slate-200 py-12">
         <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-6 text-sm text-slate-500">
-          <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="Pragya Logo" className="h-8 w-auto object-contain" />
-            <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full ml-2">
+          <div className="flex items-center gap-3">
+            <img
+              src="/logo.png"
+              alt="Pragya Logo"
+              className="h-14 sm:h-16 md:h-20 w-auto object-contain"
+            />
+            <span className="text-xs font-bold bg-slate-100 border border-slate-200 text-slate-700 px-3 py-1 rounded-full ml-1">
               Adaptive Education
             </span>
           </div>
