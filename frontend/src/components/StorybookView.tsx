@@ -6,6 +6,7 @@ import {
   ChevronRight,
   AlertCircle,
   Image as ImageIcon,
+  BookOpen,
 } from "lucide-react";
 import Button from "./ui/Button";
 import api, { resolveMediaUrl } from "../lib/api";
@@ -33,15 +34,81 @@ const STATUS_LABEL: Record<string, string> = {
   GENERATING_IMAGES: "Drawing the pictures…",
 };
 
+/** One half of the open book - an image up top, the story text below, a
+ * page number in the corner. Identical markup for the left and right leaf,
+ * just told which way it faces. */
+const Leaf: React.FC<{
+  page: StorybookPage | null;
+  side: "left" | "right";
+  onClick?: () => void;
+  clickable: boolean;
+}> = ({ page, side, onClick, clickable }) => (
+  <button
+    type="button"
+    onClick={clickable ? onClick : undefined}
+    disabled={!clickable}
+    className={`group relative flex-1 min-h-[22rem] sm:min-h-[28rem] bg-[#f8f4ec] text-slate-800 p-5 sm:p-8 flex flex-col text-left transition-transform ${
+      side === "left"
+        ? "rounded-t-2xl sm:rounded-l-2xl sm:rounded-tr-none"
+        : "rounded-b-2xl sm:rounded-r-2xl sm:rounded-bl-none"
+    } ${clickable ? "cursor-pointer hover:brightness-95" : "cursor-default"}`}
+    style={{
+      boxShadow:
+        side === "left"
+          ? "inset -8px 0 16px -12px rgba(0,0,0,0.35)"
+          : "inset 8px 0 16px -12px rgba(0,0,0,0.35)",
+    }}
+    aria-label={
+      page
+        ? `Page ${page.pageNumber}`
+        : side === "left"
+          ? "Previous page"
+          : "Next page"
+    }
+  >
+    {page ? (
+      <>
+        {page.imageUrl ? (
+          <img
+            src={resolveMediaUrl(page.imageUrl)}
+            alt={`Page ${page.pageNumber}`}
+            className="w-full h-40 sm:h-56 object-cover rounded-xl mb-4 shadow-sm"
+          />
+        ) : (
+          <div className="w-full h-40 sm:h-56 rounded-xl mb-4 bg-black/5 border border-black/10 flex items-center justify-center text-slate-400 text-sm">
+            <ImageIcon className="w-5 h-5 mr-2" /> No picture for this page
+          </div>
+        )}
+        <p className="flex-1 text-base sm:text-lg leading-relaxed">{page.storyText}</p>
+        <span className="mt-4 text-xs text-slate-400 self-center">{page.pageNumber}</span>
+      </>
+    ) : (
+      <div className="flex-1 flex flex-col items-center justify-center text-slate-300">
+        <BookOpen className="w-10 h-10 mb-2" />
+        <span className="text-sm">The End</span>
+      </div>
+    )}
+
+    {clickable && (
+      <span
+        className={`absolute top-1/2 -translate-y-1/2 ${side === "left" ? "left-2" : "right-2"} opacity-0 group-hover:opacity-70 transition-opacity text-slate-500`}
+      >
+        {side === "left" ? <ChevronLeft className="w-6 h-6" /> : <ChevronRight className="w-6 h-6" />}
+      </span>
+    )}
+  </button>
+);
+
 /**
- * The unit's own content retold as a 5-page illustrated story - a fifth
- * presentation mode alongside Text/Audio/Visual/AR (TODO.md's storybook-mode
- * addition). Generated once per curriculum, then just page-flipped; nothing
- * here ever re-triggers generation once a storybook exists.
+ * The unit's own content retold as an illustrated story - a fifth
+ * presentation mode alongside Text/Audio/Visual/AR. Generated once per
+ * curriculum, then just paged through like an open book: two leaves visible
+ * at once, click the right leaf to turn forward, the left leaf to turn back.
  */
 export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
   const [storybook, setStorybook] = useState<Storybook | null | undefined>(undefined); // undefined = still loading
-  const [pageIndex, setPageIndex] = useState(0);
+  const [spreadIndex, setSpreadIndex] = useState(0);
+  const [direction, setDirection] = useState(1);
   const [starting, setStarting] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -58,15 +125,18 @@ export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
     return data.storybook as Storybook | null;
   }, [unitId]);
 
+  const beginPolling = useCallback(() => {
+    stopPolling();
+    pollRef.current = setInterval(async () => {
+      const fresh = await load();
+      if (fresh && !GENERATING_STATUSES.has(fresh.status)) stopPolling();
+    }, POLL_INTERVAL_MS);
+  }, [load, stopPolling]);
+
   useEffect(() => {
     let cancelled = false;
     load().then((sb) => {
-      if (!cancelled && sb && GENERATING_STATUSES.has(sb.status)) {
-        pollRef.current = setInterval(async () => {
-          const fresh = await load();
-          if (fresh && !GENERATING_STATUSES.has(fresh.status)) stopPolling();
-        }, POLL_INTERVAL_MS);
-      }
+      if (!cancelled && sb && GENERATING_STATUSES.has(sb.status)) beginPolling();
     });
     return () => {
       cancelled = true;
@@ -80,12 +150,7 @@ export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
     try {
       const { data } = await api.post(`/units/${unitId}/curriculum/storybook`);
       setStorybook(data.storybook);
-      if (GENERATING_STATUSES.has(data.storybook.status)) {
-        pollRef.current = setInterval(async () => {
-          const fresh = await load();
-          if (fresh && !GENERATING_STATUSES.has(fresh.status)) stopPolling();
-        }, POLL_INTERVAL_MS);
-      }
+      if (GENERATING_STATUSES.has(data.storybook.status)) beginPolling();
     } finally {
       setStarting(false);
     }
@@ -93,7 +158,7 @@ export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
 
   if (storybook === undefined) {
     return (
-      <div className="glass-strong p-12 rounded-3xl text-center text-gray-400">
+      <div className="max-w-md mx-auto glass-strong p-12 rounded-3xl text-center text-gray-400">
         Loading…
       </div>
     );
@@ -101,12 +166,12 @@ export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
 
   if (!storybook) {
     return (
-      <div className="glass-strong p-10 rounded-3xl text-center">
+      <div className="max-w-md mx-auto glass-strong p-10 rounded-3xl text-center">
         <Wand2 className="w-10 h-10 text-primary mx-auto mb-4" />
         <h3 className="text-xl font-display font-bold mb-2">
           Turn this lesson into a story
         </h3>
-        <p className="text-gray-400 mb-6 max-w-md mx-auto">
+        <p className="text-gray-400 mb-6">
           We'll write a short 5-page illustrated story from this unit's own
           content - the same ideas, told as a story.
         </p>
@@ -119,7 +184,7 @@ export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
 
   if (GENERATING_STATUSES.has(storybook.status)) {
     return (
-      <div className="glass-strong p-12 rounded-3xl text-center">
+      <div className="max-w-md mx-auto glass-strong p-12 rounded-3xl text-center">
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
@@ -140,7 +205,7 @@ export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
 
   if (storybook.status === "FAILED") {
     return (
-      <div className="glass-strong p-10 rounded-3xl text-center">
+      <div className="max-w-md mx-auto glass-strong p-10 rounded-3xl text-center">
         <AlertCircle className="w-10 h-10 text-amber-400 mx-auto mb-4" />
         <p className="text-gray-300 mb-2">Couldn't write the story this time.</p>
         {storybook.errorMessage && (
@@ -154,70 +219,91 @@ export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
   }
 
   const pages = storybook.pages;
-  const page = pages[pageIndex];
-  if (!page) return null;
+  const totalSpreads = Math.ceil(pages.length / 2);
+  const left = pages[spreadIndex * 2] ?? null;
+  const right = pages[spreadIndex * 2 + 1] ?? null;
+  const onFirstSpread = spreadIndex === 0;
+  const onLastSpread = spreadIndex >= totalSpreads - 1;
+
+  const turn = (dir: 1 | -1) => {
+    setDirection(dir);
+    setSpreadIndex((i) => Math.max(0, Math.min(totalSpreads - 1, i + dir)));
+  };
+
+  const variants = {
+    enter: (dir: number) => ({ rotateY: dir > 0 ? 60 : -60, opacity: 0 }),
+    center: { rotateY: 0, opacity: 1 },
+    exit: (dir: number) => ({ rotateY: dir > 0 ? -60 : 60, opacity: 0 }),
+  };
 
   return (
-    <div>
+    <div className="px-4 sm:px-8">
       {storybook.title && (
         <h2 className="text-xl font-display font-bold text-center mb-4">
           {storybook.title}
         </h2>
       )}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={page.id}
-          initial={{ opacity: 0, x: 30 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -30 }}
-          className="glass-strong p-6 sm:p-10 rounded-3xl mb-6"
-        >
-          {page.imageUrl ? (
-            <img
-              src={resolveMediaUrl(page.imageUrl)}
-              alt={`Page ${page.pageNumber}`}
-              className="w-full max-h-[28rem] object-contain rounded-2xl mb-6 bg-black/20"
-            />
-          ) : (
-            <div className="w-full h-48 rounded-2xl mb-6 bg-black/20 border border-white/10 flex items-center justify-center text-gray-500 text-sm">
-              <ImageIcon className="w-5 h-5 mr-2" /> No picture for this page
-            </div>
-          )}
-          <p className="text-xl text-gray-200 leading-relaxed text-center">
-            {page.storyText}
-          </p>
-        </motion.div>
-      </AnimatePresence>
 
-      <div className="flex items-center justify-between gap-3">
+      <div style={{ perspective: 2200 }} className="max-w-5xl mx-auto">
+        <AnimatePresence mode="wait" custom={direction}>
+          <motion.div
+            key={spreadIndex}
+            custom={direction}
+            variants={variants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.4, ease: "easeInOut" }}
+            style={{ transformStyle: "preserve-3d" }}
+            className="flex flex-col sm:flex-row rounded-2xl overflow-hidden shadow-2xl border-4 border-[#e8e0d0] sm:divide-x-0 divide-y sm:divide-y-0 divide-black/10"
+          >
+            <Leaf
+              page={left}
+              side="left"
+              clickable={!onFirstSpread}
+              onClick={() => turn(-1)}
+            />
+            <Leaf
+              page={right}
+              side="right"
+              clickable={!onLastSpread}
+              onClick={() => turn(1)}
+            />
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      <div className="flex items-center justify-center gap-4 mt-6">
         <Button
           variant="ghost"
-          onClick={() => setPageIndex((i) => Math.max(0, i - 1))}
-          disabled={pageIndex === 0}
+          onClick={() => turn(-1)}
+          disabled={onFirstSpread}
           className="gap-2"
         >
           <ChevronLeft className="w-4 h-4" /> Previous
         </Button>
         <div className="flex gap-1.5">
-          {pages.map((p, i) => (
+          {Array.from({ length: totalSpreads }).map((_, i) => (
             <button
-              key={p.id}
-              onClick={() => setPageIndex(i)}
-              aria-label={`Page ${p.pageNumber}`}
+              key={i}
+              onClick={() => {
+                setDirection(i > spreadIndex ? 1 : -1);
+                setSpreadIndex(i);
+              }}
+              aria-label={`Spread ${i + 1}`}
               className={`w-2.5 h-2.5 rounded-full transition-all ${
-                i === pageIndex ? "bg-primary w-6" : "bg-white/20 hover:bg-white/40"
+                i === spreadIndex ? "bg-primary w-6" : "bg-white/20 hover:bg-white/40"
               }`}
             />
           ))}
         </div>
-        <Button
-          onClick={() => setPageIndex((i) => Math.min(pages.length - 1, i + 1))}
-          disabled={pageIndex === pages.length - 1}
-          className="gap-2"
-        >
+        <Button onClick={() => turn(1)} disabled={onLastSpread} className="gap-2">
           Next <ChevronRight className="w-4 h-4" />
         </Button>
       </div>
+      <p className="text-center text-xs text-gray-500 mt-3">
+        Click the right page to turn forward, the left page to turn back.
+      </p>
     </div>
   );
 };

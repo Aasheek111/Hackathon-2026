@@ -782,7 +782,11 @@ export const CurriculumPlayerPage: React.FC = () => {
       </header>
 
       <main
-        className={`mx-auto px-4 sm:px-6 pt-8 ${mode === "AR" ? "max-w-5xl" : "max-w-3xl"}`}
+        className={`pt-8 ${
+          mode === "AR" || mode === "STORY"
+            ? "w-full px-0"
+            : "mx-auto max-w-3xl px-4 sm:px-6"
+        }`}
       >
         {mode === "STORY" ? (
           <StorybookView unitId={unitId as string} />
