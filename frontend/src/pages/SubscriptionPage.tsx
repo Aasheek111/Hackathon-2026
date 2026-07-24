@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { CheckCircle2, Shield, ArrowRight, Lock } from "lucide-react";
+import { CheckCircle2, ArrowRight, Lock } from "lucide-react";
 import api from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -230,6 +230,15 @@ export const SubscriptionPage: React.FC = () => {
                 : "Pay securely with eSewa (Testing)"}
             </span>
             {!loading && <ArrowRight className="w-5 h-5 shrink-0" />}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleTestActivate}
+            disabled={loading}
+            className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 px-6 rounded-2xl shadow-md border-b-4 border-amber-700 active:translate-y-0.5 active:border-b-2 transition-all flex items-center justify-center gap-1 text-xs sm:text-sm cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            <span>⚡ Sandbox Quick Complete (Bypass Payment)</span>
           </button>
         </div>
       </div>

@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Space Rocket Shooter</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #020817;
+      color: #fff;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* AR webcam background */
+    #webcam-bg {
+      position: fixed; top:0; left:0; width:100%; height:100%;
+      object-fit: cover; z-index:0;
+      display:none; opacity:0.3;
+    }
+
+    /* Game canvas */
+    #gc { position:fixed; inset:0; z-index:1; cursor:crosshair; width:100%; height:100%; }
+
+    /* HUD */
+    #hud {
+      position: fixed; inset:0; z-index:10;
+      display: flex; flex-direction:column;
+      justify-content: space-between;
+      padding: 10px 12px;
+      pointer-events: none;
+    }
+
+    .gl {
+      background: rgba(8,14,36,0.88);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(56,189,248,0.28);
+      border-radius: 14px;
+    }
+
+    /* Top bar */
+    #top {
+      display:flex; align-items:center; justify-content:space-between;
+      pointer-events:auto; gap:8px;
+    }
+    .ctrls { display:flex; gap:7px; padding:5px 10px; align-items:center; }
+    .btn {
+      cursor:pointer; font-size:11px; font-weight:700;
+      padding:6px 13px; border-radius:11px; border:1px solid;
+      transition:background 0.2s;
+    }
+    #cam-btn { background:rgba(14,165,233,0.2); border-color:rgba(56,189,248,0.45); color:#7dd3fc; }
+    #cam-btn:hover,#cam-btn.on { background:rgba(56,189,248,0.3); border-color:#38bdf8; color:#fff; }
+
+    .sbox { text-align:center; padding:7px 16px; }
+    .slbl { font-size:10px; font-weight:700; color:#7dd3fc; text-transform:uppercase; letter-spacing:0.1em; }
+    .sval { font-size:20px; font-weight:800; }
+    .ssub { font-size:10px; color:rgba(255,255,255,0.35); }
+
+    /* PiP */
+    #pip {
+      position:fixed; top:65px; right:12px; z-index:20;
+      width:170px; height:115px; border-radius:13px; overflow:hidden;
+      border:2px solid rgba(56,189,248,0.55);
+      display:none; box-shadow:0 4px 24px rgba(0,0,0,0.6);
+    }
+    #pip-vid { width:100%; height:100%; object-fit:cover; transform:scaleX(-1); }
+    #pip-cv  { position:absolute; inset:0; width:100%; height:100%; }
+    #pip-lbl {
+      position:absolute; bottom:4px; left:0; right:0;
+      text-align:center; font-size:9px; font-weight:700;
+      color:rgba(125,211,252,0.9); text-shadow:0 1px 4px #000;
+    }
+
+    /* Hint */
+    #hint {
+      text-align:center; font-size:11px; font-weight:700;
+      color:rgba(125,211,252,0.6); pointer-events:none;
+    }
+
+    /* Question */
+    #qwrap { display:flex; justify-content:center; }
+    #qcard { padding:11px 22px; max-width:640px; width:100%; text-align:center; border-color:rgba(56,189,248,0.22); }
+    #qhint { font-size:11px; color:#7dd3fc; font-weight:700; margin-bottom:3px; }
+    #qtext { font-size:clamp(14px,2.2vw,21px); font-weight:800; line-height:1.3; }
+
+    /* Toast */
+    #toast { display:flex; justify-content:center; opacity:0; transition:opacity 0.25s; pointer-events:none; }
+    #tbody { padding:9px 22px; border-radius:13px; font-size:14px; font-weight:700; }
+    #tbody.ok  { background:rgba(16,185,129,0.18); border:1px solid rgba(16,185,129,0.45); color:#6ee7b7; }
+    #tbody.bad { background:rgba(239,68,68,0.18);  border:1px solid rgba(239,68,68,0.45);  color:#fca5a5; }
+
+    /* Options */
+    #opts { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px; pointer-events:auto; max-width:820px; margin:0 auto; width:100%; }
+    @media(max-width:560px){#opts{grid-template-columns:1fr 1fr;}}
+    .ob { cursor:pointer; padding:9px 8px; border-radius:13px; font-size:12px; font-weight:700; text-align:center; border:1px solid; background:rgba(8,14,36,0.82); color:rgba(255,255,255,0.5); transition:transform 0.15s,box-shadow 0.15s,color 0.15s; }
+    .ob:hover{transform:translateY(-3px) scale(1.03);color:#fff;}
+    .ob:active{transform:scale(0.97);}
+    .ob.c0{border-color:rgba(56,189,248,0.4);}  .ob.c0:hover{box-shadow:0 8px 22px -5px rgba(56,189,248,0.45);border-color:#38bdf8;}
+    .ob.c1{border-color:rgba(167,139,250,0.4);} .ob.c1:hover{box-shadow:0 8px 22px -5px rgba(167,139,250,0.45);border-color:#a78bfa;}
+    .ob.c2{border-color:rgba(248,113,113,0.4);} .ob.c2:hover{box-shadow:0 8px 22px -5px rgba(248,113,113,0.45);border-color:#f87171;}
+    .ob.c3{border-color:rgba(251,191,36,0.4);}  .ob.c3:hover{box-shadow:0 8px 22px -5px rgba(251,191,36,0.45);border-color:#fbbf24;}
+
+    /* Modal */
+    #modal { position:fixed;inset:0;z-index:30;background:rgba(2,8,23,0.93);backdrop-filter:blur(18px);display:none;align-items:center;justify-content:center;padding:16px; }
+    #modal.show{display:flex;}
+    #mcard{padding:32px 28px;max-width:400px;width:100%;text-align:center;border-color:rgba(56,189,248,0.35);}
+    #memoji{font-size:52px;margin-bottom:10px;}
+    #mtitle{font-size:26px;font-weight:800;margin-bottom:5px;}
+    #msub{font-size:13px;color:rgba(255,255,255,0.5);margin-bottom:18px;}
+    #mscbox{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:13px;padding:13px;margin-bottom:18px;}
+    #msclbl{font-size:10px;color:#7dd3fc;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;}
+    #msc{font-size:34px;font-weight:800;color:#38bdf8;}
+    .mb{width:100%;padding:12px;border-radius:13px;font-size:14px;font-weight:700;cursor:pointer;border:none;margin-bottom:9px;transition:opacity 0.2s;}
+    .mb:hover{opacity:0.88;}
+    .mbp{background:linear-gradient(135deg,#0ea5e9,#2563eb);color:#fff;}
+    .mbs{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:rgba(255,255,255,0.65);}
+  </style>
+</head>
+<body>
+
+<video id="webcam-bg" autoplay playsinline muted></video>
+
+<!-- Hidden elements for motion tracking -->
+<video  id="tv"  style="display:none" autoplay playsinline muted></video>
+<canvas id="tc"  style="display:none"></canvas>
+<canvas id="tc2" style="display:none"></canvas>
+
+<!-- Game canvas -->
+<canvas id="gc"></canvas>
+
+<!-- PiP camera overlay -->
+<div id="pip">
+  <video id="pip-vid" autoplay playsinline muted></video>
+  <canvas id="pip-cv"></canvas>
+  <div id="pip-lbl">🖐 Motion Aim</div>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="top">
+    <div class="gl ctrls">
+      <button id="cam-btn" class="btn" onclick="toggleCam()">📷 Enable Hand Cam</button>
+    </div>
+    <div class="gl sbox"><div class="slbl">Score</div><div class="sval" id="sc">0 <span class="ssub">/ 10</span></div></div>
+    <div class="gl sbox"><div class="slbl">Question</div><div class="sval" id="qn">1 <span class="ssub">/ 10</span></div></div>
+  </div>
+
+  <div id="hint">🎯 Mouse/click to aim &amp; shoot — or 📷 hold hand over asteroid 2.5s to fire!</div>
+
+  <div id="qwrap">
+    <div id="qcard" class="gl">
+      <div id="qhint">🚀 Aim and fire!</div>
+      <div id="qtext">Loading...</div>
+    </div>
+  </div>
+
+  <div id="toast"><div id="tbody"></div></div>
+
+  <div id="opts">
+    <button class="ob c0" id="ob0" onclick="selectAnswer(0)">A</button>
+    <button class="ob c1" id="ob1" onclick="selectAnswer(1)">B</button>
+    <button class="ob c2" id="ob2" onclick="selectAnswer(2)">C</button>
+    <button class="ob c3" id="ob3" onclick="selectAnswer(3)">D</button>
+  </div>
+</div>
+
+<div id="modal">
+  <div id="mcard" class="gl">
+    <div id="memoji">🚀</div>
+    <div id="mtitle">Mission Complete!</div>
+    <div id="msub">Asteroid field cleared!</div>
+    <div id="mscbox"><div id="msclbl">Final Score</div><div id="msc">0 / 10</div></div>
+    <button class="mb mbp" onclick="restart()">🚀 Play Again</button>
+    <button class="mb mbs" onclick="goHome()">← Dashboard</button>
+  </div>
+</div>
+
+<script>
+// ── Questions ─────────────────────────────────────────────────────────────────
+const QS=[
+  {q:'7 × 6 = ?',           opts:['40','42','45','48'],                          ans:'42'},
+  {q:'√81 = ?',             opts:['7','8','9','10'],                             ans:'9'},
+  {q:'Most moons planet?',  opts:['Jupiter','Saturn','Uranus','Mars'],            ans:'Saturn'},
+  {q:'144 ÷ 12 = ?',        opts:['10','11','12','13'],                          ans:'12'},
+  {q:'Speed of light?',     opts:['300 km/s','3,000 km/s','300,000 km/s','30,000 km/s'],ans:'300,000 km/s'},
+  {q:'5³ = ?',              opts:['25','100','125','150'],                        ans:'125'},
+  {q:'Human chromosomes?',  opts:['44','46','48','42'],                           ans:'46'},
+  {q:'Air is mostly…?',     opts:['Oxygen','CO₂','Nitrogen','Argon'],            ans:'Nitrogen'},
+  {q:'17 × 3 = ?',         opts:['48','51','54','57'],                           ans:'51'},
+  {q:'Earth–Moon distance?',opts:['184,000 km','284,000 km','384,000 km','484,000 km'],ans:'384,000 km'},
+];
+const COLORS=['#38bdf8','#a78bfa','#f87171','#fbbf24'];
+const DWELL_MS = 2500; // 2.5 seconds to auto-fire
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let curQ=0,score=0,answered=false;
+let camStream=null, camActive=false, frameId=null;
+let stars=[], asteroids=[], shots=[], sparks=[];
+let prevFrame=null;         // previous video frame pixel data
+let ptrX=0, ptrY=0;        // aim position
+let rocketX=0;
+// Dwell state
+let dwellAstIdx=-1;         // which asteroid is being dwelled on
+let dwellStart=0;           // when dwell started (ms)
+let dwellProgress=0;        // 0..1
+
+// ── Canvas ────────────────────────────────────────────────────────────────────
+const GC=document.getElementById('gc');
+const ctx=GC.getContext('2d');
+
+function resize(){
+  GC.width=innerWidth; GC.height=innerHeight;
+  rocketX=GC.width/2; ptrX=GC.width/2;
+  initAsteroids();
+}
+window.addEventListener('resize',resize);
+resize();
+
+GC.addEventListener('mousemove',e=>{
+  if(camActive)return;
+  const r=GC.getBoundingClientRect();
+  ptrX=e.clientX-r.left; ptrY=e.clientY-r.top;
+});
+GC.addEventListener('click',e=>{
+  if(answered)return;
+  const r=GC.getBoundingClientRect();
+  const cx=e.clientX-r.left, cy=e.clientY-r.top;
+  for(let i=0;i<asteroids.length;i++){
+    const a=asteroids[i]; if(!a.alive||a.boom)continue;
+    const ay=a.baseY+Math.sin(Date.now()*0.001+a.phase)*10;
+    if(Math.hypot(cx-a.x,cy-ay)<=a.r*1.4){selectAnswer(i);return;}
+  }
+});
+
+// ── Motion tracking (frame difference) ───────────────────────────────────────
+const TV=document.getElementById('tv');
+const TC=document.getElementById('tc');
+const TC2=document.getElementById('tc2');
+const tCtx=TC.getContext('2d',{willReadFrequently:true});
+const tCtx2=TC2.getContext('2d',{willReadFrequently:true});
+const PIPV=document.getElementById('pip-vid');
+const PIPC=document.getElementById('pip-cv');
+const pCtx=PIPC.getContext('2d');
+const TW=200, TH=150;
+
+function processMotion(){
+  if(!camActive)return;
+
+  TC.width=TW; TC.height=TH;
+  // Draw mirrored frame
+  tCtx.save(); tCtx.translate(TW,0); tCtx.scale(-1,1);
+  tCtx.drawImage(TV,0,0,TW,TH);
+  tCtx.restore();
+
+  const cur=tCtx.getImageData(0,0,TW,TH);
+
+  // Draw PiP
+  PIPC.width=170; PIPC.height=115;
+  pCtx.drawImage(TC,0,0,170,115);
+
+  let motionX=0, motionY=0, motionCount=0;
+
+  if(prevFrame){
+    const cd=cur.data, pd=prevFrame.data;
+    for(let y=0;y<TH;y++){
+      for(let x=0;x<TW;x++){
+        const i=(y*TW+x)*4;
+        const dr=Math.abs(cd[i]-pd[i]);
+        const dg=Math.abs(cd[i+1]-pd[i+1]);
+        const db=Math.abs(cd[i+2]-pd[i+2]);
+        const diff=(dr+dg+db)/3;
+        if(diff>25){ // motion threshold
+          motionX+=x; motionY+=y; motionCount++;
+        }
+      }
+    }
+  }
+  prevFrame=cur;
+
+  if(motionCount>150){
+    const mx=motionX/motionCount;
+    const my=motionY/motionCount;
+
+    // Draw motion dot on PiP
+    pCtx.beginPath(); pCtx.arc(mx*(170/TW),my*(115/TH),10,0,Math.PI*2);
+    pCtx.fillStyle='rgba(56,189,248,0.8)'; pCtx.fill();
+    pCtx.strokeStyle='#fff'; pCtx.lineWidth=2; pCtx.stroke();
+
+    // Map to game canvas
+    ptrX=mx/TW*GC.width;
+    ptrY=my/TH*GC.height;
+
+    // Check dwell on asteroid
+    updateDwell();
+  } else {
+    // No significant motion - reset dwell
+    dwellAstIdx=-1; dwellProgress=0;
+    // Motion prompt on pip
+    pCtx.fillStyle='rgba(0,0,0,0.35)'; pCtx.fillRect(0,0,170,115);
+    pCtx.fillStyle='rgba(125,211,252,0.8)'; pCtx.font='10px Segoe UI'; pCtx.textAlign='center';
+    pCtx.fillText('Move hand to aim',85,62);
+  }
+
+  frameId=requestAnimationFrame(processMotion);
+}
+
+function updateDwell(){
+  if(answered)return;
+  // Find which asteroid ptr is over
+  let hitIdx=-1;
+  for(let i=0;i<asteroids.length;i++){
+    const a=asteroids[i]; if(!a.alive||a.boom)continue;
+    const ay=a.baseY+Math.sin(Date.now()*0.001+a.phase)*10;
+    if(Math.hypot(ptrX-a.x,ptrY-ay)<=a.r*1.5){hitIdx=i;break;}
+  }
+
+  if(hitIdx<0){
+    dwellAstIdx=-1; dwellStart=0; dwellProgress=0; return;
+  }
+
+  if(hitIdx!==dwellAstIdx){
+    // Switched to new asteroid - reset timer
+    dwellAstIdx=hitIdx; dwellStart=Date.now(); dwellProgress=0;
+  } else {
+    // Same asteroid - accumulate
+    const elapsed=Date.now()-dwellStart;
+    dwellProgress=Math.min(elapsed/DWELL_MS,1);
+    if(dwellProgress>=1){
+      dwellAstIdx=-1; dwellStart=0; dwellProgress=0;
+      selectAnswer(hitIdx);
+    }
+  }
+}
+
+async function toggleCam(){
+  const btn=document.getElementById('cam-btn');
+  const pip=document.getElementById('pip');
+  const bg=document.getElementById('webcam-bg');
+  if(!camStream){
+    try{
+      camStream=await navigator.mediaDevices.getUserMedia({video:{width:320,height:240,facingMode:'user'}});
+      TV.srcObject=camStream; PIPV.srcObject=camStream; bg.srcObject=camStream;
+      bg.style.display='block'; pip.style.display='block';
+      camActive=true; prevFrame=null;
+      btn.textContent='📷 Disable Hand Cam'; btn.classList.add('on');
+      requestAnimationFrame(processMotion);
+    } catch(e){ alert('Camera permission required for hand tracking!'); }
+  } else {
+    cancelAnimationFrame(frameId);
+    camStream.getTracks().forEach(t=>t.stop());
+    camStream=null; camActive=false; prevFrame=null;
+    pip.style.display='none'; bg.style.display='none';
+    btn.textContent='📷 Enable Hand Cam'; btn.classList.remove('on');
+    dwellAstIdx=-1; dwellStart=0; dwellProgress=0;
+  }
+}
+
+// ── Stars ─────────────────────────────────────────────────────────────────────
+function initStars(){
+  stars=Array.from({length:130},()=>({
+    x:Math.random()*GC.width,y:Math.random()*GC.height,
+    r:Math.random()*1.8+0.3,
+    phase:Math.random()*Math.PI*2,speed:Math.random()*0.6+0.2,
+  }));
+}
+function drawStars(t){
+  stars.forEach(s=>{
+    const a=0.3+Math.abs(Math.sin(t*s.speed*0.001+s.phase))*0.7;
+    ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+    ctx.fillStyle=`rgba(255,255,255,${a})`;ctx.fill();
+  });
+}
+
+// ── Asteroids ──────────────────────────────────────────────────────────────────
+function initAsteroids(){
+  const W=GC.width,H=GC.height,q=QS[curQ];
+  const xs=[0.18,0.38,0.62,0.82];
+  asteroids=xs.map((xf,i)=>({
+    i,x:xf*W,baseY:H*0.27,r:Math.max(50,W*0.054),
+    color:COLORS[i],text:q.opts[i],
+    alive:true,boom:false,boomT:0,phase:i*1.4,
+  }));
+}
+
+function drawAsteroid(a,t){
+  if(!a.alive&&!a.boom)return;
+  const y=a.baseY+Math.sin(t*0.001+a.phase)*10;
+  const dx=ptrX-a.x,dy=ptrY-y;
+  const hovered=Math.hypot(dx,dy)<=a.r*1.5&&!answered;
+  const isDwelling=camActive&&dwellAstIdx===a.i&&dwellProgress>0;
+
+  ctx.save();ctx.translate(a.x,y);
+
+  if(a.boom){
+    const p=a.boomT;
+    ctx.beginPath();ctx.arc(0,0,a.r*(1+p*2.5),0,Math.PI*2);
+    ctx.strokeStyle=`${a.color}${Math.round((1-p)*255).toString(16).padStart(2,'0')}`;
+    ctx.lineWidth=4;ctx.stroke();
+    ctx.restore();return;
+  }
+
+  // Glow
+  const gr=ctx.createRadialGradient(0,0,0,0,0,(hovered||isDwelling)?a.r*2.1:a.r*1.65);
+  gr.addColorStop(0,`${a.color}${(hovered||isDwelling)?'66':'28'}`);
+  gr.addColorStop(1,'transparent');
+  ctx.beginPath();ctx.arc(0,0,(hovered||isDwelling)?a.r*2.1:a.r*1.65,0,Math.PI*2);
+  ctx.fillStyle=gr;ctx.fill();
+
+  // Body
+  ctx.beginPath();
+  for(let i=0;i<11;i++){
+    const ang=i/11*Math.PI*2;
+    const rr=a.r*(0.82+Math.sin(i*3.1+a.phase)*0.18);
+    i===0?ctx.moveTo(Math.cos(ang)*rr,Math.sin(ang)*rr):ctx.lineTo(Math.cos(ang)*rr,Math.sin(ang)*rr);
+  }
+  ctx.closePath();
+  ctx.fillStyle=(hovered||isDwelling)?'#0d1f3c':'#060f1e';ctx.fill();
+  ctx.strokeStyle=a.color;ctx.lineWidth=(hovered||isDwelling)?3.5:2.5;ctx.stroke();
+
+  // ── Dwell progress ring ────────────────────────────────────────────────────
+  if(isDwelling){
+    const ringR=a.r+10;
+    const startAng=-Math.PI/2;
+    const endAng=startAng+dwellProgress*Math.PI*2;
+
+    // Background ring (dim)
+    ctx.beginPath();ctx.arc(0,0,ringR,0,Math.PI*2);
+    ctx.strokeStyle='rgba(255,255,255,0.12)';ctx.lineWidth=5;ctx.stroke();
+
+    // Progress arc
+    ctx.beginPath();ctx.arc(0,0,ringR,startAng,endAng);
+    ctx.strokeStyle=a.color;ctx.lineWidth=5;
+    ctx.lineCap='round';ctx.stroke();
+
+    // Countdown label
+    const remaining=((1-dwellProgress)*DWELL_MS/1000).toFixed(1);
+    ctx.font='bold 14px Segoe UI,sans-serif';
+    ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(`${remaining}s`,0,a.r+22);
+  }
+
+  // Letter + text
+  ctx.font='bold 13px Segoe UI,sans-serif';
+  ctx.fillStyle=a.color;ctx.textAlign='center';ctx.textBaseline='alphabetic';
+  ctx.fillText('ABCD'[a.i],0,-a.r+16);
+
+  ctx.font='bold 13px Segoe UI,sans-serif';
+  ctx.fillStyle='#fff';ctx.textBaseline='middle';
+  const maxW=a.r*1.7;
+  const words=a.text.split(' ');
+  let line='',lines=[];
+  words.forEach(w=>{
+    const t2=line?line+' '+w:w;
+    if(ctx.measureText(t2).width>maxW){if(line)lines.push(line);line=w;}else line=t2;
+  });
+  if(line)lines.push(line);
+  const lh=16,sy=-((lines.length-1)*lh)/2;
+  lines.forEach((l,li)=>ctx.fillText(l,0,sy+li*lh));
+  ctx.restore();
+}
+
+// ── Shots ──────────────────────────────────────────────────────────────────────
+function fire(ast,correct){
+  const ry=GC.height*0.80;
+  shots.push({x:rocketX,y:ry,tx:ast.x,ty:ast.baseY,color:correct?'#34d399':'#f87171',speed:16,done:false});
+}
+function updateShots(){
+  shots.forEach(s=>{if(s.done)return;const dx=s.tx-s.x,dy=s.ty-s.y,d=Math.hypot(dx,dy);if(d<18){s.done=true;return;}s.x+=dx/d*s.speed;s.y+=dy/d*s.speed;});
+  shots=shots.filter(s=>!s.done);
+}
+function drawShots(){
+  shots.forEach(s=>{
+    const ang=Math.atan2(s.ty-s.y,s.tx-s.x)+Math.PI/2;
+    ctx.save();ctx.translate(s.x,s.y);ctx.rotate(ang);
+    ctx.shadowColor=s.color;ctx.shadowBlur=18;
+    ctx.beginPath();ctx.moveTo(0,-12);ctx.lineTo(5,8);ctx.lineTo(-5,8);ctx.closePath();
+    ctx.fillStyle=s.color;ctx.fill();ctx.restore();
+  });
+}
+
+// ── Sparks ─────────────────────────────────────────────────────────────────────
+function spawnSparks(x,y,color){
+  for(let i=0;i<22;i++){const a=Math.random()*Math.PI*2,sp=Math.random()*5.5+2;sparks.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,r:Math.random()*5+2,life:1,color});}
+}
+function updateSparks(){sparks.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.13;p.life-=0.026;});sparks=sparks.filter(p=>p.life>0);}
+function drawSparks(){sparks.forEach(p=>{ctx.save();ctx.globalAlpha=p.life;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fillStyle=p.color;ctx.fill();ctx.restore();});}
+
+// ── Rocket ─────────────────────────────────────────────────────────────────────
+function drawRocket(t){
+  rocketX+=(ptrX-rocketX)*0.1;
+  rocketX=Math.max(30,Math.min(GC.width-30,rocketX));
+  const ry=GC.height*0.80+Math.sin(t*0.003)*4;
+  ctx.save();ctx.translate(rocketX,ry);
+  ctx.shadowColor='#38bdf8';ctx.shadowBlur=22;
+  ctx.beginPath();ctx.moveTo(0,-30);ctx.lineTo(14,16);ctx.lineTo(-14,16);ctx.closePath();
+  ctx.fillStyle='#1e3a6e';ctx.fill();ctx.strokeStyle='#38bdf8';ctx.lineWidth=2;ctx.stroke();
+  ctx.beginPath();ctx.arc(0,-6,7,0,Math.PI*2);ctx.fillStyle='#7dd3fc';ctx.fill();
+  [[-14,-16],[14,16]].forEach(([sx,ex])=>{ctx.beginPath();ctx.moveTo(sx,14);ctx.lineTo(sx+ex,28);ctx.lineTo(sx-ex/2,22);ctx.closePath();ctx.fillStyle='#1d4ed8';ctx.fill();});
+  const fH=20+Math.random()*14;
+  const fg=ctx.createLinearGradient(0,16,0,16+fH);fg.addColorStop(0,'#fbbf24');fg.addColorStop(0.5,'#f97316');fg.addColorStop(1,'transparent');
+  ctx.beginPath();ctx.ellipse(0,16+fH/2,8,fH/2,0,0,Math.PI*2);ctx.fillStyle=fg;ctx.fill();
+  ctx.restore();return ry;
+}
+
+// ── Aim line + crosshair ───────────────────────────────────────────────────────
+function drawAim(ry){
+  if(answered)return;
+  let tx=ptrX,ty=GC.height*0.3,bestD=Infinity;
+  asteroids.forEach(a=>{if(!a.alive||a.boom)return;const ay=a.baseY+Math.sin(Date.now()*0.001+a.phase)*10;const d=Math.hypot(ptrX-a.x,ptrY-ay);if(d<bestD){bestD=d;tx=a.x;ty=ay;}});
+  ctx.save();
+  ctx.setLineDash([6,8]);ctx.strokeStyle=bestD<220?'rgba(56,189,248,0.6)':'rgba(56,189,248,0.18)';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(rocketX,ry);ctx.lineTo(tx,ty);ctx.stroke();ctx.setLineDash([]);
+  if(!camActive){const sz=13;ctx.strokeStyle='rgba(56,189,248,0.7)';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(ptrX-sz,ptrY);ctx.lineTo(ptrX+sz,ptrY);ctx.stroke();ctx.beginPath();ctx.moveTo(ptrX,ptrY-sz);ctx.lineTo(ptrX,ptrY+sz);ctx.stroke();ctx.beginPath();ctx.arc(ptrX,ptrY,5,0,Math.PI*2);ctx.stroke();}
+  else{ctx.beginPath();ctx.arc(ptrX,ptrY,14,0,Math.PI*2);ctx.fillStyle='rgba(56,189,248,0.55)';ctx.fill();}
+  ctx.restore();
+}
+
+// ── Main loop ──────────────────────────────────────────────────────────────────
+function loop(t){
+  ctx.clearRect(0,0,GC.width,GC.height);
+  const bg=ctx.createLinearGradient(0,0,0,GC.height);bg.addColorStop(0,'#020817');bg.addColorStop(1,'#050d24');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,GC.width,GC.height);
+  drawStars(t);
+  asteroids.forEach(a=>{if(a.boom){a.boomT+=0.055;if(a.boomT>=1){a.boom=false;a.alive=false;}}drawAsteroid(a,t);});
+  updateSparks();drawSparks();updateShots();drawShots();
+  const ry=drawRocket(t);drawAim(ry);
+  requestAnimationFrame(loop);
+}
+
+// ── Quiz logic ─────────────────────────────────────────────────────────────────
+function loadQ(){
+  answered=false;dwellAstIdx=-1;dwellStart=0;dwellProgress=0;
+  const q=QS[curQ];
+  document.getElementById('qtext').textContent=q.q;
+  document.getElementById('qn').innerHTML=`${curQ+1} <span class="ssub">/ 10</span>`;
+  for(let i=0;i<4;i++) document.getElementById(`ob${i}`).textContent=`${'ABCD'[i]}: ${q.opts[i]}`;
+  initAsteroids();
+}
+function selectAnswer(idx){
+  if(answered)return;answered=true;
+  dwellAstIdx=-1;dwellStart=0;dwellProgress=0;
+  const q=QS[curQ];const correct=q.opts[idx]===q.ans;const ast=asteroids[idx];
+  fire(ast,correct);
+  setTimeout(()=>{spawnSparks(ast.x,ast.baseY,correct?'#34d399':'#f87171');ast.boom=true;},360);
+  if(correct){score++;document.getElementById('sc').innerHTML=`${score} <span class="ssub">/ 10</span>`;}
+  const tb=document.getElementById('tbody');
+  tb.className=correct?'ok':'bad';tb.textContent=correct?'🎯 Direct hit!':'💥 Missed! Correct: '+q.ans;
+  document.getElementById('toast').style.opacity='1';
+  setTimeout(()=>document.getElementById('toast').style.opacity='0',2000);
+  setTimeout(()=>{curQ++;if(curQ>=QS.length)showResults();else loadQ();},1900);
+}
+function showResults(){document.getElementById('msc').textContent=`${score} / 10`;document.getElementById('modal').classList.add('show');}
+function restart(){
+  curQ=0;score=0;answered=false;shots=[];sparks=[];
+  document.getElementById('sc').innerHTML=`0 <span class="ssub">/ 10</span>`;
+  document.getElementById('modal').classList.remove('show');loadQ();
+}
+function goHome(){
+  try{(window.parent&&window.parent!==window)?(window.parent.location.href='/dashboard'):(window.location.href='/dashboard');}
+  catch{window.location.href='/dashboard';}
+}
+
+// ── Boot ───────────────────────────────────────────────────────────────────────
+initStars();
+rocketX=GC.width/2;ptrX=GC.width/2;ptrY=GC.height/2;
+loadQ();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

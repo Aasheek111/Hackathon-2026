@@ -179,14 +179,16 @@
     </div>
 
     <!-- Question Card HUD (Centered Top) -->
-    <div class="w-full flex justify-center pointer-events-auto mt-2">
-      <div class="glass-panel px-6 py-4 rounded-3xl max-w-2xl w-full text-center border-purple-500/40 shadow-2xl">
-        <div id="question-text" class="text-lg md:text-2xl font-bold text-white leading-tight">
-          Loading Question...
-        </div>
-        <p class="text-xs text-purple-300 mt-1">Touch a balloon with your fingertip or click it to pop.</p>
-      </div>
+<div class="absolute bottom-10 left-0 w-full flex justify-center pointer-events-auto">
+  <div class="glass-panel px-6 py-9 rounded-3xl max-w-2xl w-full text-center border-purple-500/40 shadow-2xl">
+    <div id="question-text" class="text-lg md:text-2xl font-bold text-white leading-tight">
+      Loading Question...
     </div>
+    <p class="text-xs text-purple-300 mt-1">
+      Touch a balloon with your fingertip or click it to pop.
+    </p>
+  </div>
+</div>
 
     <!-- Feedback Message Overlay -->
     <div id="feedback-toast" class="w-full flex justify-center opacity-0 transition-opacity duration-300 pointer-events-none mb-10">
