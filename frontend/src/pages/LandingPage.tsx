@@ -280,6 +280,7 @@ export const LandingPage: React.FC = () => {
         </div>
       </section>
 
+<<<<<<< Updated upstream
       {/* Footer */}
       <footer className="border-t border-white/10 bg-dark pt-16 pb-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -312,6 +313,20 @@ export const LandingPage: React.FC = () => {
           </div>
           <div className="border-t border-white/10 pt-8 flex flex-col md:flex-row justify-between items-center text-sm text-gray-500">
             <p>© 2025 NeuroLearn. All rights reserved.</p>
+=======
+      {/* Clean Light Footer */}
+      <footer className="bg-white border-t border-slate-200 py-12">
+        <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-6 text-sm text-slate-500">
+          <div className="flex items-center gap-3">
+            <img
+              src="/logo.png"
+              alt="Pragya Logo"
+              className="h-20 sm:h-24 md:h-32 w-auto object-contain"
+            />
+            <span className="text-xs font-bold bg-slate-100 border border-slate-200 text-slate-700 px-3 py-1 rounded-full ml-1">
+              Adaptive Education
+            </span>
+>>>>>>> Stashed changes
           </div>
         </div>
       </footer>
