@@ -160,6 +160,77 @@ def get_chat_model() -> ChatGoogleGenerativeAI:
     return ChatGoogleGenerativeAI(model="gemini-flash-latest", temperature=0.3)
 
 
+# --- Groq (primary text generation) ------------------------------------------
+#
+# Verified live (real key, curl against the actual API) before wiring this
+# in: llama-3.3-70b-versatile + response_format={"type": "json_object"}
+# (OpenAI-compatible, confirmed working). Groq's free tier is dramatically
+# more generous than Gemini's for text generation - 1,000 requests/day and
+# 30/minute, versus Gemini's observed 20/day - which is the actual bottleneck
+# this pipeline has hit repeatedly (every "FAILED - 429 RESOURCE_EXHAUSTED"
+# this session was the Gemini *text* model's daily quota, never Groq, images,
+# or embeddings). Groq becomes the primary text engine everywhere; Gemini
+# stays as a fallback if Groq isn't configured or a call fails, and remains
+# the only option for embeddings and image generation (Groq offers neither).
+
+GROQ_CHAT_MODEL = "llama-3.3-70b-versatile"
+GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+
+def groq_key_present() -> bool:
+    return os.getenv("GROQ_API_KEY", "").strip().strip('"') not in PLACEHOLDER_KEYS
+
+
+def any_llm_configured() -> bool:
+    """Gate for the offline-extraction fallbacks - True if there is ANY
+    usable text-generation key, Groq or Gemini.
+    """
+    return groq_key_present() or api_key_present()
+
+
+def _invoke_groq_json(system_prompt: str, user_prompt: str) -> str | None:
+    if not groq_key_present():
+        return None
+    try:
+        response = requests.post(
+            GROQ_CHAT_URL,
+            headers={"Authorization": f"Bearer {os.getenv('GROQ_API_KEY')}", "Content-Type": "application/json"},
+            json={
+                "model": GROQ_CHAT_MODEL,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "response_format": {"type": "json_object"},
+                "temperature": 0.3,
+            },
+            timeout=60,
+        )
+        response.raise_for_status()
+        return response.json()["choices"][0]["message"]["content"]
+    except Exception:
+        # network error, quota, safety block - fall through to Gemini
+        return None
+
+
+def invoke_json(system_prompt: str, user_prompt: str) -> str:
+    """The one place every JSON-generation call in this module goes through:
+    Groq first, Gemini second. Raises only if neither is configured or both
+    fail - callers already wrap this the same way they wrapped the old
+    direct get_chat_model() calls.
+    """
+    groq_result = _invoke_groq_json(system_prompt, user_prompt)
+    if groq_result is not None:
+        return groq_result
+
+    if not api_key_present():
+        raise RuntimeError("Neither GROQ_API_KEY nor GOOGLE_API_KEY is configured.")
+
+    model = get_chat_model().bind(response_mime_type="application/json")
+    reply = model.invoke([("system", system_prompt), ("human", user_prompt)])
+    return reply.content
+
+
 # --- ingestion ---------------------------------------------------------------
 
 
@@ -382,7 +453,7 @@ def generate_tutorial(
     chunks = retrieve(unit_id, query)
 
     # no key: fall back rather than fail. A dead demo helps nobody.
-    if not api_key_present():
+    if not any_llm_configured():
         return offline_tutorial(unit_id, chunks, mode)
 
     context = "\n\n---\n\n".join(chunks) if chunks else "(no textbook content found)"
@@ -393,10 +464,9 @@ def generate_tutorial(
         "Return only the JSON object, with no commentary."
     )
 
-    model = get_chat_model().bind(response_mime_type="application/json")
-    reply = model.invoke([("system", SYSTEM_PROMPT), ("human", user_prompt)])
+    raw = invoke_json(SYSTEM_PROMPT, user_prompt)
 
-    result = _normalise(_coerce_json(reply.content))
+    result = _normalise(_coerce_json(raw))
     # useful for the teacher and for debugging retrieval quality
     result["source_chunks"] = len(chunks)
     result["learning_mode"] = mode
@@ -590,7 +660,7 @@ def plan_curriculum(unit_id: int) -> dict:
     if not chunks:
         raise ValueError("No content found for this unit")
 
-    if not api_key_present():
+    if not any_llm_configured():
         # Offline fallback: one lesson per chunk, so the document is still
         # fully represented even without a model to plan groupings.
         return {
@@ -603,9 +673,7 @@ def plan_curriculum(unit_id: int) -> dict:
         }
 
     numbered = "\n\n".join(f"[chunk {c['position']}] {c['text']}" for c in chunks)
-    model = get_chat_model().bind(response_mime_type="application/json")
-    reply = model.invoke([("system", CURRICULUM_PLAN_PROMPT), ("human", numbered)])
-    plan = _coerce_json(reply.content)
+    plan = _coerce_json(invoke_json(CURRICULUM_PLAN_PROMPT, numbered))
 
     lessons = []
     for item in plan.get("lessons") or []:
@@ -636,7 +704,7 @@ def generate_lesson_content(unit_id: int, lesson_title: str, chunk_start: int, c
     scoped = [c["text"] for c in chunks if chunk_start <= c["position"] <= chunk_end]
     context = "\n\n".join(scoped) or "(no content found for this range)"
 
-    if not api_key_present():
+    if not any_llm_configured():
         sentences = [s for s in re.split(r"(?<=[.!?])\s+", context.strip()) if s]
         return {
             "explanation": " ".join(sentences[:3]) or context[:300],
@@ -646,10 +714,8 @@ def generate_lesson_content(unit_id: int, lesson_title: str, chunk_start: int, c
             "knowledge_check": None,
         }
 
-    model = get_chat_model().bind(response_mime_type="application/json")
     user_prompt = f"Lesson title: {lesson_title}\n\nTextbook excerpt:\n{context}\n\nReturn only the JSON object."
-    reply = model.invoke([("system", LESSON_SYSTEM_PROMPT), ("human", user_prompt)])
-    data = _coerce_json(reply.content)
+    data = _coerce_json(invoke_json(LESSON_SYSTEM_PROMPT, user_prompt))
 
     knowledge_check = None
     kc = data.get("knowledge_check")
@@ -673,18 +739,13 @@ def generate_final_assessment(lesson_titles: list[str]) -> list[dict]:
     raising when there's no API key - a curriculum without a final assessment
     still has real value; the frontend just won't show that step.
     """
-    if not api_key_present() or not lesson_titles:
+    if not any_llm_configured() or not lesson_titles:
         return []
 
     context = "\n".join(f"- {title}" for title in lesson_titles)
-    model = get_chat_model().bind(response_mime_type="application/json")
-    reply = model.invoke(
-        [
-            ("system", FINAL_ASSESSMENT_SYSTEM_PROMPT),
-            ("human", f"Curriculum lessons:\n{context}\n\nReturn only the JSON object."),
-        ]
+    data = _coerce_json(
+        invoke_json(FINAL_ASSESSMENT_SYSTEM_PROMPT, f"Curriculum lessons:\n{context}\n\nReturn only the JSON object.")
     )
-    data = _coerce_json(reply.content)
 
     questions = []
     for item in (data.get("questions") or [])[:10]:
@@ -705,10 +766,22 @@ def generate_final_assessment(lesson_titles: list[str]) -> list[dict]:
 # The API returns raw PCM (audio/L16, 24kHz, mono, 16-bit) rather than a
 # browser-playable container, so _wrap_pcm_as_wav() adds a WAV header before
 # saving.
+#
+# Groq also offers TTS (canopylabs/orpheus-v1-english, verified live via curl
+# with a real key) and is tried FIRST - it already returns a proper WAV, no
+# post-processing needed. As of this session, that model returns
+# `model_terms_required` until the org admin accepts its terms in the Groq
+# console (https://console.groq.com/playground?model=canopylabs%2Forpheus-v1-english)
+# - this is not a code bug, and the function degrades to Gemini automatically
+# in the meantime.
 
 GEMINI_TTS_MODEL = "gemini-2.5-flash-preview-tts"
 DEFAULT_TTS_VOICE = "Achernar"
 TTS_SAMPLE_RATE = 24000
+
+GROQ_TTS_MODEL = "canopylabs/orpheus-v1-english"
+GROQ_TTS_VOICE = "troy"
+GROQ_TTS_URL = "https://api.groq.com/openai/v1/audio/speech"
 
 
 def _wrap_pcm_as_wav(pcm_data: bytes, sample_rate: int = TTS_SAMPLE_RATE, channels: int = 1, bits_per_sample: int = 16) -> bytes:
@@ -723,31 +796,31 @@ def _wrap_pcm_as_wav(pcm_data: bytes, sample_rate: int = TTS_SAMPLE_RATE, channe
     return header + pcm_data
 
 
-def generate_speech(text: str, voice: str = DEFAULT_TTS_VOICE) -> str | None:
-    """Gemini TTS, content-hash cached (PLAN §20: never regenerate the same
-    text+voice pair) - unlike generate_visual_image's hash, this one does NOT
-    mix in time.time(), because identical narration for the same lesson
-    should always resolve to the same cached file rather than a fresh clip.
-
-    Never raises - a missing key, quota, or an unsupported voice all just
-    mean "no audio today"; the caller (frontend) falls back to the browser's
-    own speechSynthesis, same contract as the rest of this app's AI features.
-    """
-    if not api_key_present() or not (text or "").strip():
+def _generate_speech_via_groq(text: str) -> bytes | None:
+    if not groq_key_present():
         return None
+    try:
+        response = requests.post(
+            GROQ_TTS_URL,
+            headers={"Authorization": f"Bearer {os.getenv('GROQ_API_KEY')}"},
+            json={"model": GROQ_TTS_MODEL, "input": text, "voice": GROQ_TTS_VOICE, "response_format": "wav"},
+            timeout=30,
+        )
+        if response.status_code == 200 and response.headers.get("content-type", "").startswith("audio/"):
+            return response.content
+    except Exception:
+        pass
+    return None
 
-    digest = hashlib.sha1(f"{text.strip()}:{voice}".encode()).hexdigest()[:16]
-    filename = f"speech_{digest}.wav"
-    AUDIO_DIR.mkdir(parents=True, exist_ok=True)
-    target = AUDIO_DIR / filename
-    if target.exists():
-        return f"/static/audio/{filename}"
 
+def _generate_speech_via_gemini(text: str, voice: str) -> bytes | None:
+    if not api_key_present():
+        return None
     try:
         client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
         response = client.models.generate_content(
             model=GEMINI_TTS_MODEL,
-            contents=[text.strip()],
+            contents=[text],
             config=genai_types.GenerateContentConfig(
                 response_modalities=["AUDIO"],
                 speech_config=genai_types.SpeechConfig(
@@ -760,21 +833,43 @@ def generate_speech(text: str, voice: str = DEFAULT_TTS_VOICE) -> str | None:
     except Exception:
         return None
 
-    pcm_bytes: bytes | None = None
     for candidate in response.candidates or []:
         for part in candidate.content.parts or []:
             inline_data = getattr(part, "inline_data", None)
             if inline_data is not None and inline_data.data:
-                pcm_bytes = inline_data.data
-                break
-        if pcm_bytes:
-            break
+                return _wrap_pcm_as_wav(inline_data.data)
+    return None
 
-    if not pcm_bytes:
+
+def generate_speech(text: str, voice: str = DEFAULT_TTS_VOICE) -> str | None:
+    """Groq TTS first (already returns a playable WAV), Gemini TTS second.
+    Content-hash cached (PLAN §20: never regenerate the same text+voice
+    pair) - unlike generate_visual_image's hash, this one does NOT mix in
+    time.time(), because identical narration for the same lesson should
+    always resolve to the same cached file rather than a fresh clip.
+
+    Never raises - a missing key, quota, terms-not-accepted, or an
+    unsupported voice all just mean "no audio today"; the caller (frontend)
+    falls back to the browser's own speechSynthesis, same contract as the
+    rest of this app's AI features.
+    """
+    text = (text or "").strip()
+    if not text:
+        return None
+
+    digest = hashlib.sha1(f"{text}:{voice}".encode()).hexdigest()[:16]
+    filename = f"speech_{digest}.wav"
+    AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+    target = AUDIO_DIR / filename
+    if target.exists():
+        return f"/static/audio/{filename}"
+
+    audio_bytes = _generate_speech_via_groq(text) or _generate_speech_via_gemini(text, voice)
+    if not audio_bytes:
         return None
 
     try:
-        target.write_bytes(_wrap_pcm_as_wav(pcm_bytes))
+        target.write_bytes(audio_bytes)
     except OSError:
         return None
 

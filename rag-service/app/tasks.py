@@ -21,12 +21,14 @@ from .celery_app import celery_app
 BACKEND_INTERNAL_URL = os.getenv("BACKEND_INTERNAL_URL", "http://backend:5000")
 INTERNAL_API_SECRET = os.getenv("INTERNAL_API_SECRET", "")
 
-# Free-tier Gemini API keys enforce a per-minute request quota (observed
-# 5-20 req/min depending on the moment) far below what one lesson-per-call
-# generation needs for a document with many lessons. Spacing calls out is a
-# real mitigation (not a workaround for a bug) - a paid key removes the need
-# for this entirely, but this keeps the pipeline reliable on a free key.
-GEMINI_CALL_SPACING_SECONDS = 6
+# Groq's free tier (now the primary text engine - see rag_engine.py's
+# invoke_json) allows 30 requests/minute, verified live - 60/30 = 2s
+# minimum between calls; this adds a small safety margin. Far better than
+# the 6s this needed when Gemini (5-20 req/min observed, 20 req/DAY on top
+# of that) was the only option - kept as a real mitigation either way, not
+# a workaround for a bug, since Gemini remains the fallback if Groq isn't
+# configured.
+LLM_CALL_SPACING_SECONDS = 2.5
 
 
 @celery_app.task(name="app.tasks.ping")
@@ -86,7 +88,7 @@ def generate_curriculum(self, job_id: str, unit_id: int) -> None:
         lessons = []
         for i, lesson_plan in enumerate(lesson_plans):
             if i > 0:
-                time.sleep(GEMINI_CALL_SPACING_SECONDS)
+                time.sleep(LLM_CALL_SPACING_SECONDS)
             content = engine.generate_lesson_content(
                 unit_id, lesson_plan["title"], lesson_plan["chunk_start"], lesson_plan["chunk_end"]
             )
@@ -96,13 +98,13 @@ def generate_curriculum(self, job_id: str, unit_id: int) -> None:
         _update_job(job_id, stage="GENERATING_VISUALS", progressPercent=65)
         for lesson in lessons:
             if lesson.get("needs_visual") and lesson.get("visual_suggestion"):
-                time.sleep(GEMINI_CALL_SPACING_SECONDS)
+                time.sleep(LLM_CALL_SPACING_SECONDS)
                 lesson["image_url"] = engine.generate_visual_image(lesson["visual_suggestion"], unit_id)
             else:
                 lesson["image_url"] = None
 
         _update_job(job_id, stage="GENERATING_QUESTIONS", progressPercent=85)
-        time.sleep(GEMINI_CALL_SPACING_SECONDS)
+        time.sleep(LLM_CALL_SPACING_SECONDS)
         final_questions = engine.generate_final_assessment([l["title"] for l in lessons])
 
         _update_job(job_id, stage="FINALIZING", progressPercent=95)
@@ -151,7 +153,7 @@ def _update_youtube_quiz(quiz_id: str, **fields) -> None:
 
 @celery_app.task(name="app.tasks.generate_youtube_quiz", bind=True)
 def generate_youtube_quiz(self, quiz_id: str, video_id: str) -> None:
-    """Fetch a transcript (SerpApi) and generate a quiz from it (Gemini) -
+    """Fetch a transcript (SerpApi) and generate a quiz from it (Groq/Gemini) -
     slow enough (two sequential external API calls) to belong on this same
     queue rather than blocking the request that kicks it off.
     """
