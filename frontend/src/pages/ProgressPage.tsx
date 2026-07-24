@@ -28,6 +28,7 @@ import {
 import DashboardShell, { NavItem } from "../components/DashboardShell";
 import api from "../lib/api";
 import { usePageAudio } from "../contexts/AudioNavigationContext";
+import { LearningActivityGraph } from "../components/LearningActivityGraph";
 
 interface Attempt {
   id: string;
@@ -410,6 +411,9 @@ export const ProgressPage: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Daily activity graph with month filter */}
+        <LearningActivityGraph />
 
         <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs">
           <h2 className="text-base font-bold text-slate-900 mb-4">

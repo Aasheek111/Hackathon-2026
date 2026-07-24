@@ -13,6 +13,7 @@ import {
 import Button from "./ui/Button";
 import api, { resolveMediaUrl } from "../lib/api";
 import { useAccessibility } from "../contexts/AccessibilityContext";
+import { useAuth } from "../contexts/AuthContext";
 import { useSpeech } from "../hooks/useSpeech";
 import AslFingerspellingStrip from "./AslFingerspellingStrip";
 import { pickKeyWord } from "../data/aslAlphabet";
@@ -138,6 +139,8 @@ const Leaf: React.FC<{
  */
 export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
   const { prefs } = useAccessibility();
+  const { user } = useAuth();
+  const isDeafUser = user?.disabilityType === "DEAFNESS" || prefs.signLanguage;
   const { speak, stop: stopSpeaking, loading: ttsLoading } = useSpeech();
   const [storybook, setStorybook] = useState<Storybook | null | undefined>(undefined); // undefined = still loading
   const [spreadIndex, setSpreadIndex] = useState(0);
@@ -323,7 +326,7 @@ export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
               clickable={!onFirstSpread}
               onClick={() => turn(-1)}
               highContrast={hc}
-              signLanguage={prefs.signLanguage}
+              signLanguage={isDeafUser}
             />
             <Leaf
               page={right}
@@ -331,7 +334,7 @@ export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
               clickable={!onLastSpread}
               onClick={() => turn(1)}
               highContrast={hc}
-              signLanguage={prefs.signLanguage}
+              signLanguage={isDeafUser}
             />
           </motion.div>
         </AnimatePresence>

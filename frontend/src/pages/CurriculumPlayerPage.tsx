@@ -32,9 +32,10 @@ import {
   hasCameraConsent,
 } from "../hooks/useConcentrationTracking";
 import { useAccessibility } from "../contexts/AccessibilityContext";
+import { useAuth } from "../contexts/AuthContext";
 import { useSpeech } from "../hooks/useSpeech";
 import { useVoiceCommands, VoiceCommand } from "../hooks/useVoiceCommands";
-import { pickKeyWord } from "../data/aslAlphabet";
+import { pickKeyWord, extractSignWords } from "../data/aslAlphabet";
 
 /** A small floating "Listen" button that appears over a text selection. */
 const SelectionListenButton: React.FC<{
@@ -439,6 +440,7 @@ export const CurriculumPlayerPage: React.FC = () => {
   const navigate = useNavigate();
   const { speak, stop: stopSpeaking, loading: ttsLoading } = useSpeech();
   const { prefs } = useAccessibility();
+  const { user } = useAuth();
   const lessonContentRef = useRef<HTMLDivElement>(null);
 
   const [curriculum, setCurriculum] = useState<Curriculum | null>(null);
@@ -876,9 +878,10 @@ export const CurriculumPlayerPage: React.FC = () => {
         )}
 
         {/* Presentation modes - the same lessons shown six ways. Switching is
-            instant (no regeneration) and keeps your place. */}
+            instant (no regeneration) and keeps your place.
+            Sign mode is strictly reserved for DEAF learners. */}
         <div className="flex flex-wrap gap-2 mb-3">
-          {MODES.map((m) => {
+          {MODES.filter((m) => m.key !== "SIGN" || (user?.disabilityType === "DEAFNESS" || prefs.signLanguage)).map((m) => {
             const Icon = m.icon;
             const active = mode === m.key;
             return (
@@ -1003,27 +1006,26 @@ export const CurriculumPlayerPage: React.FC = () => {
                     </div>
                   )}
 
-                  {/* SIGN mode: caption-first, never plays audio by itself.
-                      Fingerspells key vocabulary from the title and the
-                      explanation - same honest scope as StorybookView's
-                      strip (letter-by-letter guide, not full sentence
-                      translation - see aslAlphabet.ts). */}
+                  {/* SIGN mode: Full sign language translation for all key concepts in the lesson.
+                      Renders sign symbols and handshape strips for all major terms in the explanation text.
+                      In TEXT/AUDIO/VISUAL modes, sign language strips are hidden. */}
                   {mode === "SIGN" && (
-                    <div className="space-y-3">
-                      {pickKeyWord(lesson.title) && (
-                        <AslFingerspellingStrip
-                          word={pickKeyWord(lesson.title) as string}
-                          highContrast={hc}
-                        />
-                      )}
-                      {pickKeyWord(lesson.explanation) &&
-                        pickKeyWord(lesson.explanation) !==
-                          pickKeyWord(lesson.title) && (
-                          <AslFingerspellingStrip
-                            word={pickKeyWord(lesson.explanation) as string}
-                            highContrast={hc}
-                          />
-                        )}
+                    <div className="space-y-4 mt-6 pt-6 border-t border-slate-200/80 dark:border-white/10">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Hand className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+                        <h3 className="font-bold text-base text-slate-900 dark:text-white">
+                          Full Sign Language Translation
+                        </h3>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-gray-400 mb-3">
+                        Visual handshapes and fingerspelling guide for all key concepts in this lesson:
+                      </p>
+
+                      <div className="space-y-4 w-full">
+                        {extractSignWords(`${lesson.title} ${lesson.explanation}`, 10).map((word, idx) => (
+                          <AslFingerspellingStrip key={idx} word={word} highContrast={hc} />
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>

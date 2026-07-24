@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -21,6 +21,7 @@ import DashboardShell, { NavItem } from "../components/DashboardShell";
 import api from "../lib/api";
 import { disabilityLabel } from "../data/disabilityProfiles";
 import type { DisabilityType } from "../contexts/AuthContext";
+import { LearningActivityGraph, ReportDownloadButton, ActivityData } from "../components/LearningActivityGraph";
 
 /**
  * Everything a teacher needs about one student, nested:
@@ -189,9 +190,8 @@ const UnitPanel: React.FC<{ unit: UnitRow }> = ({ unit }) => {
                   return (
                     <li
                       key={lesson.id}
-                      className={`flex items-center gap-2 text-xs rounded-lg px-2 py-1.5 ${
-                        isCurrent ? "bg-amber-50 border border-amber-200" : ""
-                      }`}
+                      className={`flex items-center gap-2 text-xs rounded-lg px-2 py-1.5 ${isCurrent ? "bg-amber-50 border border-amber-200" : ""
+                        }`}
                     >
                       {lesson.done ? (
                         <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" aria-hidden="true" />
@@ -233,6 +233,11 @@ export const TeacherStudentDetailPage: React.FC = () => {
   const [data, setData] = useState<StudentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [activityData, setActivityData] = useState<ActivityData | null>(null);
+  const [selectedMonthLabel, setSelectedMonthLabel] = useState(() => {
+    const now = new Date();
+    return now.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -252,6 +257,13 @@ export const TeacherStudentDetailPage: React.FC = () => {
       cancelled = true;
     };
   }, [studentId]);
+
+  // ✅ FIX: memoize callback to stop infinite re‑renders
+  const handleDataLoaded = useCallback((d: ActivityData) => {
+    setActivityData(d);
+    const rangeStart = new Date(d.rangeStart);
+    setSelectedMonthLabel(rangeStart.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }));
+  }, []);
 
   const navItems: NavItem[] = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/teacher" },
@@ -321,8 +333,13 @@ export const TeacherStudentDetailPage: React.FC = () => {
             <p className="text-3xl font-bold text-slate-900">
               {report.overall === null ? "—" : `${report.overall}%`}
             </p>
-            <p className="text-xs font-bold text-slate-500">Grade {report.overallGrade ?? "—"}</p>
+            <p className="text-xs font-bold text-slate-500">Score (all units)</p>
           </div>
+          <ReportDownloadButton
+            activityData={activityData}
+            studentName={student.name}
+            monthLabel={selectedMonthLabel}
+          />
         </div>
 
         {!report.enrolled && (
@@ -330,6 +347,12 @@ export const TeacherStudentDetailPage: React.FC = () => {
             This student isn't enrolled in a classroom yet, so there's no coursework to report on.
           </p>
         )}
+
+        {/* ✅ Daily learning activity graph - using memoized callback */}
+        <LearningActivityGraph
+          studentId={studentId}
+          onDataLoaded={handleDataLoaded}
+        />
 
         {/* Gamification */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

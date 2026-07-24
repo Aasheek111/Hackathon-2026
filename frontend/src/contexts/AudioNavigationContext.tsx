@@ -304,11 +304,8 @@ export const AudioNavigationProvider: React.FC<{ children: React.ReactNode }> = 
 
   const announce = useCallback(
     (text: string) => {
-      if (!text) return;
+      if (!text || user?.disabilityType === 'DEAFNESS') return;
       setAnnouncement(text);
-      // The live region updates for screen-reader users regardless; speaking
-      // is what needs the audio-nav switch, since a screen-reader user would
-      // otherwise hear everything twice.
       if (enabled) {
         speakThenListen(text).then((spoke) => {
           if (spoke) {
@@ -318,7 +315,7 @@ export const AudioNavigationProvider: React.FC<{ children: React.ReactNode }> = 
         });
       }
     },
-    [enabled, speakThenListen],
+    [enabled, speakThenListen, user?.disabilityType],
   );
 
   const readPage = useCallback(() => {
@@ -446,6 +443,15 @@ export const AudioNavigationProvider: React.FC<{ children: React.ReactNode }> = 
   useEffect(() => {
     if (!enabled) stopMic();
   }, [enabled, stopMic]);
+
+  // --- stop speech on every route change ---------------------------------
+  // Whether or not audio navigation is enabled, any TTS or audio clip playing
+  // when the user navigates should stop immediately - it belongs to the old
+  // page and makes no sense on the new one.
+  useEffect(() => {
+    stopSpeech();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
 
   // --- announce every route change --------------------------------------
   // A sighted user sees the page changed. Without this, a blind user gets

@@ -20,8 +20,10 @@ import {
 import api, { resolveMediaUrl } from "../lib/api";
 import { usePageAudio } from "../contexts/AudioNavigationContext";
 import { useAuth } from "../contexts/AuthContext";
+import { useAccessibility } from "../contexts/AccessibilityContext";
 import AslFingerspellingStrip from "../components/AslFingerspellingStrip";
 import { useSpeech } from "../hooks/useSpeech";
+import { extractSignWords } from "../data/aslAlphabet";
 
 interface ModuleContent {
   unitTitle?: string;
@@ -79,6 +81,8 @@ export const CustomPlanPlayerPage: React.FC = () => {
   const [completing, setCompleting] = useState(false);
   const [showXpCelebration, setShowXpCelebration] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const { prefs } = useAccessibility();
+  const isDeafUser = user?.disabilityType === "DEAFNESS" || prefs.signLanguage;
 
   // AR Balloon game iframe ref & state
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -483,9 +487,6 @@ export const CustomPlanPlayerPage: React.FC = () => {
                       <p className="text-xs sm:text-sm text-slate-800 leading-relaxed font-serif">
                         {currentModule.content?.explanation}
                       </p>
-                      {currentModule.content?.title && (
-                        <AslFingerspellingStrip word={currentModule.content.title.split(" ")[0] || "STORY"} />
-                      )}
                     </div>
                   </div>
                 </div>
@@ -537,9 +538,24 @@ export const CustomPlanPlayerPage: React.FC = () => {
                       </div>
                     )}
 
-                    {/* ASL Sign Language Symbol Strip with real handshape icons */}
-                    {currentModule.content?.title && (
-                      <AslFingerspellingStrip word={currentModule.content.title.split(" ")[0] || "CONCEPT"} />
+                    {/* Full Sign Language Translation - ONLY rendered for DEAF users when contentType is SIGN */}
+                    {isDeafUser && currentModule.contentType === "SIGN" && (
+                      <div className="space-y-4 pt-4 border-t border-slate-200/80">
+                        <div className="flex items-center gap-2">
+                          <Hand className="w-5 h-5 text-sky-600" />
+                          <h3 className="font-bold text-sm text-slate-900">
+                            Full Sign Language Translation
+                          </h3>
+                        </div>
+                        <p className="text-xs text-slate-500">
+                          Visual handshapes and fingerspelling guide for all key concepts in this module:
+                        </p>
+                        <div className="space-y-3">
+                          {extractSignWords(`${currentModule.title} ${currentModule.content?.explanation}`, 8).map((word, idx) => (
+                            <AslFingerspellingStrip key={idx} word={word} />
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>

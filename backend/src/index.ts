@@ -26,6 +26,7 @@ import accessibilityRouter from './routes/accessibility';
 import assistantRouter from './routes/assistant';
 import signFavouritesRouter from './routes/signFavourites';
 import customPlansRouter from './routes/customPlans';
+import activityRouter from './routes/activity';
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -69,6 +70,7 @@ app.use('/api/me/accessibility', accessibilityRouter);
 app.use('/api/assistant', assistantRouter);
 app.use('/api/me/sign-favourites', signFavouritesRouter);
 app.use('/api/custom-plans', customPlansRouter);
+app.use('/api/activity', activityRouter);
 // Service-to-service only (shared-secret header, not user JWT) - the Celery
 // worker calls back into these to report job progress and persist results.
 app.use('/internal', internalJobsRouter);
@@ -84,6 +86,19 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   res.status(500).json({ error: 'Internal Server Error', message: err.message });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);
 });
+
+if (Number(PORT) === 5000) {
+  try {
+    const fallbackServer = app.listen(5001, '0.0.0.0', () => {
+      console.log(`Fallback server also listening on port 5001`);
+    });
+    fallbackServer.on('error', () => {});
+  } catch {
+    /* ignore if port 5001 is already bound by host/docker */
+  }
+}
+
+setInterval(() => {}, 1000 * 3600);

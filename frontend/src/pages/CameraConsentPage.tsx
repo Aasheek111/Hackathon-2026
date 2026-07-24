@@ -17,7 +17,11 @@ export const CameraConsentPage: React.FC = () => {
   const handleAccept = async () => {
     try {
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        await navigator.mediaDevices.getUserMedia({ video: true });
+        // We request the stream only to trigger the browser permission dialog.
+        // Immediately stop all tracks so the camera indicator light goes off
+        // before navigating to the quiz (which will open its own stream).
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        stream.getTracks().forEach((t) => t.stop());
       }
     } catch (err) {
       console.warn('Camera permission prompt closed or denied', err);

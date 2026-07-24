@@ -708,6 +708,10 @@ export const QuizPage: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const analysisCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  // Stored in a ref (not a closure variable) so the cleanup function always
+  // has access to the live stream even if the component unmounts while
+  // getUserMedia() is still resolving.
+  const webcamStreamRef = useRef<MediaStream | null>(null);
   const synth = window.speechSynthesis;
 
   const attemptIdRef = useRef<string | null>(null);
@@ -918,11 +922,26 @@ export const QuizPage: React.FC = () => {
     synth,
   ]);
 
+  // Component-level teardown: stop the webcam and speech the moment the quiz
+  // page unmounts (navigation away, back button, etc.).
   useEffect(() => {
-    let stream: MediaStream | null = null;
+    return () => {
+      synth.cancel();
+      if (webcamStreamRef.current) {
+        webcamStreamRef.current.getTracks().forEach((t) => t.stop());
+        webcamStreamRef.current = null;
+      }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     async function startCamera() {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
+        const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             width: { ideal: 640, max: 640 },
             height: { ideal: 480, max: 480 },
@@ -931,11 +950,17 @@ export const QuizPage: React.FC = () => {
           },
           audio: false,
         });
+        // Store in ref first so the unmount cleanup always finds it
+        webcamStreamRef.current = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play().catch(() => undefined);
           setCameraActive(true);
           setCameraError(null);
+        } else {
+          // Component already unmounted while awaiting
+          stream.getTracks().forEach((t) => t.stop());
+          webcamStreamRef.current = null;
         }
       } catch (err) {
         console.warn("Webcam permission not granted or camera in use", err);
@@ -945,8 +970,12 @@ export const QuizPage: React.FC = () => {
     }
     startCamera();
     return () => {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
+      if (webcamStreamRef.current) {
+        webcamStreamRef.current.getTracks().forEach((track) => track.stop());
+        webcamStreamRef.current = null;
+      }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
       }
     };
   }, []);

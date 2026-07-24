@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, BarChart3, Users, Loader2, ArrowLeft, Activity, Award, Eye } from 'lucide-react';
+import { LayoutDashboard, BarChart3, Users, Loader2, ArrowLeft, Activity, Award, Eye, Settings, Video } from 'lucide-react';
 import DashboardShell, { NavItem } from '../components/DashboardShell';
 import api from '../lib/api';
 
@@ -81,7 +81,10 @@ function focusColor(focus: number | null): string {
 }
 
 const navItems: NavItem[] = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/teacher' },
+  { icon: LayoutDashboard, label: 'Classroom', path: '/teacher' },
+  { icon: Users, label: 'Students', path: '/teacher' },
+  { icon: Settings, label: 'Admission Criteria', path: '/teacher' },
+  { icon: Video, label: 'YouTube Quiz', path: '/teacher' },
   { icon: BarChart3, label: 'Insights', path: '/teacher/insights', active: true }
 ];
 

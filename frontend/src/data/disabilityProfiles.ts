@@ -26,6 +26,12 @@ export const DISABILITY_PROFILES: DisabilityProfile[] = [
     dashboard: 'Adaptive dashboard',
   },
   {
+    value: 'NONE',
+    label: 'Typical Learner (No Disability)',
+    blurb: 'The standard adaptive dashboard tailored for general learners.',
+    dashboard: 'Adaptive dashboard',
+  },
+  {
     value: 'AUTISM',
     label: 'Autism',
     blurb: 'Adaptive lessons that adjust to your attention and preferred learning mode.',

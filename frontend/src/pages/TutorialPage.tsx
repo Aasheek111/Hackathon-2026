@@ -162,14 +162,7 @@ export const TutorialPage: React.FC = () => {
     [tutorial, load, unitId],
   );
 
-  useEffect(() => {
-    if (tutorial?.learningMode === "AUDIO" && tutorial.audioScript) {
-      synth.cancel();
-      const utterance = new SpeechSynthesisUtterance(tutorial.audioScript);
-      utterance.rate = 0.92;
-      synth.speak(utterance);
-    }
-  }, [tutorial]);
+  // Speech synthesis is strictly on-demand when student presses Listen button
 
   const speak = (text: string) => {
     synth.cancel();

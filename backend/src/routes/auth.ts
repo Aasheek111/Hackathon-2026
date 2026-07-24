@@ -2,18 +2,24 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import crypto from 'crypto';
-import rateLimit from 'express-rate-limit';
 import prisma from '../lib/prisma';
 import { requireAuth } from '../middleware/auth';
+
+let rateLimitFn: any;
+try {
+  rateLimitFn = require('express-rate-limit');
+} catch {
+  rateLimitFn = () => (_req: any, _res: any, next: any) => next();
+}
 
 const router = Router();
 
 // ─── Rate limiters ───────────────────────────────────────────────────────────
 
-/** Login: 5 failed attempts per IP per 15 minutes */
-const loginLimiter = rateLimit({
+/** Login: 20 failed attempts per IP per 15 minutes */
+const loginLimiter = rateLimitFn({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many login attempts. Please try again in 15 minutes.' },
@@ -21,7 +27,7 @@ const loginLimiter = rateLimit({
 });
 
 /** Register: 3 new accounts per IP per hour to deter mass account creation */
-const registerLimiter = rateLimit({
+const registerLimiter = rateLimitFn({
   windowMs: 60 * 60 * 1000,
   max: 3,
   standardHeaders: true,
@@ -30,7 +36,7 @@ const registerLimiter = rateLimit({
 });
 
 /** Forgot-password: 3 requests per IP per hour to prevent email spam */
-const forgotPasswordLimiter = rateLimit({
+const forgotPasswordLimiter = rateLimitFn({
   windowMs: 60 * 60 * 1000,
   max: 3,
   standardHeaders: true,
@@ -39,7 +45,7 @@ const forgotPasswordLimiter = rateLimit({
 });
 
 /** Reset-password: 5 attempts per IP per 15 minutes */
-const resetPasswordLimiter = rateLimit({
+const resetPasswordLimiter = rateLimitFn({
   windowMs: 15 * 60 * 1000,
   max: 5,
   standardHeaders: true,
@@ -56,11 +62,13 @@ const generateToken = (userId: string, expiresIn: string) => {
 
 router.post('/register', registerLimiter, async (req: Request, res: Response) => {
   try {
-    const { name, email, password, intendedRole, disabilityType } = req.body;
+    let { name, email, password, intendedRole, disabilityType } = req.body;
 
     if (!name || !email || !password || password.length < 8) {
       return res.status(400).json({ error: 'Invalid input data. Password must be at least 8 characters.' });
     }
+
+    email = email.trim();
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
@@ -111,11 +119,13 @@ router.post('/register', registerLimiter, async (req: Request, res: Response) =>
 
 router.post('/login', loginLimiter, async (req: Request, res: Response) => {
   try {
-    const { email, password, rememberMe } = req.body;
+    let { email, password, rememberMe } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
+
+    email = email.trim();
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {

@@ -56,3 +56,35 @@ export function pickKeyWord(text: string | null | undefined): string | null {
   if (words.length === 0) return null;
   return words.reduce((longest, w) => (w.length > longest.length ? w : longest), words[0]).toUpperCase();
 }
+
+/**
+ * Extracts key vocabulary words from full lesson text for complete sign language translation.
+ * Filters out common stop words and returns unique significant terms.
+ */
+export function extractSignWords(text: string | null | undefined, maxWords: number = 8): string[] {
+  if (!text) return [];
+  const stopWords = new Set([
+    "a", "an", "the", "and", "or", "but", "is", "are", "was", "were", "be", "been", "being",
+    "have", "has", "had", "do", "does", "did", "to", "from", "in", "on", "at", "by", "for",
+    "with", "about", "against", "between", "into", "through", "during", "before", "after",
+    "above", "below", "up", "down", "out", "off", "over", "under", "again", "further", "then",
+    "once", "here", "there", "when", "where", "why", "how", "all", "any", "both", "each",
+    "few", "more", "most", "other", "some", "such", "no", "nor", "not", "only", "own", "same",
+    "so", "than", "too", "very", "can", "will", "just", "should", "now", "this", "that", "these",
+    "those", "also", "covers", "focused", "focuses", "includes"
+  ]);
+
+  const words = text
+    .split(/\s+/)
+    .map((w) => w.replace(/[^a-zA-Z]/g, "").toUpperCase())
+    .filter((w) => w.length >= 3 && !stopWords.has(w.toLowerCase()));
+
+  const unique: string[] = [];
+  for (const w of words) {
+    if (!unique.includes(w)) {
+      unique.push(w);
+    }
+    if (unique.length >= maxWords) break;
+  }
+  return unique;
+}

@@ -9,10 +9,9 @@ router.use(requireAuth);
 router.use(requireRole('STUDENT'));
 
 /**
- * disabilityType only ever seeds sensible DEFAULTS the first time a
- * student's AccessibilityPrefs row is created (see the model's own doc
- * comment) - never re-applied after, so a student who changes a setting
- * stays changed even if an admin edits their disabilityType later.
+ * Returns the sensible pref defaults for a given disability type.
+ * Used both for first-time seeding and when the user explicitly changes
+ * their profile from Settings (the only time defaults are re-applied).
  */
 function defaultsFor(disabilityType: DisabilityType | null): Prisma.AccessibilityPrefsCreateWithoutStudentInput {
   switch (disabilityType) {
@@ -25,6 +24,24 @@ function defaultsFor(disabilityType: DisabilityType | null): Prisma.Accessibilit
       // evidence behind it for attention regulation. Everything else stays
       // at the shared default so an ADHD learner isn't boxed in.
       return { reducedMotion: true };
+    default:
+      return {};
+  }
+}
+
+/**
+ * Returns a reset patch that undoes the profile-specific defaults that the
+ * OLD disability type had set, so they don't bleed over into the new profile.
+ * Only resets keys that the old profile set to a non-schema-default value.
+ */
+function resetOldDefaults(oldType: DisabilityType | null): Prisma.AccessibilityPrefsUpdateInput {
+  switch (oldType) {
+    case 'BLINDNESS':
+      return { alwaysNarrate: false, audiobookMode: false };
+    case 'DEAFNESS':
+      return { signLanguage: false };
+    case 'ADHD':
+      return { reducedMotion: false };
     default:
       return {};
   }
@@ -85,7 +102,10 @@ router.patch('/', async (req: Request, res: Response) => {
         // mutated, so passing it as both target and last source of a single
         // Object.assign would be a no-op and let defaults win.
         const explicit = { ...data };
-        Object.assign(data, defaultsFor(disabilityType), explicit);
+        // 1. Reset the old profile's pref overrides (e.g. signLanguage from DEAFNESS)
+        // 2. Apply the new profile's defaults
+        // 3. Let any explicitly-sent toggles win over both
+        Object.assign(data, resetOldDefaults(req.user!.disabilityType), defaultsFor(disabilityType), explicit);
       }
     }
 

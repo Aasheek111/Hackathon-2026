@@ -31,11 +31,15 @@ export const LoginPage: React.FC = () => {
         else navigate(homePathFor(user));
       }
     } catch (err: any) {
-      setError(
-        err.response?.data?.error ||
-          err.response?.data?.message ||
-          "Failed to login. Please try again.",
-      );
+      if (err.code === "ERR_NETWORK" || !err.response) {
+        setError("Cannot connect to server. Please make sure the backend server is running on port 5001.");
+      } else {
+        setError(
+          err.response?.data?.error ||
+            err.response?.data?.message ||
+            "Invalid email or password. Please try again.",
+        );
+      }
     } finally {
       setLoading(false);
     }
