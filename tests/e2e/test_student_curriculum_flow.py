@@ -54,7 +54,14 @@ def test_full_curriculum_playthrough(driver, base_url, curriculum, student):
     # Finish -> this curriculum has a final assessment, so it should NOT
     # jump straight to the completion screen.
     driver.find_element(By.XPATH, "//button[contains(., 'Finish curriculum')]").click()
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//h2[contains(text(), 'Final assessment')]")))
+    # h1, not h2: the final-assessment view is a full-page state whose only
+    # heading is this one, so it was promoted during the accessibility pass
+    # (an h2 with no preceding h1 breaks heading navigation for screen
+    # readers). Matched on any heading level so the next such fix doesn't
+    # break this test again.
+    WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located((By.XPATH, "//*[self::h1 or self::h2][contains(text(), 'Final assessment')]"))
+    )
 
     driver.find_element(By.XPATH, "//button[contains(., 'Oxygen')]").click()
     driver.find_element(By.XPATH, "//button[contains(., 'Submit assessment')]").click()

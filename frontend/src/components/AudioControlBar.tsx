@@ -20,6 +20,8 @@ export const AudioControlBar: React.FC = () => {
   const { token, user } = useAuth();
   const {
     enabled,
+    applicable,
+    dismissed,
     setEnabled,
     unlocked,
     listening,
@@ -30,6 +32,18 @@ export const AudioControlBar: React.FC = () => {
   } = useAudioNavigation();
 
   if (!token) return null;
+
+  // Learner-only. disabilityType is a student-only column (see the schema),
+  // so audio navigation can never actually be profile-enabled for a teacher
+  // or admin - offering it on their consoles would be a control that leads
+  // nowhere, and it would sit over their UI for no reason.
+  if (user?.role !== 'STUDENT') return null;
+
+  // Nothing at all for a deaf learner - an audio prompt is pure noise in the
+  // way. Also nothing once it has been explicitly turned off: re-offering it
+  // straight after someone dismissed it is nagging. Settings keeps a
+  // permanent toggle for both cases.
+  if (!applicable || dismissed) return null;
 
   // Off: a single quiet affordance. Kept in the tab order and clearly named so
   // it is discoverable by keyboard and screen reader without being visual noise.

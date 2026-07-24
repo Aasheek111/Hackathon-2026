@@ -67,13 +67,24 @@ def _run_node_script(script: str) -> str:
 
 
 def seed_enrolled_student() -> dict:
-    """Registers a fresh student via the real API, then enrolls them in the
-    seeded classroom directly (enrollment normally goes through a join-
-    request/approval flow that isn't the point of these tests).
+    """Registers a fresh student via the real API, enrolls them in the seeded
+    classroom, and clears the two gates that stand between a new account and
+    any real page.
+
+    Enrollment alone is not enough. Every student route worth testing carries
+    `requirePaidStudent` (see App.tsx's ProtectedRoute), which bounces an
+    account to /consent until the free trial is used and then to /subscription
+    until it is paid - so a merely-enrolled student silently redirects away
+    from the tutorial and the test times out looking for lesson content that
+    was never rendered.
+
+    Both are cleared through the real endpoints rather than by writing the
+    columns directly, so this exercises the same paths the app does.
     """
     email = unique_email("e2e-student")
     auth = api_register_student(email)
     student_id = auth["user"]["id"]
+    headers = {"Authorization": f"Bearer {auth['token']}"}
 
     _run_node_script(
         f"""
@@ -85,6 +96,21 @@ def seed_enrolled_student() -> dict:
         }})();
         """
     )
+
+    # 1. Burn the one free trial (freeTrialUsed is derived from having a
+    #    completed AssessmentAttempt).
+    attempt = requests.post(f"{API_URL}/assessments/start", headers=headers, timeout=15).json()
+    requests.post(
+        f"{API_URL}/assessments/{attempt['attemptId']}/complete",
+        headers=headers,
+        json={"scoreCorrect": 6, "scoreTotal": 10, "adaptationCount": 0, "durationSeconds": 60},
+        timeout=15,
+    )
+    # 2. Activate the sandbox subscription.
+    requests.post(
+        f"{API_URL}/subscription/test-activate", headers=headers, json={"plan": "MONTH_1"}, timeout=15
+    )
+
     return {"email": email, "password": "TestPass123", "token": auth["token"], "id": student_id}
 
 

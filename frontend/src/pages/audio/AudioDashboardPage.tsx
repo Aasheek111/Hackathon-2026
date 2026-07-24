@@ -66,7 +66,13 @@ const SPOKEN_NUMBERS: Record<string, string[]> = {
 export const AudioDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { announce, enabled: audioNavOn, setEnabled, listening } = useAudioNavigation();
+  const {
+    announce,
+    enabled: audioNavOn,
+    dismissed: audioDismissed,
+    setEnabled,
+    listening,
+  } = useAudioNavigation();
 
   const [progress, setProgress] = useState<ProgressSummary | null>(null);
   const [question, setQuestion] = useState("");
@@ -180,7 +186,11 @@ export const AudioDashboardPage: React.FC = () => {
       </header>
 
       <main id="main" className="max-w-4xl mx-auto px-5 py-6 space-y-6">
-        {!audioNavOn && (
+        {/* Also respects an explicit dismissal. One "turn it off" should
+            silence every prompt, not just the floating bar - otherwise
+            turning it off on this page immediately re-offers it here, which
+            is exactly the nagging the dismissal was meant to stop. */}
+        {!audioNavOn && !audioDismissed && (
           <div className="rounded-2xl border-2 border-yellow-500 bg-yellow-950/50 p-5">
             <p className="text-lg text-yellow-100 font-bold mb-3">
               Audio navigation is off, so nothing will be read aloud.

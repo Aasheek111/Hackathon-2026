@@ -237,13 +237,13 @@ export const RegisterPage: React.FC = () => {
             {/* 2-Column Grid for Name & Email */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
-                <label htmlFor="register-name" className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label htmlFor="full-name" className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Full Name
                 </label>
                 <div className="relative flex items-center">
                   <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <input
-                    id="register-name"
+                    id="full-name"
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -255,13 +255,13 @@ export const RegisterPage: React.FC = () => {
               </div>
 
               <div>
-                <label htmlFor="register-email" className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label htmlFor="email-address" className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Email Address
                 </label>
                 <div className="relative flex items-center">
                   <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <input
-                    id="register-email"
+                    id="email-address"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -276,13 +276,13 @@ export const RegisterPage: React.FC = () => {
             {/* 2-Column Grid for Password & Confirm Password */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
-                <label htmlFor="register-password" className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label htmlFor="password" className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Password
                 </label>
                 <div className="relative flex items-center">
                   <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <input
-                    id="register-password"
+                    id="password"
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -307,13 +307,13 @@ export const RegisterPage: React.FC = () => {
               </div>
 
               <div>
-                <label htmlFor="register-confirm-password" className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label htmlFor="confirm-password" className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Confirm Password
                 </label>
                 <div className="relative flex items-center">
                   <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <input
-                    id="register-confirm-password"
+                    id="confirm-password"
                     type={showPassword ? "text" : "password"}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
