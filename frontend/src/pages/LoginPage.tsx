@@ -23,7 +23,11 @@ export const LoginPage: React.FC = () => {
       const user = await login(email, password, rememberMe);
       if (user.role === "ADMIN") navigate("/admin");
       else if (user.role === "TEACHER") navigate("/teacher");
-      else navigate("/consent");
+      else {
+        if (!user.freeTrialUsed) navigate("/consent");
+        else if (!user.hasPaid) navigate("/subscription");
+        else navigate("/dashboard");
+      }
     } catch (err: any) {
       setError(
         err.response?.data?.error ||
