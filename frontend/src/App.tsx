@@ -23,7 +23,13 @@ import RawDocViewerPage from './pages/RawDocViewerPage';
 import YoutubeQuizPage from './pages/YoutubeQuizPage';
 import ProgressPage from './pages/ProgressPage';
 import AccessibilitySettingsPage from './pages/AccessibilitySettingsPage';
+import BlindDashboardPage from './pages/blind/BlindDashboardPage';
+import BlindQuizPage from './pages/blind/BlindQuizPage';
+import DeafDashboardPage from './pages/deaf/DeafDashboardPage';
+import SignLanguagePage from './pages/deaf/SignLanguagePage';
+import SignQuizPage from './pages/deaf/SignQuizPage';
 import LoadingSpinner from './components/ui/LoadingSpinner';
+import { homePathFor } from './lib/homePath';
 
 const ProtectedRoute = ({
   children,
@@ -41,17 +47,21 @@ const ProtectedRoute = ({
 
   if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-[#FAF9F5]"><LoadingSpinner size="lg" /></div>;
   if (!token) return <Navigate to="/login" replace />;
-  if (requireAdmin && user?.role !== 'ADMIN') return <Navigate to="/dashboard" replace />;
+  if (requireAdmin && user?.role !== 'ADMIN') return <Navigate to={homePathFor(user)} replace />;
   if (allowRoles && user && !allowRoles.includes(user.role)) {
-    const home = user.role === 'ADMIN' ? '/admin' : user.role === 'TEACHER' ? '/teacher' : '/dashboard';
-    return <Navigate to={home} replace />;
+    return <Navigate to={homePathFor(user)} replace />;
   }
 
   // Student specific access control for Dashboard & Paid features
   if (user?.role === 'STUDENT') {
-    // 1. If user hasn't completed their 1 free adaptive trial session, send to /consent -> /quiz
+    // 1. If user hasn't completed their 1 free adaptive trial session, send to /consent -> /quiz.
+    //    Exception: the standard trial is a webcam eye-tracking quiz, which a
+    //    blind student cannot complete and shouldn't be asked to consent to.
+    //    They take the equivalent voice quiz instead - it posts to the same
+    //    /assessments endpoints, so it satisfies the trial the same way.
     if (!user.freeTrialUsed && requirePaidStudent) {
-      return <Navigate to="/consent" replace />;
+      const trialPath = user.disabilityType === 'BLINDNESS' ? '/dashboard/blind/quiz' : '/consent';
+      return <Navigate to={trialPath} replace />;
     }
     // 2. If free trial is finished and user has NOT paid yet, block dashboard and send to /subscription
     if (user.freeTrialUsed && !user.hasPaid && requirePaidStudent) {
@@ -67,7 +77,7 @@ const App: React.FC = () => {
   const { user, token } = useAuth();
   const showNavbar = ['/', '/login', '/register', '/forgot-password', '/subscription'].includes(location.pathname);
 
-  const homePath = user?.role === 'ADMIN' ? '/admin' : user?.role === 'TEACHER' ? '/teacher' : '/dashboard';
+  const homePath = homePathFor(user);
 
   return (
     <div className="min-h-screen bg-[#FAF9F5] text-slate-800 font-sans selection:bg-emerald-100 selection:text-emerald-900">
@@ -101,6 +111,21 @@ const App: React.FC = () => {
           <Route path="/classroom/units/:unitId/youtube-quiz" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><YoutubeQuizPage /></ProtectedRoute>} />
           <Route path="/progress" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><ProgressPage /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><AccessibilitySettingsPage /></ProtectedRoute>} />
+
+          {/* Disability-specific dashboards. These are a PRESENTATION choice,
+              not a permission: they're gated identically to /dashboard, so any
+              student can open any of them by URL (useful for a teacher or
+              carer demoing, and for a student whose needs don't fit one box).
+              homePathFor() only decides which one you LAND on. */}
+          <Route path="/dashboard/blind" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><BlindDashboardPage /></ProtectedRoute>} />
+          {/* Auth-only, deliberately NOT requirePaidStudent - this IS the free
+              trial for a blind student (see ProtectedRoute), so gating it on
+              having completed the trial would be a redirect loop. Mirrors how
+              /consent and /quiz are gated for everyone else. */}
+          <Route path="/dashboard/blind/quiz" element={<ProtectedRoute allowRoles={['STUDENT']}><BlindQuizPage /></ProtectedRoute>} />
+          <Route path="/dashboard/deaf" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><DeafDashboardPage /></ProtectedRoute>} />
+          <Route path="/dashboard/deaf/sign-language" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><SignLanguagePage /></ProtectedRoute>} />
+          <Route path="/dashboard/deaf/sign-quiz" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><SignQuizPage /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AnimatePresence>

@@ -12,6 +12,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import { homePathFor } from "../lib/homePath";
 
 interface AssessmentAttempt {
   textEngagement: number;
@@ -222,7 +223,7 @@ export const QuizResultPage: React.FC = () => {
                 </button>
               ) : (
                 <button
-                  onClick={() => navigate("/dashboard")}
+                  onClick={() => navigate(homePathFor(user))}
                   className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 px-6 rounded-2xl shadow-md border-b-4 border-emerald-700 active:translate-y-0.5 active:border-b-2 transition-all flex items-center justify-center gap-2 text-sm cursor-pointer"
                 >
                   <span>Go to Full Dashboard</span>

@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Gamepad2, Sparkles } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
+import { homePathFor } from "../lib/homePath";
 
 type GameId = "balloon" | "rocket" | "puzzle";
 
@@ -43,6 +45,7 @@ const GAMES: GameMeta[] = [
 
 export const ArGamePage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [activeGameId, setActiveGameId] = useState<GameId>("balloon");
 
   const activeGame = GAMES.find((g) => g.id === activeGameId)!;
@@ -67,7 +70,7 @@ export const ArGamePage: React.FC = () => {
         {/* Left: Back + Title */}
         <div className="flex items-center space-x-3">
           <button
-            onClick={() => navigate("/dashboard")}
+            onClick={() => navigate(homePathFor(user))}
             className="flex items-center text-xs font-bold text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 px-3.5 py-2 rounded-xl transition-all"
           >
             <ArrowLeft className="w-4 h-4 mr-1.5" />

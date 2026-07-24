@@ -1,0 +1,10 @@
+-- Adds ADHD to the DisabilityType enum.
+--
+-- Intentionally empty: SQLite has no native ENUM type, so Prisma persists
+-- DisabilityType as a plain TEXT column with no CHECK constraint (see
+-- 20260724120928_.../migration.sql: `ALTER TABLE "User" ADD COLUMN
+-- "disabilityType" TEXT`). Adding a value to the enum is therefore a
+-- client-side/validation change only and needs no DDL. This file exists so
+-- the migration history stays in step with schema.prisma - on a database
+-- that DOES have real enums (e.g. Postgres) this same step would emit an
+-- `ALTER TYPE ... ADD VALUE 'ADHD'`.

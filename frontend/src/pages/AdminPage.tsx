@@ -470,6 +470,9 @@ export const AdminPage: React.FC = () => {
         <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center space-x-3 mb-2">
+              {/* Deliberately the plain student dashboard, not homePathFor():
+                  an admin has no disability profile, and homePathFor would
+                  send them to /admin - the page they're already on. */}
               <Link to="/dashboard" className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1">
                 <ArrowLeft className="w-3.5 h-3.5" /> Back to Dashboard
               </Link>

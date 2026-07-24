@@ -112,13 +112,23 @@ router.post('/:id/complete', async (req: Request, res: Response) => {
       adaptationCount,
       scoreCorrect,
       scoreTotal,
-      durationSeconds
+      durationSeconds,
+      preferredMode: preferredModeOverride
     }: {
       modeEngagement?: Partial<ModeTotals>;
       adaptationCount?: number;
       scoreCorrect?: number;
       scoreTotal?: number;
       durationSeconds?: number;
+      /**
+       * Explicit mode for sessions where it CANNOT be inferred from webcam
+       * engagement - specifically the blind learners' voice quiz, which is
+       * audio-only by construction and has no camera. Those sessions send
+       * zeroed modeEngagement (inventing focus samples would corrupt the
+       * teacher's avgFocus analytics) and state the mode outright instead.
+       * Omitted by the normal adaptive quiz, which still infers it.
+       */
+      preferredMode?: LearningMode;
     } = req.body;
 
     const attempt = await prisma.assessmentAttempt.findFirst({
@@ -158,6 +168,11 @@ router.post('/:id/complete', async (req: Request, res: Response) => {
     (Object.keys(scores) as Array<keyof typeof scores>).forEach((mode) => {
       if (scores[mode] === maxScore && maxScore > 0) preferredMode = mode as LearningMode;
     });
+    // An explicitly-stated mode wins over the inferred one - see the field's
+    // doc comment above. Whitelisted so a client can't write an arbitrary value.
+    if (preferredModeOverride && ['TEXT', 'AUDIO', 'VISUAL'].includes(preferredModeOverride)) {
+      preferredMode = preferredModeOverride;
+    }
 
     const total = Math.max(0, scoreTotal ?? 0);
     const correct = Math.max(0, Math.min(scoreCorrect ?? 0, total));
