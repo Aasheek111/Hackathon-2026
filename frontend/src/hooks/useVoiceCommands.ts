@@ -56,6 +56,24 @@ function getRecognitionCtor(): (new () => SpeechRecognitionLike) | null {
  *
  * Dev-only - a learner's console shouldn't fill up with this in production.
  */
+/**
+ * Does `phrase` appear in `transcript` as a whole word (or words)?
+ *
+ * Word boundaries rather than a bare `includes()`, because speech recognition
+ * returns spoken numbers as DIGITS - saying "one" comes back as "1" - and a
+ * substring test would then fire the "1" command on "11", "21" or "100". It
+ * also stops "one" matching inside "money" and "ask" matching inside "task".
+ *
+ * (^|\W) ... (\W|$) rather than \b so that multi-word phrases with spaces
+ * ("open lessons", "read screen") behave the same way.
+ */
+function phraseMatches(transcript: string, phrase: string): boolean {
+  const needle = phrase.trim();
+  if (!needle) return false;
+  const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|\\W)${escaped}(\\W|$)`).test(transcript);
+}
+
 function voiceLog(message: string, ...rest: unknown[]) {
   if (import.meta.env.PROD) return;
   // eslint-disable-next-line no-console
@@ -94,7 +112,7 @@ export function useVoiceCommands(commands: VoiceCommand[], enabled = true) {
     const ranked = commandsRef.current
       .flatMap((command) => command.phrases.map((phrase) => ({ command, phrase })))
       .sort((a, b) => b.phrase.length - a.phrase.length);
-    const hit = ranked.find(({ phrase }) => transcript.includes(phrase));
+    const hit = ranked.find(({ phrase }) => phraseMatches(transcript, phrase));
 
     // Logged because "it didn't hear me" and "it heard me but matched
     // nothing" are completely different bugs, and without this they look

@@ -73,13 +73,22 @@ const OPTIONS = [
   { key: "6", label: "AR game", detail: "The 3D balloon game, using this unit's own questions.", path: "/ar-game", icon: Gamepad2 },
 ] as const;
 
+/**
+ * Both the digit and the word for each option.
+ *
+ * The digit is not redundant: speech recognition normalises spoken numbers,
+ * so saying "one" comes back as the transcript "1", and a command list with
+ * only "one" in it silently matches nothing. Word-boundary matching (see
+ * phraseMatches in useVoiceCommands) keeps "1" from firing on "11" or "21".
+ * "won" and "to"/"too" are common mishearings of "one" and "two".
+ */
 const SPOKEN_NUMBERS: Record<string, string[]> = {
-  "1": ["one", "number one", "first"],
-  "2": ["two", "number two", "second"],
-  "3": ["three", "number three", "third"],
-  "4": ["four", "number four", "fourth"],
-  "5": ["five", "number five", "fifth"],
-  "6": ["six", "number six", "sixth"],
+  "1": ["1", "one", "won", "number one", "first"],
+  "2": ["2", "two", "to", "too", "number two", "second"],
+  "3": ["3", "three", "number three", "third"],
+  "4": ["4", "four", "for", "number four", "fourth"],
+  "5": ["5", "five", "number five", "fifth"],
+  "6": ["6", "six", "number six", "sixth"],
 };
 
 export const AudioDashboardPage: React.FC = () => {
