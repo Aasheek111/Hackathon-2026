@@ -8,12 +8,20 @@ from __future__ import annotations
 
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 
 from . import rag_engine as engine
 from . import youtube_quiz
 from .celery_app import celery_app
+
+# Images and audio are pure I/O waits (HTTP to pollinations / the TTS API),
+# so generating them for every lesson one-at-a-time wastes most of the wall
+# clock idle. A small thread pool overlaps them - deliberately low: the free
+# pollinations endpoint throttles a big burst (each request also retries with
+# backoff internally), so 3-wide plus retries beats 8-wide getting mass-429'd.
+MEDIA_POOL_SIZE = 3
 
 # The Node backend is the sole writer to the SQLite DB (see TODO.md Phase 1) -
 # this worker never touches the database directly, it only reports progress
@@ -39,6 +47,36 @@ def ping() -> str:
     on, verified here before any AI calls are involved.
     """
     return "pong"
+
+
+def _run_media_stage(job_id, lessons, result_key, make, *, stage, start_percent, span) -> None:
+    """Generate one media asset (image or audio) per lesson concurrently and
+    store it on each lesson under result_key. Bounded pool, best-effort: a
+    failed item just leaves result_key None (the player degrades gracefully),
+    and progress ticks up as each finishes rather than in one jump at the end.
+    """
+    total = len(lessons) or 1
+    done = 0
+    _update_job(job_id, stage=stage, progressPercent=start_percent)
+    with ThreadPoolExecutor(max_workers=min(MEDIA_POOL_SIZE, total)) as pool:
+        futures = {pool.submit(make, lesson): lesson for lesson in lessons}
+        for future in as_completed(futures):
+            lesson = futures[future]
+            try:
+                lesson[result_key] = future.result()
+            except Exception:
+                lesson[result_key] = None
+            done += 1
+            _update_job(job_id, stage=stage, progressPercent=start_percent + int(span * done / total))
+
+
+def _visual_prompt_from_lesson(lesson: dict) -> str:
+    """A picture prompt for a lesson the planner didn't write a
+    visual_suggestion for - the title plus a trimmed slice of the explanation
+    is enough for generate_visual_image to make something on-topic.
+    """
+    explanation = (lesson.get("explanation") or "").strip()
+    return f"{lesson['title']}: {explanation[:200]}".strip(": ").strip()
 
 
 def _callback_headers() -> dict:
@@ -95,15 +133,40 @@ def generate_curriculum(self, job_id: str, unit_id: int) -> None:
             lessons.append({**lesson_plan, **content, "order": i})
             _update_job(job_id, stage="GENERATING_TEXT", progressPercent=30 + int(30 * (i + 1) / total))
 
-        _update_job(job_id, stage="GENERATING_VISUALS", progressPercent=65)
-        for lesson in lessons:
-            if lesson.get("needs_visual") and lesson.get("visual_suggestion"):
-                time.sleep(LLM_CALL_SPACING_SECONDS)
-                lesson["image_url"] = engine.generate_visual_image(lesson["visual_suggestion"], unit_id)
-            else:
-                lesson["image_url"] = None
+        # A picture for EVERY lesson, not only the ones the planner flagged
+        # needs_visual. Image generation goes Gemini-then-pollinations, and
+        # pollinations is free with no per-day quota (unlike the text model),
+        # so there's no reason to ration visuals - a student in VISUAL mode
+        # should never land on a lesson with no picture. Uses the lesson's own
+        # visual_suggestion when the planner wrote one, otherwise a prompt
+        # built from the lesson title + explanation.
+        def make_visual(lesson: dict) -> str | None:
+            prompt = (lesson.get("visual_suggestion") or "").strip() or _visual_prompt_from_lesson(lesson)
+            return engine.generate_visual_image(prompt, unit_id)
 
-        _update_job(job_id, stage="GENERATING_QUESTIONS", progressPercent=85)
+        _run_media_stage(
+            job_id, lessons, "image_url", make_visual,
+            stage="GENERATING_VISUALS", start_percent=60, span=15,
+        )
+
+        # Pre-generate the narration audio for every lesson too, on the queue,
+        # so a student in AUDIO mode (or anyone tapping "Listen") gets an
+        # instant clip instead of waiting on a live TTS call. Best-effort:
+        # generate_speech returns None on quota/terms/network trouble, in
+        # which case audioUrl stays null and the player falls back to the
+        # browser's own speechSynthesis - audio is never truly "missing".
+        def make_audio(lesson: dict) -> str | None:
+            narration = f"{lesson['title']}. {lesson['explanation']} {lesson.get('example') or ''}".strip()
+            # Bulk pre-gen uses only the free Groq path - see generate_speech's
+            # docstring on why Gemini's tiny TTS quota must not be spent 21x here.
+            return engine.generate_speech(narration, allow_gemini_fallback=False)
+
+        _run_media_stage(
+            job_id, lessons, "audio_url", make_audio,
+            stage="GENERATING_AUDIO", start_percent=75, span=10,
+        )
+
+        _update_job(job_id, stage="GENERATING_QUESTIONS", progressPercent=88)
         time.sleep(LLM_CALL_SPACING_SECONDS)
         final_questions = engine.generate_final_assessment([l["title"] for l in lessons])
 
@@ -118,7 +181,7 @@ def generate_curriculum(self, job_id: str, unit_id: int) -> None:
                     "explanation": lesson["explanation"],
                     "example": lesson.get("example") or None,
                     "imageUrl": lesson.get("image_url"),
-                    "audioUrl": None,  # filled in later by the TTS pipeline
+                    "audioUrl": lesson.get("audio_url"),
                     "sourceChunkStart": lesson["chunk_start"],
                     "sourceChunkEnd": lesson["chunk_end"],
                     "knowledgeCheck": lesson.get("knowledge_check"),

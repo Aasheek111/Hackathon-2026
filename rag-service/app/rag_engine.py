@@ -176,6 +176,15 @@ def get_chat_model() -> ChatGoogleGenerativeAI:
 GROQ_CHAT_MODEL = "llama-3.3-70b-versatile"
 GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
 
+# Observed live: a transient Docker-network hiccup (ConnectionRefusedError
+# reaching api.groq.com) made a single call silently fall through to Gemini,
+# which then hit its already-exhausted daily quota and failed the whole job -
+# even though the very next attempt to Groq, seconds later, succeeded. A
+# couple of retries turns that into a few seconds' delay instead of an entire
+# job failing over a blip that had nothing to do with either provider's quota.
+GROQ_REQUEST_ATTEMPTS = 3
+GROQ_RETRY_DELAY_SECONDS = 2
+
 
 def groq_key_present() -> bool:
     return os.getenv("GROQ_API_KEY", "").strip().strip('"') not in PLACEHOLDER_KEYS
@@ -191,26 +200,43 @@ def any_llm_configured() -> bool:
 def _invoke_groq_json(system_prompt: str, user_prompt: str) -> str | None:
     if not groq_key_present():
         return None
-    try:
-        response = requests.post(
-            GROQ_CHAT_URL,
-            headers={"Authorization": f"Bearer {os.getenv('GROQ_API_KEY')}", "Content-Type": "application/json"},
-            json={
-                "model": GROQ_CHAT_MODEL,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                "response_format": {"type": "json_object"},
-                "temperature": 0.3,
-            },
-            timeout=60,
-        )
-        response.raise_for_status()
-        return response.json()["choices"][0]["message"]["content"]
-    except Exception:
-        # network error, quota, safety block - fall through to Gemini
-        return None
+    for attempt in range(GROQ_REQUEST_ATTEMPTS):
+        try:
+            response = requests.post(
+                GROQ_CHAT_URL,
+                headers={"Authorization": f"Bearer {os.getenv('GROQ_API_KEY')}", "Content-Type": "application/json"},
+                json={
+                    "model": GROQ_CHAT_MODEL,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    "response_format": {"type": "json_object"},
+                    "temperature": 0.3,
+                },
+                timeout=60,
+            )
+            # 429 is Groq's per-minute rate limit, not a real failure - it
+            # clears within seconds, so it's worth the same retry as a
+            # network blip. Any other error status (bad request, auth,
+            # safety block) needs a code/account fix, not a retry.
+            if response.status_code == 429 and attempt < GROQ_REQUEST_ATTEMPTS - 1:
+                time.sleep(GROQ_RETRY_DELAY_SECONDS)
+                continue
+            response.raise_for_status()
+            return response.json()["choices"][0]["message"]["content"]
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+            # transient network blip (observed live: ConnectionRefusedError
+            # reaching api.groq.com that succeeded again seconds later) -
+            # worth retrying rather than immediately burning Gemini's much
+            # tighter quota as a fallback
+            if attempt < GROQ_REQUEST_ATTEMPTS - 1:
+                time.sleep(GROQ_RETRY_DELAY_SECONDS)
+                continue
+            return None
+        except Exception:
+            return None
+    return None
 
 
 def invoke_json(system_prompt: str, user_prompt: str) -> str:
@@ -513,25 +539,41 @@ def _pollinations_token_present() -> bool:
     return os.getenv("POLLINATIONS_API_KEY", "").strip().strip('"') not in PLACEHOLDER_KEYS
 
 
+# Anonymous pollinations throttles hard when a whole curriculum's worth of
+# images is requested in a burst (observed live: 1 of 21 succeeded, the rest
+# came back non-200/timeout). It recovers within seconds, so a few backoff
+# retries turn "most lessons have no picture" into "every lesson does, a bit
+# slower". A POLLINATIONS_API_KEY raises the underlying limit; these retries
+# are the free-tier safety net either way.
+POLLINATIONS_ATTEMPTS = 5
+POLLINATIONS_BACKOFF_SECONDS = 3
+
+
 def _generate_via_pollinations(styled_prompt: str) -> tuple[bytes, str] | None:
     """Free fallback (pollinations.ai) - used whenever Gemini's image models
     are unavailable, so a picture still generates without requiring a paid
     Gemini tier. Works anonymously with no key; if POLLINATIONS_API_KEY is
     set, it's sent for pollinations' higher-priority/rate-limited tier.
     """
-    try:
-        url = (
-            f"https://image.pollinations.ai/prompt/{quote(styled_prompt, safe='')}"
-            "?width=768&height=768&nologo=true"
-        )
-        if _pollinations_token_present():
-            url += f"&token={quote(os.getenv('POLLINATIONS_API_KEY', ''))}"
-        response = requests.get(url, timeout=30)
-        content_type = response.headers.get("content-type", "")
-        if response.status_code == 200 and content_type.startswith("image/"):
-            return response.content, content_type.split(";")[0].strip()
-    except Exception:
-        pass
+    url = (
+        f"https://image.pollinations.ai/prompt/{quote(styled_prompt, safe='')}"
+        "?width=768&height=768&nologo=true"
+    )
+    if _pollinations_token_present():
+        url += f"&token={quote(os.getenv('POLLINATIONS_API_KEY', ''))}"
+
+    for attempt in range(POLLINATIONS_ATTEMPTS):
+        try:
+            response = requests.get(url, timeout=45)
+            content_type = response.headers.get("content-type", "")
+            if response.status_code == 200 and content_type.startswith("image/"):
+                return response.content, content_type.split(";")[0].strip()
+            # 429/5xx under burst load - back off and retry rather than
+            # giving this lesson no picture at all
+        except Exception:
+            pass  # timeout / connection blip - same treatment
+        if attempt < POLLINATIONS_ATTEMPTS - 1:
+            time.sleep(POLLINATIONS_BACKOFF_SECONDS * (attempt + 1))
     return None
 
 
@@ -799,17 +841,26 @@ def _wrap_pcm_as_wav(pcm_data: bytes, sample_rate: int = TTS_SAMPLE_RATE, channe
 def _generate_speech_via_groq(text: str) -> bytes | None:
     if not groq_key_present():
         return None
-    try:
-        response = requests.post(
-            GROQ_TTS_URL,
-            headers={"Authorization": f"Bearer {os.getenv('GROQ_API_KEY')}"},
-            json={"model": GROQ_TTS_MODEL, "input": text, "voice": GROQ_TTS_VOICE, "response_format": "wav"},
-            timeout=30,
-        )
-        if response.status_code == 200 and response.headers.get("content-type", "").startswith("audio/"):
-            return response.content
-    except Exception:
-        pass
+    for attempt in range(GROQ_REQUEST_ATTEMPTS):
+        try:
+            response = requests.post(
+                GROQ_TTS_URL,
+                headers={"Authorization": f"Bearer {os.getenv('GROQ_API_KEY')}"},
+                json={"model": GROQ_TTS_MODEL, "input": text, "voice": GROQ_TTS_VOICE, "response_format": "wav"},
+                timeout=30,
+            )
+            if response.status_code == 200 and response.headers.get("content-type", "").startswith("audio/"):
+                return response.content
+            # A real API error (e.g. the model_terms_required block noted
+            # above) - retrying won't change the response, fall through now.
+            return None
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+            if attempt < GROQ_REQUEST_ATTEMPTS - 1:
+                time.sleep(GROQ_RETRY_DELAY_SECONDS)
+                continue
+            return None
+        except Exception:
+            return None
     return None
 
 
@@ -841,12 +892,22 @@ def _generate_speech_via_gemini(text: str, voice: str) -> bytes | None:
     return None
 
 
-def generate_speech(text: str, voice: str = DEFAULT_TTS_VOICE) -> str | None:
+def generate_speech(text: str, voice: str = DEFAULT_TTS_VOICE, allow_gemini_fallback: bool = True) -> str | None:
     """Groq TTS first (already returns a playable WAV), Gemini TTS second.
     Content-hash cached (PLAN §20: never regenerate the same text+voice
     pair) - unlike generate_visual_image's hash, this one does NOT mix in
     time.time(), because identical narration for the same lesson should
     always resolve to the same cached file rather than a fresh clip.
+
+    `allow_gemini_fallback=False` is for BULK pre-generation on the worker
+    (every lesson of a curriculum at once): Gemini's free TTS quota is tiny
+    (~a handful/day, observed: 5 of 21 lessons before it ran out), so bulk
+    use should only touch the free Groq path and leave the rest to the
+    player's browser-speech fallback rather than burning that scarce quota
+    and starving the on-demand "Listen" button. On-demand single clips keep
+    the default (Gemini fine for the one lesson a student actually asked to
+    hear). Groq TTS is free and high-limit once its terms are accepted, at
+    which point bulk pre-gen covers every lesson.
 
     Never raises - a missing key, quota, terms-not-accepted, or an
     unsupported voice all just mean "no audio today"; the caller (frontend)
@@ -864,7 +925,9 @@ def generate_speech(text: str, voice: str = DEFAULT_TTS_VOICE) -> str | None:
     if target.exists():
         return f"/static/audio/{filename}"
 
-    audio_bytes = _generate_speech_via_groq(text) or _generate_speech_via_gemini(text, voice)
+    audio_bytes = _generate_speech_via_groq(text)
+    if not audio_bytes and allow_gemini_fallback:
+        audio_bytes = _generate_speech_via_gemini(text, voice)
     if not audio_bytes:
         return None
 

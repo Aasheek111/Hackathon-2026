@@ -21,6 +21,7 @@ export const STAGE_LABELS: Record<string, string> = {
   PLANNING: 'Organizing topics into lessons…',
   GENERATING_TEXT: 'Writing lessons…',
   GENERATING_VISUALS: 'Creating pictures…',
+  GENERATING_AUDIO: 'Recording narration…',
   GENERATING_QUESTIONS: 'Preparing questions…',
   FINALIZING: 'Finishing up…'
 };
