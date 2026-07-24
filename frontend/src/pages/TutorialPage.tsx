@@ -392,7 +392,6 @@ export const TutorialPage: React.FC = () => {
         {tutorial.quiz.length > 0 && (
           <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-xs">
             <div className="flex items-center gap-2 mb-6 text-emerald-800">
-              <Sparkles className="w-5 h-5 text-emerald-600" />
               <h2 className="text-lg font-bold text-slate-900">
                 Knowledge Check
               </h2>
