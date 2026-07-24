@@ -53,6 +53,8 @@ interface AudioNavigationContextType {
   listening: boolean;
   /** The last phrase recognition returned - shown in the bar so a mismatch is visible without devtools. */
   lastHeard: string;
+  /** Why voice control isn't working, when it isn't (unreachable service, blocked mic). */
+  micError: string | null;
   micSupported: boolean;
   /** Speak text and mirror it into the app-wide live region. */
   announce: (text: string) => void;
@@ -234,6 +236,7 @@ export const AudioNavigationProvider: React.FC<{ children: React.ReactNode }> = 
   const {
     listening,
     lastHeard,
+    error: micError,
     supported: micSupported,
     toggle: toggleMic,
     start: startMic,
@@ -302,6 +305,7 @@ export const AudioNavigationProvider: React.FC<{ children: React.ReactNode }> = 
     unlocked: unlocked && !blocked,
     listening,
     lastHeard,
+    micError,
     micSupported,
     announce,
     readPage,

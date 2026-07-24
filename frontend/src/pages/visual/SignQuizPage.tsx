@@ -16,6 +16,7 @@ import DashboardShell, { NavItem } from "../../components/DashboardShell";
 import SignSymbol from "../../components/SignSymbol";
 import { handshapeFor } from "../../data/handshapes";
 import { SIGNS, Sign } from "../../data/signLanguage";
+import { NSL_UNDOCUMENTED } from "../../data/nepaliSignLanguage";
 
 /**
  * Visual practice quiz for the sign language section.
@@ -46,16 +47,21 @@ function shuffle<T>(items: T[]): T[] {
   return out;
 }
 
+// Only signs we can actually describe. Quizzing on "handshape not documented
+// here yet" would be asking the learner to recall something we never taught -
+// see nepaliSignLanguage.ts for why those entries exist at all.
+const QUIZZABLE = SIGNS.filter((s) => s.description !== NSL_UNDOCUMENTED);
+
 function buildQuiz(): SignQuestion[] {
-  return shuffle(SIGNS)
+  return shuffle(QUIZZABLE)
     .slice(0, QUESTION_COUNT)
     .map((sign) => {
       // Distractors come from the SAME category where possible, so the answer
       // can't be guessed just by noticing the odd one out.
-      const sameCategory = SIGNS.filter((s) => s.id !== sign.id && s.category === sign.category);
+      const sameCategory = QUIZZABLE.filter((s) => s.id !== sign.id && s.category === sign.category);
       const pool = sameCategory.length >= OPTIONS_PER_QUESTION - 1
         ? sameCategory
-        : SIGNS.filter((s) => s.id !== sign.id);
+        : QUIZZABLE.filter((s) => s.id !== sign.id);
       return {
         sign,
         options: shuffle([...shuffle(pool).slice(0, OPTIONS_PER_QUESTION - 1), sign]),

@@ -37,6 +37,10 @@ interface SpeechRecognitionLike {
   onerror: ((event: any) => void) | null;
 }
 
+// Three consecutive 'network' errors means the transcription service is
+// unreachable from this browser, not that a packet dropped.
+const MAX_NETWORK_FAILURES = 3;
+
 function getRecognitionCtor(): (new () => SpeechRecognitionLike) | null {
   if (typeof window === 'undefined') return null;
   const w = window as any;
@@ -64,6 +68,12 @@ export function useVoiceCommands(commands: VoiceCommand[], enabled = true) {
   const [error, setError] = useState<string | null>(null);
 
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  // Consecutive 'network' errors. Chrome's Web Speech implementation does the
+  // transcription on Google's servers, so a browser without those API keys -
+  // Brave strips them deliberately, Chromium builds often lack them - fails
+  // with `network` every single time. Restarting on that is an infinite loop
+  // that burns CPU and floods the console, so it's counted and given up on.
+  const networkFailuresRef = useRef(0);
   // Listening state and the command list are read from inside long-lived
   // recognition callbacks, so they're mirrored into refs - reading the state
   // variable directly would capture the value from the render that installed
@@ -77,6 +87,7 @@ export function useVoiceCommands(commands: VoiceCommand[], enabled = true) {
   const handleTranscript = useCallback((raw: string) => {
     const transcript = raw.toLowerCase().trim();
     if (!transcript) return;
+    networkFailuresRef.current = 0; // a real transcript proves the service works
     setLastHeard(transcript);
     // Longest phrase first so "next question" beats a bare "next" when both
     // are registered - otherwise the shorter, more generic command shadows it.
@@ -138,11 +149,36 @@ export function useVoiceCommands(commands: VoiceCommand[], enabled = true) {
         setError('No microphone was found.');
         listeningRef.current = false;
         setListening(false);
+      } else if (event.error === 'network') {
+        networkFailuresRef.current += 1;
+        if (networkFailuresRef.current >= MAX_NETWORK_FAILURES) {
+          // Not a blip - this browser simply cannot reach the transcription
+          // service, and retrying has already proved that three times over.
+          voiceLog('giving up: speech recognition service is unreachable in this browser');
+          setError(
+            'This browser can’t reach the speech recognition service, so voice commands are ' +
+              'unavailable. Brave and Firefox block it; Chrome or Edge work. Everything here still ' +
+              'works with the buttons and with Alt+R (read), Alt+S (stop).',
+          );
+          listeningRef.current = false;
+          setListening(false);
+          recognitionRef.current = null;
+          try {
+            recognition.abort();
+          } catch {
+            /* already dead */
+          }
+        }
+      } else {
+        // Any successful-ish cycle resets the counter so a genuine one-off
+        // blip doesn't accumulate towards the give-up threshold.
+        networkFailuresRef.current = 0;
       }
     };
     recognition.onend = () => {
       // Chrome ends the stream after a silence; restart so "listening" means
-      // listening. Guarded by the ref so an explicit stop() stays stopped.
+      // listening. Guarded by the ref so an explicit stop() stays stopped,
+      // and by the failure count so an unreachable service doesn't spin.
       if (listeningRef.current && recognitionRef.current === recognition) {
         voiceLog('stream ended (silence) - restarting');
         try {
@@ -155,6 +191,7 @@ export function useVoiceCommands(commands: VoiceCommand[], enabled = true) {
 
     recognitionRef.current = recognition;
     listeningRef.current = true;
+    networkFailuresRef.current = 0;
     setError(null);
     setListening(true);
     voiceLog(

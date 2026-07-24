@@ -26,6 +26,7 @@ export const AudioControlBar: React.FC = () => {
     unlocked,
     listening,
     lastHeard,
+    micError,
     micSupported,
     readPage,
     stop,
@@ -141,6 +142,16 @@ export const AudioControlBar: React.FC = () => {
           ) : null}
           Say &ldquo;read screen&rdquo;, &ldquo;open lessons&rdquo;, &ldquo;my progress&rdquo;,
           &ldquo;sign practice&rdquo;, &ldquo;help&rdquo;, or &ldquo;log out&rdquo;.
+        </p>
+      )}
+
+      {/* Voice can fail even where the API exists - Brave and most Chromium
+          builds ship without the Google keys the transcription needs, so it
+          errors `network` forever. Say that plainly instead of leaving a
+          "Listening" button that never hears anything. */}
+      {micError && (
+        <p role="alert" className="text-center text-xs text-yellow-100 bg-yellow-950/60 border border-yellow-700 rounded-lg px-3 py-2 mt-2">
+          {micError}
         </p>
       )}
 

@@ -1,4 +1,5 @@
 import { ASL_ALPHABET } from './aslAlphabet';
+import { NSL_SIGNS } from './nepaliSignLanguage';
 
 /**
  * ASL sign reference used by the deaf/hard-of-hearing dashboard.
@@ -44,6 +45,12 @@ export interface SignSystem {
   available: boolean;
   /** Shown when unavailable: what it would take to add it properly. */
   unavailableReason?: string;
+  /**
+   * True when the character list is sourced but individual handshapes are
+   * only partly documented. The UI marks the undocumented ones instead of
+   * filling them with plausible-sounding invention.
+   */
+  partiallyDocumented?: boolean;
 }
 
 export const SIGN_SYSTEMS: SignSystem[] = [
@@ -58,15 +65,13 @@ export const SIGN_SYSTEMS: SignSystem[] = [
     label: 'Nepali Sign Language',
     nativeLabel: 'नेपाली सांकेतिक भाषा',
     region: 'Nepal',
-    available: false,
-    // Deliberately empty rather than guessed. An LLM will happily produce
-    // confident NSL handshape descriptions; they would be fabricated, and a
-    // deaf child taught a fabricated sign is a real harm, not a cosmetic bug.
-    // This needs a verified catalogue from the Nepal National Federation of
-    // the Deaf or the published NSL dictionary, ideally reviewed by a Deaf
-    // NSL signer before it ships.
-    unavailableReason:
-      'We have not added Nepali Sign Language yet. It is a distinct language with its own alphabet and grammar, so it needs a verified source and review by Deaf NSL signers — we will not machine-translate ASL and present it as NSL.',
+    available: true,
+    // The alphabet INVENTORY is sourced and complete (see
+    // nepaliSignLanguage.ts); most individual HANDSHAPES are not, because
+    // they are indigenous rather than derived from ASL and the authoritative
+    // dictionary isn't freely available as text. The UI states which is which
+    // per character rather than inventing the gap away.
+    partiallyDocumented: true,
   },
 ];
 
@@ -148,7 +153,12 @@ const vocabularySigns: Sign[] = [
   { id: 'w-scared', term: 'Scared', system: 'ASL', category: 'Feelings', description: 'Both hands open sharply in front of your chest, as if startled.' },
 ];
 
-export const SIGNS: Sign[] = [...alphabetSigns, ...numberSigns, ...vocabularySigns];
+export const SIGNS: Sign[] = [
+  ...alphabetSigns,
+  ...numberSigns,
+  ...vocabularySigns,
+  ...NSL_SIGNS,
+];
 
 export const SIGN_CATEGORIES: SignCategory[] = [
   'Alphabet',
