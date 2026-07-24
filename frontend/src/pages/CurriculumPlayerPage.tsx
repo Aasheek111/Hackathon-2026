@@ -15,10 +15,12 @@ import {
   BookOpen,
   Image as ImageIcon,
   Gamepad2,
+  Wand2,
   Eye,
   EyeOff,
 } from "lucide-react";
 import Button from "../components/ui/Button";
+import StorybookView from "../components/StorybookView";
 import api, { resolveMediaUrl } from "../lib/api";
 import {
   useConcentrationTracking,
@@ -169,7 +171,7 @@ interface Progress {
   currentLessonOrder: number;
   completed: boolean;
 }
-type LearningMode = "TEXT" | "AUDIO" | "VISUAL" | "AR";
+type LearningMode = "TEXT" | "AUDIO" | "VISUAL" | "AR" | "STORY";
 
 interface Personalization {
   preferredMode: LearningMode;
@@ -187,6 +189,7 @@ const MODES: {
   { key: "AUDIO", label: "Audio", icon: Volume2 },
   { key: "VISUAL", label: "Visual", icon: ImageIcon },
   { key: "AR", label: "AR Game", icon: Gamepad2 },
+  { key: "STORY", label: "Storybook", icon: Wand2 },
 ];
 
 /**
@@ -733,7 +736,7 @@ export const CurriculumPlayerPage: React.FC = () => {
                 ✓ Completed
               </span>
             )}
-            {mode !== "AR" && (
+            {mode !== "AR" && mode !== "STORY" && (
               <span className="text-xs px-3 py-1 rounded-full bg-dark-card border border-white/10">
                 Lesson {lessonIndex + 1} of {curriculum.lessons.length}
               </span>
@@ -744,7 +747,7 @@ export const CurriculumPlayerPage: React.FC = () => {
           {curriculum.title}
         </h1>
 
-        {/* Presentation modes - the same lessons shown four ways. Switching is
+        {/* Presentation modes - the same lessons shown five ways. Switching is
             instant (no regeneration) and keeps your place. */}
         <div className="flex flex-wrap gap-2 mb-3">
           {MODES.map((m) => {
@@ -766,7 +769,7 @@ export const CurriculumPlayerPage: React.FC = () => {
           })}
         </div>
 
-        {mode !== "AR" && (
+        {mode !== "AR" && mode !== "STORY" && (
           <div className="w-full h-2 bg-dark-card rounded-full overflow-hidden">
             <motion.div
               className="h-full bg-gradient-to-r from-primary to-primary-light"
@@ -781,7 +784,9 @@ export const CurriculumPlayerPage: React.FC = () => {
       <main
         className={`mx-auto px-4 sm:px-6 pt-8 ${mode === "AR" ? "max-w-5xl" : "max-w-3xl"}`}
       >
-        {mode === "AR" ? (
+        {mode === "STORY" ? (
+          <StorybookView unitId={unitId as string} />
+        ) : mode === "AR" ? (
           <div>
             <ArLessonGame
               unitId={unitId as string}

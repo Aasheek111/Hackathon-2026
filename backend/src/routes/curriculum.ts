@@ -4,6 +4,7 @@ import prisma from '../lib/prisma';
 import { requireAuth, requireRole, requireApprovedTeacher } from '../middleware/auth';
 import { awardXp } from '../lib/progress';
 import { computeMark } from '../lib/marking';
+import { getGradeLevel } from '../lib/appConfig';
 import { LearningMode } from '@prisma/client';
 
 const router = Router();
@@ -182,7 +183,7 @@ router.post('/:id/engagement', requireRole('STUDENT'), async (req: Request, res:
     const lessonOrder = Math.max(0, Math.round(Number(req.body?.lessonOrder) || 0));
     const score = Math.max(0, Math.min(100, Number(req.body?.score) || 0));
     const focused = Boolean(req.body?.focused);
-    const mode = (['TEXT', 'AUDIO', 'VISUAL', 'AR'] as const).includes(req.body?.mode)
+    const mode = (['TEXT', 'AUDIO', 'VISUAL', 'AR', 'STORY'] as const).includes(req.body?.mode)
       ? (req.body.mode as LearningMode)
       : 'TEXT';
 
@@ -362,6 +363,84 @@ router.get('/:id/curriculum', async (req: Request, res: Response) => {
 });
 
 /**
+ * The unit's storybook, if one has been generated. Returns null (not 404) so
+ * the player can show a "Generate" CTA instead of treating "not made yet" as
+ * an error - same shape as the AR/YouTube-quiz "nothing here yet" cases.
+ */
+router.get('/:id/curriculum/storybook', async (req: Request, res: Response) => {
+  try {
+    const { unit, allowed } = await unitAccess(req.user!.id, req.params['id'] as string);
+    if (!unit) return res.status(404).json({ error: 'Unit not found' });
+    if (!allowed) return res.status(403).json({ error: 'Not allowed to view this unit' });
+
+    const curriculum = await prisma.tutorialCurriculum.findUnique({ where: { unitId: unit.id } });
+    if (!curriculum) return res.json({ storybook: null });
+
+    const storybook = await prisma.tutorialStorybook.findUnique({
+      where: { curriculumId: curriculum.id },
+      include: { pages: { orderBy: { pageNumber: 'asc' } } }
+    });
+    res.json({ storybook });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch storybook' });
+  }
+});
+
+/**
+ * Trigger storybook generation for this unit's curriculum. Idempotent like
+ * the rest of this pipeline: an existing storybook that is queued, still
+ * generating, or already ready is just returned as-is (never re-queued
+ * mid-flight or re-billed once done); only a FAILED one is retriable, in
+ * place, so a transient failure doesn't leave the student stuck.
+ */
+router.post('/:id/curriculum/storybook', async (req: Request, res: Response) => {
+  try {
+    const { unit, allowed } = await unitAccess(req.user!.id, req.params['id'] as string);
+    if (!unit) return res.status(404).json({ error: 'Unit not found' });
+    if (!allowed) return res.status(403).json({ error: 'Not allowed to view this unit' });
+    if (!unit.ragUnitId) return res.status(400).json({ error: 'This unit has no indexed document yet' });
+
+    const curriculum = await prisma.tutorialCurriculum.findUnique({ where: { unitId: unit.id } });
+    if (!curriculum) return res.status(404).json({ error: 'No curriculum generated for this unit yet' });
+
+    let storybook = await prisma.tutorialStorybook.findUnique({ where: { curriculumId: curriculum.id } });
+    if (storybook && storybook.status !== 'FAILED') {
+      return res.status(202).json({ storybook });
+    }
+
+    storybook = storybook
+      ? await prisma.tutorialStorybook.update({
+          where: { id: storybook.id },
+          data: { status: 'QUEUED', errorMessage: null }
+        })
+      : await prisma.tutorialStorybook.create({
+          data: { curriculumId: curriculum.id, title: curriculum.title, status: 'QUEUED' }
+        });
+
+    const gradeLevel = await getGradeLevel();
+    axios
+      .post(`${RAG_SERVICE_URL}/generate-storybook`, {
+        storybook_id: storybook.id,
+        unit_id: unit.ragUnitId,
+        curriculum_title: curriculum.title,
+        grade_level: gradeLevel
+      })
+      .catch(async () => {
+        // rag-service itself unreachable (not a task-level failure, which
+        // reports through the normal PATCH callback) - reflect that now
+        // rather than leaving the row QUEUED forever with no worker coming.
+        await prisma.tutorialStorybook
+          .update({ where: { id: storybook!.id }, data: { status: 'FAILED', errorMessage: 'Could not reach the generation service' } })
+          .catch(() => {});
+      });
+
+    res.status(202).json({ storybook });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to start storybook generation' });
+  }
+});
+
+/**
  * Advance (or rewind) the student's position in the curriculum. Awards XP
  * once, the first time `completed` flips true - covers curricula with no
  * final assessment, where this is the only completion signal.
@@ -374,7 +453,7 @@ router.patch('/:id/curriculum/progress', requireRole('STUDENT'), async (req: Req
       completed?: boolean;
       preferredMode?: LearningMode;
     };
-    const validMode = (['TEXT', 'AUDIO', 'VISUAL', 'AR'] as const).includes(preferredMode as any)
+    const validMode = (['TEXT', 'AUDIO', 'VISUAL', 'AR', 'STORY'] as const).includes(preferredMode as any)
       ? (preferredMode as LearningMode)
       : undefined;
 
