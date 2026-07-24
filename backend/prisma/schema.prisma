@@ -116,6 +116,7 @@ model User {
   tutorialProgresses      TutorialProgress[]
   knowledgeCheckAttempts  KnowledgeCheckAttempt[]
   finalAssessmentAttempts FinalAssessmentAttempt[]
+  rawDocProgress          RawDocProgress[]
 
   // Full-curriculum pipeline (teacher side)
   generationJobs  TutorialGenerationJob[]
@@ -352,6 +353,23 @@ model SyllabusDocument {
   uploadedAt   DateTime    @default(now())
 
   generationJobs TutorialGenerationJob[]
+  rawDocProgress RawDocProgress[]
+}
+
+// A student reading the ORIGINAL uploaded PDF (the "raw docs" door, distinct
+// from the generated tutorial). Just a resume pointer - which page they left
+// off on - so Back-then-return continues where they were.
+model RawDocProgress {
+  id         String           @id @default(cuid())
+  studentId  String
+  student    User             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  documentId String
+  document   SyllabusDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  lastPage   Int              @default(1)
+  updatedAt  DateTime         @updatedAt
+
+  @@unique([studentId, documentId])
+  @@index([studentId])
 }
 
 model Tutorial {

@@ -18,6 +18,7 @@ import TeacherDashboardPage from './pages/TeacherDashboardPage';
 import RecommendationPage from './pages/RecommendationPage';
 import MyClassroomPage from './pages/MyClassroomPage';
 import TutorialRouter from './pages/TutorialRouter';
+import RawDocViewerPage from './pages/RawDocViewerPage';
 import ProgressPage from './pages/ProgressPage';
 import LoadingSpinner from './components/ui/LoadingSpinner';
 
@@ -73,6 +74,7 @@ const App: React.FC = () => {
           <Route path="/recommendation" element={<ProtectedRoute allowRoles={['STUDENT']}><RecommendationPage /></ProtectedRoute>} />
           <Route path="/classroom" element={<ProtectedRoute allowRoles={['STUDENT']}><MyClassroomPage /></ProtectedRoute>} />
           <Route path="/classroom/units/:unitId/tutorial" element={<ProtectedRoute allowRoles={['STUDENT', 'TEACHER']}><TutorialRouter /></ProtectedRoute>} />
+          <Route path="/classroom/units/:unitId/document" element={<ProtectedRoute allowRoles={['STUDENT', 'TEACHER']}><RawDocViewerPage /></ProtectedRoute>} />
           <Route path="/progress" element={<ProtectedRoute allowRoles={['STUDENT']}><ProgressPage /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, BookOpen, TrendingUp, Loader2, Lock, PlayCircle, ArrowRight } from 'lucide-react';
+import { LayoutDashboard, BookOpen, TrendingUp, Loader2, Lock, PlayCircle, ArrowRight, FileText } from 'lucide-react';
 import DashboardShell, { NavItem } from '../components/DashboardShell';
 import api from '../lib/api';
 
@@ -97,24 +97,43 @@ export const MyClassroomPage: React.FC = () => {
               {subject.units.map((unit) => {
                 const ready = unit.indexStatus === 'READY';
                 return (
-                  <button
+                  <div
                     key={unit.id}
-                    disabled={!ready}
-                    onClick={() => navigate(`/classroom/units/${unit.id}/tutorial`)}
-                    className={`text-left p-5 rounded-2xl border transition-all flex items-center justify-between ${
-                      ready
-                        ? 'border-emerald-200 hover:border-emerald-500 bg-emerald-50/40 hover:bg-emerald-50 cursor-pointer shadow-xs'
-                        : 'border-slate-200 bg-[#FAF9F5] opacity-60 cursor-not-allowed'
+                    className={`p-5 rounded-2xl border transition-all ${
+                      ready ? 'border-emerald-200 bg-emerald-50/40 shadow-xs' : 'border-slate-200 bg-[#FAF9F5] opacity-60'
                     }`}
                   >
-                    <div>
-                      <p className="font-bold text-slate-900 text-sm">{unit.title}</p>
-                      <p className="text-xs font-semibold mt-1 text-slate-500">
-                        {ready ? '✨ Ready to Learn' : unit.indexStatus === 'PROCESSING' ? 'Processing…' : 'Locked'}
-                      </p>
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <p className="font-bold text-slate-900 text-sm">{unit.title}</p>
+                        <p className="text-xs font-semibold mt-1 text-slate-500">
+                          {ready ? '✨ Ready to Learn' : unit.indexStatus === 'PROCESSING' ? 'Processing…' : 'Locked'}
+                        </p>
+                      </div>
+                      {ready ? (
+                        <PlayCircle className="w-6 h-6 text-emerald-600 shrink-0" />
+                      ) : (
+                        <Lock className="w-5 h-5 text-slate-400 shrink-0" />
+                      )}
                     </div>
-                    {ready ? <PlayCircle className="w-6 h-6 text-emerald-600 shrink-0" /> : <Lock className="w-5 h-5 text-slate-400 shrink-0" />}
-                  </button>
+                    {ready && (
+                      <div className="flex gap-2">
+                        {/* Two doors: our adaptive tutorial, or the teacher's raw PDF. */}
+                        <button
+                          onClick={() => navigate(`/classroom/units/${unit.id}/tutorial`)}
+                          className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-3 rounded-xl text-xs shadow-xs transition-all"
+                        >
+                          <PlayCircle className="w-4 h-4" /> Interactive Tutorial
+                        </button>
+                        <button
+                          onClick={() => navigate(`/classroom/units/${unit.id}/document`)}
+                          className="flex-1 flex items-center justify-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 hover:border-slate-300 font-bold py-2.5 px-3 rounded-xl text-xs transition-all"
+                        >
+                          <FileText className="w-4 h-4" /> Read Original
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 );
               })}
               {subject.units.length === 0 && <p className="text-slate-400 text-xs">No learning units available yet.</p>}
