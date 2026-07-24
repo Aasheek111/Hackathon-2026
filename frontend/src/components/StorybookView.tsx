@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import Button from "./ui/Button";
 import api, { resolveMediaUrl } from "../lib/api";
-import { useAccessibility, FONT_SCALE_PX } from "../contexts/AccessibilityContext";
+import { useAccessibility } from "../contexts/AccessibilityContext";
 import { useSpeech } from "../hooks/useSpeech";
 import AslFingerspellingStrip from "./AslFingerspellingStrip";
 import { pickKeyWord } from "../data/aslAlphabet";
@@ -49,9 +49,8 @@ const Leaf: React.FC<{
   onClick?: () => void;
   clickable: boolean;
   highContrast: boolean;
-  fontStyle?: React.CSSProperties;
   signLanguage: boolean;
-}> = ({ page, side, onClick, clickable, highContrast, fontStyle, signLanguage }) => (
+}> = ({ page, side, onClick, clickable, highContrast, signLanguage }) => (
   // A <div role="button"> rather than a real <button> - the fingerspelling
   // strip below the story text renders its own letter buttons, and a
   // <button> can't legally contain nested <button>s.
@@ -104,7 +103,7 @@ const Leaf: React.FC<{
             <ImageIcon className="w-5 h-5 mr-2" /> No picture for this page
           </div>
         )}
-        <p className="flex-1 text-base sm:text-lg leading-relaxed" style={fontStyle}>
+        <p className="flex-1 text-base sm:text-lg leading-relaxed">
           {page.storyText}
         </p>
         {signLanguage && pickKeyWord(page.storyText) && (
@@ -294,8 +293,6 @@ export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
       };
 
   const hc = prefs.highContrast;
-  const pageFontStyle =
-    prefs.fontSize !== "MEDIUM" ? { fontSize: FONT_SCALE_PX[prefs.fontSize] } : undefined;
 
   return (
     <div className="px-4 sm:px-8">
@@ -326,7 +323,6 @@ export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
               clickable={!onFirstSpread}
               onClick={() => turn(-1)}
               highContrast={hc}
-              fontStyle={pageFontStyle}
               signLanguage={prefs.signLanguage}
             />
             <Leaf
@@ -335,7 +331,6 @@ export const StorybookView: React.FC<{ unitId: string }> = ({ unitId }) => {
               clickable={!onLastSpread}
               onClick={() => turn(1)}
               highContrast={hc}
-              fontStyle={pageFontStyle}
               signLanguage={prefs.signLanguage}
             />
           </motion.div>

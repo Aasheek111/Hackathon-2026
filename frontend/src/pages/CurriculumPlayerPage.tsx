@@ -27,7 +27,7 @@ import {
   useConcentrationTracking,
   hasCameraConsent,
 } from "../hooks/useConcentrationTracking";
-import { useAccessibility, FONT_SCALE_PX } from "../contexts/AccessibilityContext";
+import { useAccessibility } from "../contexts/AccessibilityContext";
 import { useSpeech } from "../hooks/useSpeech";
 
 /** A small floating "Listen" button that appears over a text selection. */
@@ -660,16 +660,14 @@ export const CurriculumPlayerPage: React.FC = () => {
   // Adaptive presentation (PLAN §23): a low attention-span score gets larger,
   // less dense text - same canonical lesson, not a different one.
   const isSimplified = (personalization?.attentionSpanScore ?? 100) < 50;
-  // Accessibility prefs (Settings page) - scoped to this lesson card only,
+  // Accessibility prefs (Settings page). fontSize is applied globally (root
+  // font-size, see AccessibilityContext) so Tailwind's rem-based text-lg/
+  // text-xl below already scale correctly with no per-element override
+  // needed here. highContrast and reducedMotion stay scoped to this card,
   // same "local literal classes, never touch shared CSS" convention as the
-  // light/dark theme toggle. fontSize wins over the mode/attention-based
-  // Tailwind text-size classes via inline style; highContrast swaps the
-  // card's palette; reducedMotion drops the page-turn slide animation.
+  // light/dark theme toggle - highContrast swaps the card's palette,
+  // reducedMotion drops the page-turn slide animation.
   const hc = prefs.highContrast;
-  // Only override when the student picked something other than Medium, so
-  // nobody who's never touched Settings sees a different size than before.
-  const contentFontStyle =
-    prefs.fontSize !== "MEDIUM" ? { fontSize: FONT_SCALE_PX[prefs.fontSize] } : undefined;
   const cardMotionProps = prefs.reducedMotion
     ? { initial: false as const, animate: { opacity: 1, x: 0 }, exit: { opacity: 1, x: 0 }, transition: { duration: 0 } }
     : { initial: { opacity: 0, x: 20 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: -20 } };
@@ -827,7 +825,6 @@ export const CurriculumPlayerPage: React.FC = () => {
                     className={`leading-relaxed mb-4 ${
                       isSimplified || mode === "VISUAL" ? "text-xl" : "text-lg"
                     } ${hc ? "text-yellow-200" : "text-slate-700 dark:text-gray-200"}`}
-                    style={contentFontStyle}
                   >
                     {lesson.explanation}
                   </p>
@@ -839,7 +836,6 @@ export const CurriculumPlayerPage: React.FC = () => {
                           ? "bg-yellow-950/40 border border-yellow-700 text-yellow-100"
                           : "bg-slate-50 border border-slate-100 dark:bg-dark/50 dark:border-transparent text-slate-500 dark:text-gray-400"
                       }`}
-                      style={contentFontStyle}
                     >
                       <span className={hc ? "text-yellow-300 font-medium" : "text-primary font-medium"}>
                         Example:{" "}

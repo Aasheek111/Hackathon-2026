@@ -16,6 +16,7 @@ import AdminPage from './pages/AdminPage';
 import ArGamePage from './pages/ArGamePage';
 import TeacherDashboardPage from './pages/TeacherDashboardPage';
 import TeacherInsightsPage from './pages/TeacherInsightsPage';
+import TeacherStudentDetailPage from './pages/TeacherStudentDetailPage';
 import RecommendationPage from './pages/RecommendationPage';
 import MyClassroomPage from './pages/MyClassroomPage';
 import TutorialRouter from './pages/TutorialRouter';
@@ -23,11 +24,11 @@ import RawDocViewerPage from './pages/RawDocViewerPage';
 import YoutubeQuizPage from './pages/YoutubeQuizPage';
 import ProgressPage from './pages/ProgressPage';
 import AccessibilitySettingsPage from './pages/AccessibilitySettingsPage';
-import BlindDashboardPage from './pages/blind/BlindDashboardPage';
-import BlindQuizPage from './pages/blind/BlindQuizPage';
-import DeafDashboardPage from './pages/deaf/DeafDashboardPage';
-import SignLanguagePage from './pages/deaf/SignLanguagePage';
-import SignQuizPage from './pages/deaf/SignQuizPage';
+import AudioDashboardPage from './pages/audio/AudioDashboardPage';
+import AudioQuizPage from './pages/audio/AudioQuizPage';
+import VisualDashboardPage from './pages/visual/VisualDashboardPage';
+import SignLanguagePage from './pages/visual/SignLanguagePage';
+import SignQuizPage from './pages/visual/SignQuizPage';
 import LoadingSpinner from './components/ui/LoadingSpinner';
 import { homePathFor } from './lib/homePath';
 
@@ -60,7 +61,7 @@ const ProtectedRoute = ({
     //    They take the equivalent voice quiz instead - it posts to the same
     //    /assessments endpoints, so it satisfies the trial the same way.
     if (!user.freeTrialUsed && requirePaidStudent) {
-      const trialPath = user.disabilityType === 'BLINDNESS' ? '/dashboard/blind/quiz' : '/consent';
+      const trialPath = user.disabilityType === 'BLINDNESS' ? '/dashboard/audio/quiz' : '/consent';
       return <Navigate to={trialPath} replace />;
     }
     // 2. If free trial is finished and user has NOT paid yet, block dashboard and send to /subscription
@@ -100,6 +101,7 @@ const App: React.FC = () => {
           {/* Teacher */}
           <Route path="/teacher" element={<ProtectedRoute allowRoles={['TEACHER']}><TeacherDashboardPage /></ProtectedRoute>} />
           <Route path="/teacher/insights" element={<ProtectedRoute allowRoles={['TEACHER']}><TeacherInsightsPage /></ProtectedRoute>} />
+          <Route path="/teacher/students/:studentId" element={<ProtectedRoute allowRoles={['TEACHER']}><TeacherStudentDetailPage /></ProtectedRoute>} />
 
           {/* Student: classroom system. requirePaidStudent gates students on
               the free-trial/subscription flow; teachers (allowed on the
@@ -117,15 +119,15 @@ const App: React.FC = () => {
               student can open any of them by URL (useful for a teacher or
               carer demoing, and for a student whose needs don't fit one box).
               homePathFor() only decides which one you LAND on. */}
-          <Route path="/dashboard/blind" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><BlindDashboardPage /></ProtectedRoute>} />
+          <Route path="/dashboard/audio" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><AudioDashboardPage /></ProtectedRoute>} />
           {/* Auth-only, deliberately NOT requirePaidStudent - this IS the free
               trial for a blind student (see ProtectedRoute), so gating it on
               having completed the trial would be a redirect loop. Mirrors how
               /consent and /quiz are gated for everyone else. */}
-          <Route path="/dashboard/blind/quiz" element={<ProtectedRoute allowRoles={['STUDENT']}><BlindQuizPage /></ProtectedRoute>} />
-          <Route path="/dashboard/deaf" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><DeafDashboardPage /></ProtectedRoute>} />
-          <Route path="/dashboard/deaf/sign-language" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><SignLanguagePage /></ProtectedRoute>} />
-          <Route path="/dashboard/deaf/sign-quiz" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><SignQuizPage /></ProtectedRoute>} />
+          <Route path="/dashboard/audio/quiz" element={<ProtectedRoute allowRoles={['STUDENT']}><AudioQuizPage /></ProtectedRoute>} />
+          <Route path="/dashboard/visual" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><VisualDashboardPage /></ProtectedRoute>} />
+          <Route path="/dashboard/visual/sign-language" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><SignLanguagePage /></ProtectedRoute>} />
+          <Route path="/dashboard/visual/sign-quiz" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><SignQuizPage /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AnimatePresence>

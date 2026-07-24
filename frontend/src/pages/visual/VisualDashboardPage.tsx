@@ -41,7 +41,7 @@ interface ProgressSummary {
   badges: Array<{ name: string }>;
 }
 
-export const DeafDashboardPage: React.FC = () => {
+export const VisualDashboardPage: React.FC = () => {
   const { user } = useAuth();
   const { prefs } = useAccessibility();
   const [progress, setProgress] = useState<ProgressSummary | null>(null);
@@ -57,9 +57,9 @@ export const DeafDashboardPage: React.FC = () => {
   }, []);
 
   const navItems: NavItem[] = [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard/deaf", active: true },
-    { icon: Hand, label: "Sign Language", path: "/dashboard/deaf/sign-language" },
-    { icon: ClipboardList, label: "Sign Quiz", path: "/dashboard/deaf/sign-quiz" },
+    { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard/visual", active: true },
+    { icon: Hand, label: "Sign Language", path: "/dashboard/visual/sign-language" },
+    { icon: ClipboardList, label: "Sign Quiz", path: "/dashboard/visual/sign-quiz" },
     { icon: BookOpen, label: "My Classroom", path: "/classroom" },
     { icon: TrendingUp, label: "My Progress", path: "/progress" },
     { icon: SettingsIcon, label: "Settings", path: "/settings" },
@@ -125,7 +125,7 @@ export const DeafDashboardPage: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Link
-            to="/dashboard/deaf/sign-language"
+            to="/dashboard/visual/sign-language"
             className="group bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs hover:border-emerald-300 hover:shadow-md transition-all"
           >
             <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-200 mb-3">
@@ -142,7 +142,7 @@ export const DeafDashboardPage: React.FC = () => {
           </Link>
 
           <Link
-            to="/dashboard/deaf/sign-quiz"
+            to="/dashboard/visual/sign-quiz"
             className="group bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs hover:border-emerald-300 hover:shadow-md transition-all"
           >
             <div className="w-12 h-12 rounded-2xl bg-sky-50 text-sky-700 flex items-center justify-center border border-sky-200 mb-3">
@@ -164,4 +164,4 @@ export const DeafDashboardPage: React.FC = () => {
   );
 };
 
-export default DeafDashboardPage;
+export default VisualDashboardPage;

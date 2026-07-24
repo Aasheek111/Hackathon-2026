@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { requireAuth, requireApprovedTeacher } from '../middleware/auth';
+import { buildStudentReport, teacherTeachesStudent } from '../lib/studentReport';
 
 const router = Router();
 router.use(requireAuth);
@@ -113,6 +114,66 @@ router.get('/analytics/class', requireApprovedTeacher, async (req: Request, res:
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to build class analytics' });
+  }
+});
+
+/**
+ * Everything a teacher needs about ONE of their students, in one call: the
+ * same report card the student sees for themselves (identical numbers, via
+ * the shared buildStudentReport), plus their profile, gamification stats,
+ * and full diagnostic-assessment history.
+ *
+ * Authorized by classroom ownership, not just the TEACHER role - a teacher
+ * may only ever open a learner enrolled in their own classroom. Returns 404
+ * rather than 403 for someone else's student, so this can't be used to probe
+ * which user ids exist.
+ */
+router.get('/analytics/students/:studentId', requireApprovedTeacher, async (req: Request, res: Response) => {
+  try {
+    const studentId = req.params['studentId'] as string;
+
+    if (!(await teacherTeachesStudent(req.user!.id, studentId))) {
+      return res.status(404).json({ error: 'Student not found in your classroom' });
+    }
+
+    const [student, report, progress, attempts] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: studentId },
+        select: { id: true, name: true, email: true, disabilityType: true, createdAt: true }
+      }),
+      buildStudentReport(studentId),
+      prisma.studentProgress.findUnique({ where: { studentId } }),
+      prisma.assessmentAttempt.findMany({
+        where: { userId: studentId, completedAt: { not: null } },
+        orderBy: { completedAt: 'desc' },
+        take: 20,
+        select: {
+          id: true,
+          scorePercent: true,
+          scoreCorrect: true,
+          scoreTotal: true,
+          preferredMode: true,
+          attentionSpanScore: true,
+          textEngagement: true,
+          audioEngagement: true,
+          visualEngagement: true,
+          adaptationCount: true,
+          durationSeconds: true,
+          completedAt: true
+        }
+      })
+    ]);
+
+    if (!student) return res.status(404).json({ error: 'Student not found' });
+
+    res.json({
+      student,
+      report,
+      progress: progress || { xp: 0, streakDays: 0, badges: [], lastActiveDate: null },
+      attempts
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load student detail' });
   }
 });
 

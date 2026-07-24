@@ -13,6 +13,8 @@ import {
   RotateCcw,
 } from "lucide-react";
 import DashboardShell, { NavItem } from "../../components/DashboardShell";
+import HandshapeDiagram from "../../components/HandshapeDiagram";
+import { handshapeFor } from "../../data/handshapes";
 import { SIGNS, Sign } from "../../data/signLanguage";
 
 /**
@@ -70,9 +72,9 @@ export const SignQuizPage: React.FC = () => {
   const [finished, setFinished] = useState(false);
 
   const navItems: NavItem[] = [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard/deaf" },
-    { icon: Hand, label: "Sign Language", path: "/dashboard/deaf/sign-language" },
-    { icon: ClipboardList, label: "Sign Quiz", path: "/dashboard/deaf/sign-quiz", active: true },
+    { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard/visual" },
+    { icon: Hand, label: "Sign Language", path: "/dashboard/visual/sign-language" },
+    { icon: ClipboardList, label: "Sign Quiz", path: "/dashboard/visual/sign-quiz", active: true },
     { icon: BookOpen, label: "My Classroom", path: "/classroom" },
     { icon: TrendingUp, label: "My Progress", path: "/progress" },
     { icon: SettingsIcon, label: "Settings", path: "/settings" },
@@ -132,7 +134,7 @@ export const SignQuizPage: React.FC = () => {
               <RotateCcw className="w-4 h-4" /> Try again
             </button>
             <button
-              onClick={() => navigate("/dashboard/deaf/sign-language")}
+              onClick={() => navigate("/dashboard/visual/sign-language")}
               className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 text-sm font-bold"
             >
               Back to lessons
@@ -164,8 +166,19 @@ export const SignQuizPage: React.FC = () => {
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
             Which sign is this?
           </p>
-          <p className="text-lg text-slate-800 leading-relaxed">{question.sign.description}</p>
-          <p className="text-xs text-slate-400 mt-2">Category: {question.sign.category}</p>
+          <div className="flex items-start gap-4">
+            {/* Letters and numbers get the handshape diagram, making this a
+                real visual recognition test rather than a reading test. */}
+            {handshapeFor(question.sign.term) && (
+              <div className="shrink-0 rounded-2xl bg-emerald-50 border border-emerald-200 p-2">
+                <HandshapeDiagram term={question.sign.term} size={110} />
+              </div>
+            )}
+            <div>
+              <p className="text-lg text-slate-800 leading-relaxed">{question.sign.description}</p>
+              <p className="text-xs text-slate-400 mt-2">Category: {question.sign.category}</p>
+            </div>
+          </div>
         </div>
 
         <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 list-none p-0">

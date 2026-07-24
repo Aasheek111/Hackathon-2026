@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Hand } from "lucide-react";
 import { ASL_ALPHABET } from "../data/aslAlphabet";
+import HandshapeDiagram from "./HandshapeDiagram";
 
 /**
  * Spells one word letter-by-letter using the standard ASL manual alphabet -
@@ -52,9 +53,14 @@ export const AslFingerspellingStrip: React.FC<{ word: string; highContrast?: boo
         ))}
       </div>
       {active !== null && (
-        <p className={`text-xs mt-2 ${highContrast ? "text-yellow-200" : "text-slate-500 dark:text-gray-400"}`}>
-          <strong>{letters[active]}:</strong> {ASL_ALPHABET[letters[active]]}
-        </p>
+        <div className="flex items-start gap-3 mt-2">
+          <div className={`shrink-0 rounded-lg p-1 ${highContrast ? "bg-black/40 border border-yellow-700" : "bg-white dark:bg-white/10"}`}>
+            <HandshapeDiagram term={letters[active]} size={72} />
+          </div>
+          <p className={`text-xs ${highContrast ? "text-yellow-200" : "text-slate-500 dark:text-gray-400"}`}>
+            <strong>{letters[active]}:</strong> {ASL_ALPHABET[letters[active]]}
+          </p>
+        </div>
       )}
     </div>
   );
