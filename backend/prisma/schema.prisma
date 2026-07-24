@@ -124,37 +124,37 @@ enum YoutubeQuizStatus {
 }
 
 model User {
-  id             String         @id @default(cuid())
+  id             String          @id @default(cuid())
   name           String
-  email          String         @unique
+  email          String          @unique
   password       String
-  role           Role           @default(STUDENT)
+  role           Role            @default(STUDENT)
   // teacher-only fields - null for ADMIN/STUDENT
   teacherStatus  TeacherStatus?
   teacherNote    String?
-  rememberMe     Boolean        @default(false)
+  rememberMe     Boolean         @default(false)
   resetToken     String?
   resetTokenExp  DateTime?
   // student-only, set at registration - see DisabilityType's own doc comment
   disabilityType DisabilityType?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
-  demoResult      DemoResult?
-  subscription    Subscription?
-  quizSessions    QuizSession[]
+  demoResult         DemoResult?
+  subscription       Subscription?
+  quizSessions       QuizSession[]
   accessibilityPrefs AccessibilityPrefs?
 
   // teacher side
-  classroomTaught Classroom?              @relation("TeacherClassroom")
-  uploadedDocs    SyllabusDocument[]      @relation("UploadedBy")
+  classroomTaught Classroom?         @relation("TeacherClassroom")
+  uploadedDocs    SyllabusDocument[] @relation("UploadedBy")
 
   // student side
-  enrolments      Enrolment[]             @relation("StudentEnrolments")
-  joinRequests    ClassroomJoinRequest[]  @relation("StudentJoinRequests")
-  attempts        AssessmentAttempt[]
-  tutorials       Tutorial[]
-  progress        StudentProgress?
+  enrolments   Enrolment[]            @relation("StudentEnrolments")
+  joinRequests ClassroomJoinRequest[] @relation("StudentJoinRequests")
+  attempts     AssessmentAttempt[]
+  tutorials    Tutorial[]
+  progress     StudentProgress?
 
   // Full-curriculum pipeline (student side)
   tutorialProgresses      TutorialProgress[]
@@ -165,11 +165,12 @@ model User {
   youtubeQuizAttempts     YoutubeQuizAttempt[]
 
   // Full-curriculum pipeline (teacher side)
-  generationJobs  TutorialGenerationJob[]
-  notifications   Notification[]
-  youtubeQuizzes  YoutubeQuiz[]
+  generationJobs TutorialGenerationJob[]
+  notifications  Notification[]
+  youtubeQuizzes YoutubeQuiz[]
 
   signFavourites  SignFavourite[]
+  customizedPlans CustomizedPlan[]
 }
 
 // One row per student, created lazily on first read/write (see the route).
@@ -178,18 +179,18 @@ model User {
 // the first time this row is created, never re-applied after, so a student
 // who changes their mind stays changed.
 model AccessibilityPrefs {
-  id             String   @id @default(cuid())
-  studentId      String   @unique
-  student        User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  id        String @id @default(cuid())
+  studentId String @unique
+  student   User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
-  fontSize       FontSize @default(MEDIUM)
-  highContrast   Boolean  @default(false)
-  alwaysNarrate  Boolean  @default(false) // auto-play narration on every lesson, any mode
-  reducedMotion  Boolean  @default(false)
-  signLanguage   Boolean  @default(false) // fingerspelling strip under storybook pages
-  audiobookMode  Boolean  @default(false) // continuous cross-lesson playback, see TODO in tutorials
+  fontSize      FontSize @default(MEDIUM)
+  highContrast  Boolean  @default(false)
+  alwaysNarrate Boolean  @default(false) // auto-play narration on every lesson, any mode
+  reducedMotion Boolean  @default(false)
+  signLanguage  Boolean  @default(false) // fingerspelling strip under storybook pages
+  audiobookMode Boolean  @default(false) // continuous cross-lesson playback, see TODO in tutorials
 
-  updatedAt      DateTime @updatedAt
+  updatedAt DateTime @updatedAt
 }
 
 // A student's starred signs in the sign-language dictionary. signId matches
@@ -258,16 +259,16 @@ model LearningMaterial {
 }
 
 model QuizSession {
-  id             String       @id @default(cuid())
-  userId         String
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  currentMode    LearningMode @default(TEXT)
-  questionIndex  Int          @default(0)
-  score          Int          @default(0)
-  engagementLog  Json         @default("[]")
-  completed      Boolean      @default(false)
-  startedAt      DateTime     @default(now())
-  completedAt    DateTime?
+  id            String       @id @default(cuid())
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentMode   LearningMode @default(TEXT)
+  questionIndex Int          @default(0)
+  score         Int          @default(0)
+  engagementLog Json         @default("[]")
+  completed     Boolean      @default(false)
+  startedAt     DateTime     @default(now())
+  completedAt   DateTime?
 }
 
 // ---------------------------------------------------------------------------
@@ -277,9 +278,9 @@ model QuizSession {
 // ---------------------------------------------------------------------------
 
 model AssessmentAttempt {
-  id                 String       @id @default(cuid())
-  userId             String
-  user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   textEngagement     Float        @default(0)
   audioEngagement    Float        @default(0)
@@ -289,14 +290,14 @@ model AssessmentAttempt {
   preferredMode      LearningMode @default(TEXT)
   arRecommended      Boolean      @default(false)
 
-  scoreCorrect  Int    @default(0)
-  scoreTotal    Int    @default(0)
-  scorePercent  Float  @default(0)
+  scoreCorrect Int   @default(0)
+  scoreTotal   Int   @default(0)
+  scorePercent Float @default(0)
 
-  engagementLog Json      @default("[]")
-  answerLog     Json      @default("[]")
-  startedAt     DateTime  @default(now())
-  completedAt   DateTime?
+  engagementLog   Json      @default("[]")
+  answerLog       Json      @default("[]")
+  startedAt       DateTime  @default(now())
+  completedAt     DateTime?
   durationSeconds Int?
 
   @@index([userId, completedAt])
@@ -307,11 +308,11 @@ model AssessmentAttempt {
 // ---------------------------------------------------------------------------
 
 model Classroom {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   name        String
   description String?
-  teacherId   String   @unique // one teacher -> one classroom for now; drop @unique to allow many
-  teacher     User     @relation("TeacherClassroom", fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId   String  @unique // one teacher -> one classroom for now; drop @unique to allow many
+  teacher     User    @relation("TeacherClassroom", fields: [teacherId], references: [id], onDelete: Cascade)
 
   admissionCriteria AdmissionCriteria?
   subjects          Subject[]
@@ -333,7 +334,7 @@ model AdmissionCriteria {
   maxAudioEngagement    Float?
   minVisualEngagement   Float?
   maxVisualEngagement   Float?
-  preferredModes        Json?   // e.g. ["VISUAL", "AUDIO"]
+  preferredModes        Json? // e.g. ["VISUAL", "AUDIO"]
   minAttentionSpanScore Float?
   maxAttentionSpanScore Float?
   minScorePercent       Float?
@@ -375,36 +376,37 @@ model ClassroomJoinRequest {
 // ---------------------------------------------------------------------------
 
 model Subject {
-  id          String    @id @default(cuid())
-  classroomId String
-  classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
-  name        String
-  units       Unit[]
-  createdAt   DateTime  @default(now())
+  id              String           @id @default(cuid())
+  classroomId     String
+  classroom       Classroom        @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  name            String
+  units           Unit[]
+  customizedPlans CustomizedPlan[]
+  createdAt       DateTime         @default(now())
 }
 
 model Unit {
-  id          String   @id @default(cuid())
-  subjectId   String
-  subject     Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  title       String
-  order       Int      @default(0)
+  id        String  @id @default(cuid())
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  title     String
+  order     Int     @default(0)
 
-  documents   SyllabusDocument[]
-  tutorials   Tutorial[]
-  preview     UnitPreview?
+  documents SyllabusDocument[]
+  tutorials Tutorial[]
+  preview   UnitPreview?
 
   // Full-curriculum pipeline - one canonical curriculum per unit, shared
   // across students (PLAN §23: canonical content + adaptive presentation,
   // not a separate generated copy per student)
-  curriculum       TutorialCurriculum?
-  generationJobs   TutorialGenerationJob[]
+  curriculum        TutorialCurriculum?
+  generationJobs    TutorialGenerationJob[]
   engagementSamples UnitEngagementSample[]
   youtubeQuizzes    YoutubeQuiz[]
 
-  ragUnitId   Int?         @unique // the integer id rag-service indexes under
-  indexStatus IndexStatus  @default(NOT_INDEXED)
-  createdAt   DateTime     @default(now())
+  ragUnitId   Int?        @unique // the integer id rag-service indexes under
+  indexStatus IndexStatus @default(NOT_INDEXED)
+  createdAt   DateTime    @default(now())
 }
 
 // The "set up immediately on upload" artifact: one generic (no student
@@ -492,12 +494,12 @@ model Tutorial {
   audioScript      String
   visualSuggestion String
   imageUrl         String? // populated once Gemini image-gen finishes; null while pending/unavailable
-  steps            Json    @default("[]")
+  steps            Json         @default("[]")
   quiz             Json
   teacherNote      String
-  sourceChunks     Int     @default(0)
-  offline          Boolean @default(false)
-  createdAt        DateTime @default(now())
+  sourceChunks     Int          @default(0)
+  offline          Boolean      @default(false)
+  createdAt        DateTime     @default(now())
 
   @@unique([studentId, unitId, learningMode, level])
   @@index([studentId, unitId])
@@ -741,12 +743,12 @@ model Notification {
 // ---------------------------------------------------------------------------
 
 model YoutubeQuiz {
-  id           String            @id @default(cuid())
+  id           String                @id @default(cuid())
   teacherId    String
-  teacher      User              @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacher      User                  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   sourceUrl    String
   videoId      String
-  status       YoutubeQuizStatus @default(QUEUED)
+  status       YoutubeQuizStatus     @default(QUEUED)
   errorMessage String?
   title        String?
   questions    YoutubeQuizQuestion[]
@@ -754,10 +756,10 @@ model YoutubeQuiz {
   // take it - null until the teacher assigns it (a quiz can exist as a draft
   // the teacher previews before deciding where it belongs).
   unitId       String?
-  unit         Unit?             @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  unit         Unit?                 @relation(fields: [unitId], references: [id], onDelete: SetNull)
   attempts     YoutubeQuizAttempt[]
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
 
   @@index([unitId])
 }
@@ -786,4 +788,50 @@ model YoutubeQuizQuestion {
   correct  String
 
   @@unique([quizId, order])
+}
+
+// ---------------------------------------------------------------------------
+// Student Segregation & Personalized Learning Plan Pipeline
+// ---------------------------------------------------------------------------
+
+enum CustomPlanStatus {
+  QUEUED
+  GENERATING
+  READY
+  FAILED
+}
+
+model CustomizedPlan {
+  id                 String                 @id @default(cuid())
+  subjectId          String
+  subject            Subject                @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  studentId          String
+  student            User                   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  title              String
+  status             CustomPlanStatus       @default(QUEUED)
+  compositionSummary Json
+  errorMessage       String?
+  modules            CustomizedPlanModule[]
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  @@unique([subjectId, studentId])
+  @@index([studentId])
+}
+
+model CustomizedPlanModule {
+  id                String         @id @default(cuid())
+  planId            String
+  plan              CustomizedPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  order             Int
+  title             String
+  description       String
+  contentType       String // e.g. "VISUAL_STORY", "GAME_CHALLENGE", "AUDIO_EXPLANATION", "MIXED_LESSON"
+  content           Json // { title, explanation, example, imageUrl, audioUrl, questions: [...] }
+  targetUnitId      String? // underlying unit ID to sync progress to
+  targetLessonOrder Int?
+  completed         Boolean        @default(false)
+  completedAt       DateTime?
+
+  @@unique([planId, order])
 }

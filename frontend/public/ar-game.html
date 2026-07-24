@@ -1,646 +1,951 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NeuroLearn AR Game</title>
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Font Awesome Icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <!-- A-Frame 1.5.0 -->
-  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-  <!-- Google Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-  
-  <style>
-    body {
-      font-family: 'Fredoka', 'Inter', sans-serif;
-      background-color: #0a0a0f;
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      user-select: none;
-      -webkit-user-select: none;
-    }
-    
-    .glass-panel {
-      background: rgba(15, 23, 42, 0.85);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(147, 51, 234, 0.3);
-      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
-    }
-    
-    .glass-card {
-      background: rgba(30, 41, 59, 0.8);
-      backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-    }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NeuroLearn AR Game</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <!-- A-Frame 1.5.0 -->
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Inter:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
 
-    #webcam-bg {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      object-fit: cover;
-      z-index: 0;
-      display: none;
-      transform: scaleX(-1);
-      background: #050509;
-    }
+    <style>
+      body {
+        font-family: "Fredoka", "Inter", sans-serif;
+        background-color: #0a0a0f;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        user-select: none;
+        -webkit-user-select: none;
+      }
 
-    #finger-canvas {
-      display: none;
-    }
+      .glass-panel {
+        background: rgba(15, 23, 42, 0.85);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(147, 51, 234, 0.3);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+      }
 
-    #finger-tip {
-      position: fixed;
-      width: 28px;
-      height: 28px;
-      border: 3px solid #fbbf24;
-      border-radius: 999px;
-      box-shadow: 0 0 22px rgba(251, 191, 36, 0.85);
-      transform: translate(-50%, -50%);
-      z-index: 12;
-      display: none;
-      pointer-events: none;
-    }
+      .glass-card {
+        background: rgba(30, 41, 59, 0.8);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+      }
 
-    .btn-glow {
-      position: relative;
-      overflow: hidden;
-      transition: all 0.25s ease;
-    }
-    .btn-glow:hover {
-      box-shadow: 0 0 20px rgba(168, 85, 247, 0.6);
-      transform: translateY(-2px);
-    }
-  </style>
-</head>
-<body class="bg-[#0a0a0f] text-white w-screen h-screen overflow-hidden select-none relative">
+      #webcam-bg {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        object-fit: cover;
+        z-index: 0;
+        display: none;
+        transform: scaleX(-1);
+        background: #050509;
+      }
 
-  <!-- Real Camera Background for AR mode -->
-  <video id="webcam-bg" autoplay playsinline muted></video>
-  <canvas id="finger-canvas" width="180" height="120"></canvas>
-  <div id="finger-tip"></div>
+      #finger-canvas {
+        display: none;
+      }
 
-  <!-- A-Frame 3D / AR Scene -->
-  <a-scene
-    id="ar-scene"
-    embedded
-    background="transparent: true"
-    renderer="alpha: true; antialias: true; colorManagement: true"
-    style="width: 100%; height: 100vh; position: absolute; top: 0; left: 0; z-index: 2; background: transparent;"
-    vr-mode-ui="enabled: false"
+      #finger-tip {
+        position: fixed;
+        width: 28px;
+        height: 28px;
+        border: 3px solid #fbbf24;
+        border-radius: 999px;
+        box-shadow: 0 0 22px rgba(251, 191, 36, 0.85);
+        transform: translate(-50%, -50%);
+        z-index: 12;
+        display: none;
+        pointer-events: none;
+      }
+
+      .btn-glow {
+        position: relative;
+        overflow: hidden;
+        transition: all 0.25s ease;
+      }
+      .btn-glow:hover {
+        box-shadow: 0 0 20px rgba(168, 85, 247, 0.6);
+        transform: translateY(-2px);
+      }
+    </style>
+  </head>
+  <body
+    class="bg-[#0a0a0f] text-white w-screen h-screen overflow-hidden select-none relative"
   >
-    
-    <!-- Environment Sky & Stars (3D Desktop Fallback) -->
-    <a-sky id="space-sky" color="#0a0a14" opacity="1"></a-sky>
+    <!-- Real Camera Background for AR mode -->
+    <video id="webcam-bg" autoplay playsinline muted></video>
+    <canvas id="finger-canvas" width="180" height="120"></canvas>
+    <div id="finger-tip"></div>
 
-    <!-- Ambient & Directional Lighting for Glossy Balloons -->
-    <a-ambient-light color="#ffffff" intensity="0.9"></a-ambient-light>
-    <a-directional-light position="2 4 3" color="#ffffff" intensity="1.2"></a-directional-light>
-    <a-directional-light position="-3 2 -2" color="#c084fc" intensity="0.7"></a-directional-light>
+    <!-- A-Frame 3D / AR Scene -->
+    <a-scene
+      id="ar-scene"
+      embedded
+      background="transparent: true"
+      renderer="alpha: true; antialias: true; colorManagement: true"
+      style="
+        width: 100%;
+        height: 100vh;
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 2;
+        background: transparent;
+      "
+      vr-mode-ui="enabled: false"
+    >
+      <!-- Environment Sky & Stars (3D Desktop Fallback) -->
+      <a-sky id="space-sky" color="#0a0a14" opacity="1"></a-sky>
 
-    <!-- Camera Setup with Raycaster Pointer -->
-    <a-entity id="camera-rig" position="0 0 0">
-      <a-camera id="main-camera" position="0 1.6 0" look-controls="enabled: false" wasd-controls="enabled: false" cursor="rayOrigin: mouse" raycaster="objects: .clickable">
-      </a-camera>
-    </a-entity>
+      <!-- Ambient & Directional Lighting for Glossy Balloons -->
+      <a-ambient-light color="#ffffff" intensity="0.9"></a-ambient-light>
+      <a-directional-light
+        position="2 4 3"
+        color="#ffffff"
+        intensity="1.2"
+      ></a-directional-light>
+      <a-directional-light
+        position="-3 2 -2"
+        color="#c084fc"
+        intensity="0.7"
+      ></a-directional-light>
 
-    <!-- Container for Starfield Spheres -->
-    <a-entity id="starfield"></a-entity>
+      <!-- Camera Setup with Raycaster Pointer -->
+      <a-entity id="camera-rig" position="0 0 0">
+        <a-camera
+          id="main-camera"
+          position="0 1.6 0"
+          look-controls="enabled: false"
+          wasd-controls="enabled: false"
+          cursor="rayOrigin: mouse"
+          raycaster="objects: .clickable"
+        >
+        </a-camera>
+      </a-entity>
 
-    <!-- Container for Dynamic Particles on Balloon Pop -->
-    <a-entity id="particle-container"></a-entity>
+      <!-- Container for Starfield Spheres -->
+      <a-entity id="starfield"></a-entity>
 
-    <!-- 4 Interactive 3D Floating Balloons -->
-    <a-entity id="balloon-0" class="clickable balloon-group" position="-3.9 1.75 -4.6"
-              animation__float="property: position; to: -3.9 2.05 -4.6; dir: alternate; loop: true; dur: 2200; easing: easeInOutSine">
-      <a-sphere class="clickable balloon-mesh" radius="0.78" color="#9333ea" roughness="0.15" metalness="0.1"></a-sphere>
-      <a-cone radius-bottom="0.15" radius-top="0.02" height="0.2" position="0 -0.82 0" color="#7e22ce"></a-cone>
-      <a-cylinder radius="0.008" height="1.2" position="0 -1.45 0" color="#ffffff" opacity="0.45"></a-cylinder>
-      <a-plane position="0 0 0.8" width="1.9" height="0.66" color="#0f172a" opacity="0.88" material="transparent: true"></a-plane>
-      <a-text id="balloon-text-0" value="Option A" align="center" position="0 0 0.83" width="1.75" wrap-count="20" color="#ffffff" baseline="center"></a-text>
-    </a-entity>
+      <!-- Container for Dynamic Particles on Balloon Pop -->
+      <a-entity id="particle-container"></a-entity>
 
-    <a-entity id="balloon-1" class="clickable balloon-group" position="-1.32 2.2 -4.6"
-              animation__float="property: position; to: -1.32 2.5 -4.6; dir: alternate; loop: true; dur: 2600; easing: easeInOutSine">
-      <a-sphere class="clickable balloon-mesh" radius="0.78" color="#f59e0b" roughness="0.15" metalness="0.1"></a-sphere>
-      <a-cone radius-bottom="0.15" radius-top="0.02" height="0.2" position="0 -0.82 0" color="#d97706"></a-cone>
-      <a-cylinder radius="0.008" height="1.2" position="0 -1.45 0" color="#ffffff" opacity="0.45"></a-cylinder>
-      <a-plane position="0 0 0.8" width="1.9" height="0.66" color="#0f172a" opacity="0.88" material="transparent: true"></a-plane>
-      <a-text id="balloon-text-1" value="Option B" align="center" position="0 0 0.83" width="1.75" wrap-count="20" color="#ffffff" baseline="center"></a-text>
-    </a-entity>
+      <!-- 4 Interactive 3D Floating Balloons -->
+      <a-entity
+        id="balloon-0"
+        class="clickable balloon-group"
+        position="-2.2 1.75 -5.0"
+        animation__float="property: position; to: -2.2 2.05 -5.0; dir: alternate; loop: true; dur: 2200; easing: easeInOutSine"
+      >
+        <a-sphere
+          class="clickable balloon-mesh"
+          radius="0.7"
+          color="#9333ea"
+          roughness="0.15"
+          metalness="0.1"
+        ></a-sphere>
+        <a-cone
+          radius-bottom="0.14"
+          radius-top="0.02"
+          height="0.18"
+          position="0 -0.74 0"
+          color="#7e22ce"
+        ></a-cone>
+        <a-cylinder
+          radius="0.008"
+          height="1.2"
+          position="0 -1.35 0"
+          color="#ffffff"
+          opacity="0.45"
+        ></a-cylinder>
+        <a-plane
+          position="0 0 0.72"
+          width="1.55"
+          height="0.6"
+          color="#0f172a"
+          opacity="0.88"
+          material="transparent: true"
+        ></a-plane>
+        <a-text
+          id="balloon-text-0"
+          value="Option A"
+          align="center"
+          position="0 0 0.75"
+          width="1.45"
+          wrap-count="18"
+          color="#ffffff"
+          baseline="center"
+        ></a-text>
+      </a-entity>
 
-    <a-entity id="balloon-2" class="clickable balloon-group" position="1.32 1.75 -4.6"
-              animation__float="property: position; to: 1.32 2.05 -4.6; dir: alternate; loop: true; dur: 2400; easing: easeInOutSine">
-      <a-sphere class="clickable balloon-mesh" radius="0.78" color="#06b6d4" roughness="0.15" metalness="0.1"></a-sphere>
-      <a-cone radius-bottom="0.15" radius-top="0.02" height="0.2" position="0 -0.82 0" color="#0891b2"></a-cone>
-      <a-cylinder radius="0.008" height="1.2" position="0 -1.45 0" color="#ffffff" opacity="0.45"></a-cylinder>
-      <a-plane position="0 0 0.8" width="1.9" height="0.66" color="#0f172a" opacity="0.88" material="transparent: true"></a-plane>
-      <a-text id="balloon-text-2" value="Option C" align="center" position="0 0 0.83" width="1.75" wrap-count="20" color="#ffffff" baseline="center"></a-text>
-    </a-entity>
+      <a-entity
+        id="balloon-1"
+        class="clickable balloon-group"
+        position="-0.75 2.1 -5.0"
+        animation__float="property: position; to: -0.75 2.4 -5.0; dir: alternate; loop: true; dur: 2600; easing: easeInOutSine"
+      >
+        <a-sphere
+          class="clickable balloon-mesh"
+          radius="0.7"
+          color="#f59e0b"
+          roughness="0.15"
+          metalness="0.1"
+        ></a-sphere>
+        <a-cone
+          radius-bottom="0.14"
+          radius-top="0.02"
+          height="0.18"
+          position="0 -0.74 0"
+          color="#d97706"
+        ></a-cone>
+        <a-cylinder
+          radius="0.008"
+          height="1.2"
+          position="0 -1.35 0"
+          color="#ffffff"
+          opacity="0.45"
+        ></a-cylinder>
+        <a-plane
+          position="0 0 0.72"
+          width="1.55"
+          height="0.6"
+          color="#0f172a"
+          opacity="0.88"
+          material="transparent: true"
+        ></a-plane>
+        <a-text
+          id="balloon-text-1"
+          value="Option B"
+          align="center"
+          position="0 0 0.75"
+          width="1.45"
+          wrap-count="18"
+          color="#ffffff"
+          baseline="center"
+        ></a-text>
+      </a-entity>
 
-    <a-entity id="balloon-3" class="clickable balloon-group" position="3.9 2.2 -4.6"
-              animation__float="property: position; to: 3.9 2.5 -4.6; dir: alternate; loop: true; dur: 2800; easing: easeInOutSine">
-      <a-sphere class="clickable balloon-mesh" radius="0.78" color="#10b981" roughness="0.15" metalness="0.1"></a-sphere>
-      <a-cone radius-bottom="0.15" radius-top="0.02" height="0.2" position="0 -0.82 0" color="#059669"></a-cone>
-      <a-cylinder radius="0.008" height="1.2" position="0 -1.45 0" color="#ffffff" opacity="0.45"></a-cylinder>
-      <a-plane position="0 0 0.8" width="1.9" height="0.66" color="#0f172a" opacity="0.88" material="transparent: true"></a-plane>
-      <a-text id="balloon-text-3" value="Option D" align="center" position="0 0 0.83" width="1.75" wrap-count="20" color="#ffffff" baseline="center"></a-text>
-    </a-entity>
-  </a-scene>
+      <a-entity
+        id="balloon-2"
+        class="clickable balloon-group"
+        position="0.75 1.75 -5.0"
+        animation__float="property: position; to: 0.75 2.05 -5.0; dir: alternate; loop: true; dur: 2400; easing: easeInOutSine"
+      >
+        <a-sphere
+          class="clickable balloon-mesh"
+          radius="0.7"
+          color="#06b6d4"
+          roughness="0.15"
+          metalness="0.1"
+        ></a-sphere>
+        <a-cone
+          radius-bottom="0.14"
+          radius-top="0.02"
+          height="0.18"
+          position="0 -0.74 0"
+          color="#0891b2"
+        ></a-cone>
+        <a-cylinder
+          radius="0.008"
+          height="1.2"
+          position="0 -1.35 0"
+          color="#ffffff"
+          opacity="0.45"
+        ></a-cylinder>
+        <a-plane
+          position="0 0 0.72"
+          width="1.55"
+          height="0.6"
+          color="#0f172a"
+          opacity="0.88"
+          material="transparent: true"
+        ></a-plane>
+        <a-text
+          id="balloon-text-2"
+          value="Option C"
+          align="center"
+          position="0 0 0.75"
+          width="1.45"
+          wrap-count="18"
+          color="#ffffff"
+          baseline="center"
+        ></a-text>
+      </a-entity>
 
-  <!-- HTML HUD Overlay (Z-Index 10) -->
-  <div class="relative z-10 w-full h-full flex flex-col justify-between p-4 md:p-6 pointer-events-none">
-    
-    <!-- Top HUD Bar -->
-    <div class="flex items-center justify-between w-full pointer-events-auto">
-      <div class="glass-panel px-4 py-2 rounded-2xl flex items-center space-x-3">
-        <button id="toggle-camera-btn" onclick="toggleCameraMode()" class="bg-purple-600/40 hover:bg-purple-600/70 border border-purple-500/50 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center space-x-2">
-          <i class="fa-solid fa-camera text-amber-400"></i>
-          <span id="camera-btn-text">Start Camera AR</span>
-        </button>
+      <a-entity
+        id="balloon-3"
+        class="clickable balloon-group"
+        position="2.2 2.1 -5.0"
+        animation__float="property: position; to: 2.2 2.4 -5.0; dir: alternate; loop: true; dur: 2800; easing: easeInOutSine"
+      >
+        <a-sphere
+          class="clickable balloon-mesh"
+          radius="0.7"
+          color="#10b981"
+          roughness="0.15"
+          metalness="0.1"
+        ></a-sphere>
+        <a-cone
+          radius-bottom="0.14"
+          radius-top="0.02"
+          height="0.18"
+          position="0 -0.74 0"
+          color="#059669"
+        ></a-cone>
+        <a-cylinder
+          radius="0.008"
+          height="1.2"
+          position="0 -1.35 0"
+          color="#ffffff"
+          opacity="0.45"
+        ></a-cylinder>
+        <a-plane
+          position="0 0 0.72"
+          width="1.55"
+          height="0.6"
+          color="#0f172a"
+          opacity="0.88"
+          material="transparent: true"
+        ></a-plane>
+        <a-text
+          id="balloon-text-3"
+          value="Option D"
+          align="center"
+          position="0 0 0.75"
+          width="1.45"
+          wrap-count="18"
+          color="#ffffff"
+          baseline="center"
+        ></a-text>
+      </a-entity>
+    </a-scene>
+
+    <!-- HTML HUD Overlay (Z-Index 10) -->
+    <div
+      class="relative z-10 w-full h-full flex flex-col justify-between p-4 md:p-6 pointer-events-none"
+    >
+      <!-- Top HUD Bar -->
+      <div class="flex items-center justify-between w-full pointer-events-auto">
+        <div
+          class="glass-panel px-4 py-2 rounded-2xl flex items-center space-x-3"
+        >
+          <button
+            id="toggle-camera-btn"
+            onclick="toggleCameraMode()"
+            class="bg-purple-600/40 hover:bg-purple-600/70 border border-purple-500/50 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center space-x-2"
+          >
+            <i class="fa-solid fa-camera text-amber-400"></i>
+            <span id="camera-btn-text">Start Camera AR</span>
+          </button>
+        </div>
+
+        <!-- Score Display Badge -->
+        <div
+          class="glass-panel px-5 py-2.5 rounded-2xl flex items-center space-x-3"
+        >
+          <i class="fa-solid fa-trophy text-amber-400 text-lg"></i>
+          <div class="flex flex-col text-right">
+            <span
+              class="text-[10px] text-slate-400 font-bold uppercase tracking-wider"
+              >Score</span
+            >
+            <span
+              id="score-display"
+              class="text-xl font-bold text-white leading-none"
+              >0
+              <span class="text-xs text-slate-400 font-normal">/ 10</span></span
+            >
+          </div>
+        </div>
       </div>
 
-      <!-- Score Display Badge -->
-      <div class="glass-panel px-5 py-2.5 rounded-2xl flex items-center space-x-3">
-        <i class="fa-solid fa-trophy text-amber-400 text-lg"></i>
-        <div class="flex flex-col text-right">
-          <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Score</span>
-          <span id="score-display" class="text-xl font-bold text-white leading-none">0 <span class="text-xs text-slate-400 font-normal">/ 10</span></span>
+      <!-- Question Card HUD (Centered Top) -->
+      <div
+        class="absolute bottom-10 left-0 w-full flex justify-center pointer-events-auto"
+      >
+        <div
+          class="glass-panel px-6 py-9 rounded-3xl max-w-2xl w-full text-center border-purple-500/40 shadow-2xl"
+        >
+          <div
+            id="question-text"
+            class="text-lg md:text-2xl font-bold text-white leading-tight"
+          >
+            Loading Question...
+          </div>
+          <p class="text-xs text-purple-300 mt-1">
+            Touch a balloon with your fingertip or click it to pop.
+          </p>
+        </div>
+      </div>
+
+      <!-- Full text of a truncated option, shown on hover -->
+      <div
+        id="option-popup"
+        class="w-full max-w-2xl mx-auto glass-panel px-5 py-3 rounded-2xl text-center text-base font-semibold text-white opacity-0 transition-opacity duration-200 pointer-events-none mb-4"
+      ></div>
+
+      <!-- Feedback Message Overlay -->
+      <div
+        id="feedback-toast"
+        class="w-full flex justify-center opacity-0 transition-opacity duration-300 pointer-events-none mb-10"
+      >
+        <div
+          id="toast-body"
+          class="glass-panel px-6 py-3 rounded-2xl flex items-center space-x-3 text-lg font-bold"
+        >
+          <i id="toast-icon" class="fa-solid fa-star"></i>
+          <span id="toast-message">Great job!</span>
         </div>
       </div>
     </div>
 
-    <!-- Question Card HUD (Centered Top) -->
-<div class="absolute bottom-10 left-0 w-full flex justify-center pointer-events-auto">
-  <div class="glass-panel px-6 py-9 rounded-3xl max-w-2xl w-full text-center border-purple-500/40 shadow-2xl">
-    <div id="question-text" class="text-lg md:text-2xl font-bold text-white leading-tight">
-      Loading Question...
-    </div>
-    <p class="text-xs text-purple-300 mt-1">
-      Touch a balloon with your fingertip or click it to pop.
-    </p>
-  </div>
-</div>
-
-    <!-- Full text of a truncated option, shown on hover -->
-    <div id="option-popup"
-         class="w-full max-w-2xl mx-auto glass-panel px-5 py-3 rounded-2xl text-center text-base font-semibold text-white opacity-0 transition-opacity duration-200 pointer-events-none mb-4"></div>
-
-    <!-- Feedback Message Overlay -->
-    <div id="feedback-toast" class="w-full flex justify-center opacity-0 transition-opacity duration-300 pointer-events-none mb-10">
-      <div id="toast-body" class="glass-panel px-6 py-3 rounded-2xl flex items-center space-x-3 text-lg font-bold">
-        <i id="toast-icon" class="fa-solid fa-star"></i>
-        <span id="toast-message">Great job!</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- End Game Results Modal -->
-  <div id="results-modal" class="fixed inset-0 z-30 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
-    <div class="glass-panel p-8 rounded-3xl max-w-md w-full text-center space-y-6 animate-pop-in border-purple-500/50">
-      <div class="w-20 h-20 bg-purple-600/30 border border-purple-500/50 rounded-full flex items-center justify-center mx-auto text-amber-400 text-4xl shadow-lg">
-        <i class="fa-solid fa-crown"></i>
-      </div>
-      <div>
-        <h2 class="text-3xl font-bold text-white mb-2">Game Complete!</h2>
-        <p class="text-slate-300 text-sm">You did an amazing job popping balloons!</p>
-      </div>
-      <div class="glass-card p-4 rounded-2xl flex justify-around items-center">
+    <!-- End Game Results Modal -->
+    <div
+      id="results-modal"
+      class="fixed inset-0 z-30 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 hidden"
+    >
+      <div
+        class="glass-panel p-8 rounded-3xl max-w-md w-full text-center space-y-6 animate-pop-in border-purple-500/50"
+      >
+        <div
+          class="w-20 h-20 bg-purple-600/30 border border-purple-500/50 rounded-full flex items-center justify-center mx-auto text-amber-400 text-4xl shadow-lg"
+        >
+          <i class="fa-solid fa-crown"></i>
+        </div>
         <div>
-          <p class="text-xs text-slate-400 uppercase font-bold">Final Score</p>
-          <p id="final-score-text" class="text-3xl font-bold text-amber-400">0 / 10</p>
+          <h2 class="text-3xl font-bold text-white mb-2">Game Complete!</h2>
+          <p class="text-slate-300 text-sm">
+            You did an amazing job popping balloons!
+          </p>
+        </div>
+        <div
+          class="glass-card p-4 rounded-2xl flex justify-around items-center"
+        >
+          <div>
+            <p class="text-xs text-slate-400 uppercase font-bold">
+              Final Score
+            </p>
+            <p id="final-score-text" class="text-3xl font-bold text-amber-400">
+              0 / 10
+            </p>
+          </div>
+        </div>
+        <div class="flex flex-col space-y-3">
+          <button
+            onclick="restartGame()"
+            class="btn-glow w-full py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-2xl font-bold text-base"
+          >
+            Play Again
+          </button>
+          <button
+            onclick="goToDashboard()"
+            class="w-full py-3 bg-white/10 hover:bg-white/20 text-slate-300 rounded-2xl font-semibold text-sm transition-colors"
+          >
+            Back to Dashboard
+          </button>
         </div>
       </div>
-      <div class="flex flex-col space-y-3">
-        <button onclick="restartGame()" class="btn-glow w-full py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-2xl font-bold text-base">
-          Play Again
-        </button>
-        <button onclick="goToDashboard()" class="w-full py-3 bg-white/10 hover:bg-white/20 text-slate-300 rounded-2xl font-semibold text-sm transition-colors">
-          Back to Dashboard
-        </button>
-      </div>
     </div>
-  </div>
 
-  <!-- Game Logic JavaScript -->
-  <script>
-    // Default demo set. Replaced at runtime by the real unit's questions when
-    // this game is embedded in the tutorial player (see the 'message' listener
-    // below) - those come from the curriculum's own knowledge-checks + final
-    // assessment, so AR mode reuses already-generated content and costs no
-    // extra AI call.
-    let questions = [
-      { q: 'What is 3 + 4?', options: ['5', '7', '9', '6'], answer: '7' },
-      { q: 'What color is a banana?', options: ['Red', 'Blue', 'Yellow', 'Green'], answer: 'Yellow' },
-      { q: 'How many legs does a dog have?', options: ['2', '4', '6', '3'], answer: '4' },
-      { q: 'What is 10 - 3?', options: ['8', '6', '7', '5'], answer: '7' },
-      { q: 'What shape has 3 sides?', options: ['Square', 'Triangle', 'Circle', 'Rectangle'], answer: 'Triangle' },
-      { q: 'What sound does a cat make?', options: ['Woof', 'Moo', 'Meow', 'Oink'], answer: 'Meow' },
-      { q: 'How many fingers on one hand?', options: ['4', '6', '5', '3'], answer: '5' },
-      { q: 'What is 2 x 3?', options: ['4', '5', '6', '7'], answer: '6' },
-      { q: 'What is the largest planet?', options: ['Earth', 'Mars', 'Saturn', 'Jupiter'], answer: 'Jupiter' },
-      { q: 'How many days in a week?', options: ['5', '6', '7', '8'], answer: '7' },
-    ];
+    <!-- Game Logic JavaScript -->
+    <script>
+      // Default demo set. Replaced at runtime by the real unit's questions when
+      // this game is embedded in the tutorial player (see the 'message' listener
+      // below) - those come from the curriculum's own knowledge-checks + final
+      // assessment, so AR mode reuses already-generated content and costs no
+      // extra AI call.
+      let questions = [
+        { q: "What is 3 + 4?", options: ["5", "7", "9", "6"], answer: "7" },
+        {
+          q: "What color is a banana?",
+          options: ["Red", "Blue", "Yellow", "Green"],
+          answer: "Yellow",
+        },
+        {
+          q: "How many legs does a dog have?",
+          options: ["2", "4", "6", "3"],
+          answer: "4",
+        },
+        { q: "What is 10 - 3?", options: ["8", "6", "7", "5"], answer: "7" },
+        {
+          q: "What shape has 3 sides?",
+          options: ["Square", "Triangle", "Circle", "Rectangle"],
+          answer: "Triangle",
+        },
+        {
+          q: "What sound does a cat make?",
+          options: ["Woof", "Moo", "Meow", "Oink"],
+          answer: "Meow",
+        },
+        {
+          q: "How many fingers on one hand?",
+          options: ["4", "6", "5", "3"],
+          answer: "5",
+        },
+        { q: "What is 2 x 3?", options: ["4", "5", "6", "7"], answer: "6" },
+        {
+          q: "What is the largest planet?",
+          options: ["Earth", "Mars", "Saturn", "Jupiter"],
+          answer: "Jupiter",
+        },
+        {
+          q: "How many days in a week?",
+          options: ["5", "6", "7", "8"],
+          answer: "7",
+        },
+      ];
 
-    let currentQuestionIndex = 0;
-    let score = 0;
-    let answered = false;
-    let cameraStream = null;
-    let cameraStarting = false;
-    let fingerTrackingFrame = null;
-    let hoveredBalloonIndex = null;
-    let hoverStartedAt = 0;
+      let currentQuestionIndex = 0;
+      let score = 0;
+      let answered = false;
+      let cameraStream = null;
+      let cameraStarting = false;
+      let fingerTrackingFrame = null;
+      let hoveredBalloonIndex = null;
+      let hoverStartedAt = 0;
 
-    // Toggle Camera AR Mode
-    async function toggleCameraMode() {
-      const video = document.getElementById('webcam-bg');
-      const sky = document.getElementById('space-sky');
-      const btnText = document.getElementById('camera-btn-text');
-      const scene = document.getElementById('ar-scene');
+      // Toggle Camera AR Mode
+      async function toggleCameraMode() {
+        const video = document.getElementById("webcam-bg");
+        const sky = document.getElementById("space-sky");
+        const btnText = document.getElementById("camera-btn-text");
+        const scene = document.getElementById("ar-scene");
 
-      if (!cameraStream) {
-        if (cameraStarting) return;
-        cameraStarting = true;
-        btnText.innerText = 'Starting Camera...';
-        try {
-          if (!navigator.mediaDevices?.getUserMedia) {
-            throw new Error('Camera API unavailable');
+        if (!cameraStream) {
+          if (cameraStarting) return;
+          cameraStarting = true;
+          btnText.innerText = "Starting Camera...";
+          try {
+            if (!navigator.mediaDevices?.getUserMedia) {
+              throw new Error("Camera API unavailable");
+            }
+
+            cameraStream = await navigator.mediaDevices.getUserMedia({
+              video: {
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+                facingMode: { ideal: "environment" },
+              },
+              audio: false,
+            });
+            video.srcObject = cameraStream;
+            await video.play();
+            video.style.display = "block";
+            document.getElementById("finger-tip").style.display = "block";
+            sky.setAttribute("visible", "false");
+            if (scene?.renderer) {
+              scene.renderer.setClearColor(0x000000, 0);
+            }
+            btnText.innerText = "Stop Camera AR";
+            startFingerTracking();
+          } catch (e) {
+            console.warn("Could not access webcam for AR background mode", e);
+            cameraStream = null;
+            video.style.display = "none";
+            sky.setAttribute("visible", "true");
+            btnText.innerText = "Camera Blocked";
+            setTimeout(() => {
+              if (!cameraStream) btnText.innerText = "Start Camera AR";
+            }, 1800);
+          } finally {
+            cameraStarting = false;
           }
-
-          cameraStream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-              facingMode: { ideal: 'environment' }
-            },
-            audio: false
-          });
-          video.srcObject = cameraStream;
-          await video.play();
-          video.style.display = 'block';
-          document.getElementById('finger-tip').style.display = 'block';
-          sky.setAttribute('visible', 'false');
-          if (scene?.renderer) {
-            scene.renderer.setClearColor(0x000000, 0);
-          }
-          btnText.innerText = 'Stop Camera AR';
-          startFingerTracking();
-        } catch (e) {
-          console.warn('Could not access webcam for AR background mode', e);
-          cameraStream = null;
-          video.style.display = 'none';
-          sky.setAttribute('visible', 'true');
-          btnText.innerText = 'Camera Blocked';
-          setTimeout(() => {
-            if (!cameraStream) btnText.innerText = 'Start Camera AR';
-          }, 1800);
-        } finally {
-          cameraStarting = false;
-        }
-      } else {
-        cameraStream.getTracks().forEach(t => t.stop());
-        cameraStream = null;
-        video.srcObject = null;
-        video.style.display = 'none';
-        stopFingerTracking();
-        sky.setAttribute('visible', 'true');
-        btnText.innerText = 'Start Camera AR';
-      }
-    }
-
-    function isSkinPixel(r, g, b) {
-      const max = Math.max(r, g, b);
-      const min = Math.min(r, g, b);
-      return r > 70 && g > 35 && b > 20 && max - min > 18 && r > g * 1.08 && r > b * 1.18;
-    }
-
-    function detectFingerTip(video, canvas) {
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      if (!ctx || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !video.videoWidth) return null;
-
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = frame.data;
-      let count = 0;
-      let topY = canvas.height;
-      let sumX = 0;
-      let topBandCount = 0;
-
-      for (let y = 0; y < canvas.height; y += 2) {
-        for (let x = 0; x < canvas.width; x += 2) {
-          const i = (y * canvas.width + x) * 4;
-          if (isSkinPixel(data[i], data[i + 1], data[i + 2])) {
-            count++;
-            if (y < topY) topY = y;
-          }
-        }
-      }
-
-      if (count < 28 || topY >= canvas.height) return null;
-
-      const bandBottom = Math.min(canvas.height, topY + 18);
-      for (let y = topY; y < bandBottom; y += 2) {
-        for (let x = 0; x < canvas.width; x += 2) {
-          const i = (y * canvas.width + x) * 4;
-          if (isSkinPixel(data[i], data[i + 1], data[i + 2])) {
-            sumX += x;
-            topBandCount++;
-          }
-        }
-      }
-
-      if (topBandCount < 4) return null;
-      return {
-        x: canvas.width - (sumX / topBandCount),
-        y: topY
-      };
-    }
-
-    function getBalloonScreenCenter(balloon) {
-      const scene = document.getElementById('ar-scene');
-      const cameraEl = document.getElementById('main-camera');
-      if (!scene?.camera || !cameraEl || !window.THREE) return null;
-
-      const position = new THREE.Vector3();
-      balloon.object3D.getWorldPosition(position);
-      position.project(scene.camera);
-
-      return {
-        x: (position.x * 0.5 + 0.5) * window.innerWidth,
-        y: (-position.y * 0.5 + 0.5) * window.innerHeight
-      };
-    }
-
-    function updateFingerTouch(screenX, screenY) {
-      if (answered) return;
-
-      let closestIndex = null;
-      let closestDistance = Infinity;
-      for (let i = 0; i < 4; i++) {
-        const balloon = document.getElementById(`balloon-${i}`);
-        if (!balloon || balloon.getAttribute('visible') === false) continue;
-        const center = getBalloonScreenCenter(balloon);
-        if (!center) continue;
-        const distance = Math.hypot(center.x - screenX, center.y - screenY);
-        if (distance < closestDistance) {
-          closestDistance = distance;
-          closestIndex = i;
-        }
-      }
-
-      const touchRadius = Math.max(70, Math.min(window.innerWidth, window.innerHeight) * 0.09);
-      const now = performance.now();
-      if (closestIndex !== null && closestDistance < touchRadius) {
-        if (hoveredBalloonIndex !== closestIndex) {
-          hoveredBalloonIndex = closestIndex;
-          hoverStartedAt = now;
-        }
-
-        const balloon = document.getElementById(`balloon-${closestIndex}`);
-        balloon?.setAttribute('scale', '1.12 1.12 1.12');
-        if (now - hoverStartedAt > 360) {
-          handleAnswerSelect(closestIndex);
-          hoveredBalloonIndex = null;
-        }
-      } else {
-        if (hoveredBalloonIndex !== null) {
-          document.getElementById(`balloon-${hoveredBalloonIndex}`)?.setAttribute('scale', '1 1 1');
-        }
-        hoveredBalloonIndex = null;
-        hoverStartedAt = 0;
-      }
-    }
-
-    function startFingerTracking() {
-      const video = document.getElementById('webcam-bg');
-      const canvas = document.getElementById('finger-canvas');
-      const marker = document.getElementById('finger-tip');
-
-      const tick = () => {
-        if (!cameraStream) return;
-        const tip = detectFingerTip(video, canvas);
-        if (tip) {
-          const screenX = (tip.x / canvas.width) * window.innerWidth;
-          const screenY = (tip.y / canvas.height) * window.innerHeight;
-          marker.style.display = 'block';
-          marker.style.left = `${screenX}px`;
-          marker.style.top = `${screenY}px`;
-          updateFingerTouch(screenX, screenY);
         } else {
-          marker.style.display = 'none';
+          cameraStream.getTracks().forEach((t) => t.stop());
+          cameraStream = null;
+          video.srcObject = null;
+          video.style.display = "none";
+          stopFingerTracking();
+          sky.setAttribute("visible", "true");
+          btnText.innerText = "Start Camera AR";
+        }
+      }
+
+      function isSkinPixel(r, g, b) {
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        return (
+          r > 70 &&
+          g > 35 &&
+          b > 20 &&
+          max - min > 18 &&
+          r > g * 1.08 &&
+          r > b * 1.18
+        );
+      }
+
+      function detectFingerTip(video, canvas) {
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        if (
+          !ctx ||
+          video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
+          !video.videoWidth
+        )
+          return null;
+
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = frame.data;
+        let count = 0;
+        let topY = canvas.height;
+        let sumX = 0;
+        let topBandCount = 0;
+
+        for (let y = 0; y < canvas.height; y += 2) {
+          for (let x = 0; x < canvas.width; x += 2) {
+            const i = (y * canvas.width + x) * 4;
+            if (isSkinPixel(data[i], data[i + 1], data[i + 2])) {
+              count++;
+              if (y < topY) topY = y;
+            }
+          }
+        }
+
+        if (count < 28 || topY >= canvas.height) return null;
+
+        const bandBottom = Math.min(canvas.height, topY + 18);
+        for (let y = topY; y < bandBottom; y += 2) {
+          for (let x = 0; x < canvas.width; x += 2) {
+            const i = (y * canvas.width + x) * 4;
+            if (isSkinPixel(data[i], data[i + 1], data[i + 2])) {
+              sumX += x;
+              topBandCount++;
+            }
+          }
+        }
+
+        if (topBandCount < 4) return null;
+        return {
+          x: canvas.width - sumX / topBandCount,
+          y: topY,
+        };
+      }
+
+      function getBalloonScreenCenter(balloon) {
+        const scene = document.getElementById("ar-scene");
+        const cameraEl = document.getElementById("main-camera");
+        if (!scene?.camera || !cameraEl || !window.THREE) return null;
+
+        const position = new THREE.Vector3();
+        balloon.object3D.getWorldPosition(position);
+        position.project(scene.camera);
+
+        return {
+          x: (position.x * 0.5 + 0.5) * window.innerWidth,
+          y: (-position.y * 0.5 + 0.5) * window.innerHeight,
+        };
+      }
+
+      function updateFingerTouch(screenX, screenY) {
+        if (answered) return;
+
+        let closestIndex = null;
+        let closestDistance = Infinity;
+        for (let i = 0; i < 4; i++) {
+          const balloon = document.getElementById(`balloon-${i}`);
+          if (!balloon || balloon.getAttribute("visible") === false) continue;
+          const center = getBalloonScreenCenter(balloon);
+          if (!center) continue;
+          const distance = Math.hypot(center.x - screenX, center.y - screenY);
+          if (distance < closestDistance) {
+            closestDistance = distance;
+            closestIndex = i;
+          }
+        }
+
+        const touchRadius = Math.max(
+          70,
+          Math.min(window.innerWidth, window.innerHeight) * 0.09,
+        );
+        const now = performance.now();
+        if (closestIndex !== null && closestDistance < touchRadius) {
+          if (hoveredBalloonIndex !== closestIndex) {
+            hoveredBalloonIndex = closestIndex;
+            hoverStartedAt = now;
+          }
+
+          const balloon = document.getElementById(`balloon-${closestIndex}`);
+          balloon?.setAttribute("scale", "1.12 1.12 1.12");
+          if (now - hoverStartedAt > 360) {
+            handleAnswerSelect(closestIndex);
+            hoveredBalloonIndex = null;
+          }
+        } else {
+          if (hoveredBalloonIndex !== null) {
+            document
+              .getElementById(`balloon-${hoveredBalloonIndex}`)
+              ?.setAttribute("scale", "1 1 1");
+          }
           hoveredBalloonIndex = null;
           hoverStartedAt = 0;
         }
+      }
+
+      function startFingerTracking() {
+        const video = document.getElementById("webcam-bg");
+        const canvas = document.getElementById("finger-canvas");
+        const marker = document.getElementById("finger-tip");
+
+        const tick = () => {
+          if (!cameraStream) return;
+          const tip = detectFingerTip(video, canvas);
+          if (tip) {
+            const screenX = (tip.x / canvas.width) * window.innerWidth;
+            const screenY = (tip.y / canvas.height) * window.innerHeight;
+            marker.style.display = "block";
+            marker.style.left = `${screenX}px`;
+            marker.style.top = `${screenY}px`;
+            updateFingerTouch(screenX, screenY);
+          } else {
+            marker.style.display = "none";
+            hoveredBalloonIndex = null;
+            hoverStartedAt = 0;
+          }
+          fingerTrackingFrame = requestAnimationFrame(tick);
+        };
+
+        cancelAnimationFrame(fingerTrackingFrame);
         fingerTrackingFrame = requestAnimationFrame(tick);
-      };
-
-      cancelAnimationFrame(fingerTrackingFrame);
-      fingerTrackingFrame = requestAnimationFrame(tick);
-    }
-
-    function stopFingerTracking() {
-      cancelAnimationFrame(fingerTrackingFrame);
-      fingerTrackingFrame = null;
-      hoveredBalloonIndex = null;
-      hoverStartedAt = 0;
-      document.getElementById('finger-tip').style.display = 'none';
-    }
-
-    function createStarfield() {
-      const container = document.getElementById('starfield');
-      if (!container) return;
-      for (let i = 0; i < 50; i++) {
-        const star = document.createElement('a-sphere');
-        const x = (Math.random() - 0.5) * 20;
-        const y = (Math.random() - 0.5) * 12 + 2;
-        const z = - (Math.random() * 10 + 4);
-        const radius = Math.random() * 0.04 + 0.015;
-        star.setAttribute('position', `${x} ${y} ${z}`);
-        star.setAttribute('radius', radius);
-        star.setAttribute('color', '#ffffff');
-        container.appendChild(star);
       }
-    }
 
-    function loadQuestion(index) {
-      if (index >= questions.length) {
-        showResults();
-        return;
+      function stopFingerTracking() {
+        cancelAnimationFrame(fingerTrackingFrame);
+        fingerTrackingFrame = null;
+        hoveredBalloonIndex = null;
+        hoverStartedAt = 0;
+        document.getElementById("finger-tip").style.display = "none";
       }
-      answered = false;
-      const q = questions[index];
-      document.getElementById('question-text').innerText = q.q;
 
-      for (let i = 0; i < 4; i++) {
-        const balloon = document.getElementById(`balloon-${i}`);
-        const text = document.getElementById(`balloon-text-${i}`);
-        if (balloon && text) {
-          // A generated answer can be a long phrase. Rendered in full it
-          // overflowed the label plate and collided with the next balloon,
-          // so the label carries a shortened form and the full text is one
-          // hover away (see setupOptionHover).
-          text.setAttribute('value', shortenOption(q.options[i]));
-          balloon.setAttribute('scale', '1 1 1');
-          balloon.setAttribute('visible', 'true');
-          balloon.removeAttribute('animation__pop');
+      function createStarfield() {
+        const container = document.getElementById("starfield");
+        if (!container) return;
+        for (let i = 0; i < 50; i++) {
+          const star = document.createElement("a-sphere");
+          const x = (Math.random() - 0.5) * 20;
+          const y = (Math.random() - 0.5) * 12 + 2;
+          const z = -(Math.random() * 10 + 4);
+          const radius = Math.random() * 0.04 + 0.015;
+          star.setAttribute("position", `${x} ${y} ${z}`);
+          star.setAttribute("radius", radius);
+          star.setAttribute("color", "#ffffff");
+          container.appendChild(star);
         }
       }
-      hideOptionPopup();
-    }
 
-    // ~34 chars fits the plate at two wrapped lines without spilling.
-    const OPTION_LABEL_MAX = 34;
-
-    function shortenOption(option) {
-      const clean = String(option == null ? '' : option).trim().replace(/\s+/g, ' ');
-      if (clean.length <= OPTION_LABEL_MAX) return clean;
-      // Prefer cutting on a word boundary so the label still reads naturally.
-      const cut = clean.slice(0, OPTION_LABEL_MAX);
-      const lastSpace = cut.lastIndexOf(' ');
-      return (lastSpace > OPTION_LABEL_MAX * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd() + '...';
-    }
-
-    function showOptionPopup(index) {
-      const popup = document.getElementById('option-popup');
-      const q = questions[currentQuestionIndex];
-      if (!popup || !q || answered) return;
-      const full = String(q.options[index] == null ? '' : q.options[index]).trim();
-      // Nothing was hidden, so there is nothing extra to reveal.
-      if (full.length <= OPTION_LABEL_MAX) return;
-      popup.innerText = full;
-      popup.style.opacity = '1';
-    }
-
-    function hideOptionPopup() {
-      const popup = document.getElementById('option-popup');
-      if (popup) popup.style.opacity = '0';
-    }
-
-    function setupOptionHover() {
-      for (let i = 0; i < 4; i++) {
-        const balloon = document.getElementById(`balloon-${i}`);
-        if (!balloon) continue;
-        balloon.addEventListener('mouseenter', () => showOptionPopup(i));
-        balloon.addEventListener('mouseleave', hideOptionPopup);
-      }
-    }
-
-    function handleAnswerSelect(optionIndex) {
-      if (answered) return;
-      answered = true;
-      hideOptionPopup();
-
-      const q = questions[currentQuestionIndex];
-      const selectedOption = q.options[optionIndex];
-      const isCorrect = selectedOption === q.answer;
-
-      const balloonGroup = document.getElementById(`balloon-${optionIndex}`);
-      const toast = document.getElementById('feedback-toast');
-      const toastBody = document.getElementById('toast-body');
-      const toastMsg = document.getElementById('toast-message');
-
-      if (isCorrect) {
-        score++;
-        document.getElementById('score-display').innerHTML = `${score} <span class="text-xs text-slate-400 font-normal">/ ${questions.length}</span>`;
-
-        toastBody.className = "glass-panel px-6 py-3 rounded-2xl flex items-center space-x-3 text-lg font-bold text-emerald-400 border-emerald-500/50";
-        toastMsg.innerText = "Correct! Great Job!";
-        toast.style.opacity = '1';
-
-        if (balloonGroup) {
-          balloonGroup.setAttribute('animation__pop', 'property: scale; to: 0 0 0; dur: 250; easing: easeInBack');
+      function loadQuestion(index) {
+        if (index >= questions.length) {
+          showResults();
+          return;
         }
-      } else {
-        toastBody.className = "glass-panel px-6 py-3 rounded-2xl flex items-center space-x-3 text-lg font-bold text-rose-400 border-rose-500/50";
-        toastMsg.innerText = `Oops! Correct answer: ${q.answer}`;
-        toast.style.opacity = '1';
+        answered = false;
+        const q = questions[index];
+        document.getElementById("question-text").innerText = q.q;
+
+        for (let i = 0; i < 4; i++) {
+          const balloon = document.getElementById(`balloon-${i}`);
+          const text = document.getElementById(`balloon-text-${i}`);
+          if (balloon && text) {
+            // A generated answer can be a long phrase. Rendered in full it
+            // overflowed the label plate and collided with the next balloon,
+            // so the label carries a shortened form and the full text is one
+            // hover away (see setupOptionHover).
+            text.setAttribute("value", shortenOption(q.options[i]));
+            balloon.setAttribute("scale", "1 1 1");
+            balloon.setAttribute("visible", "true");
+            balloon.removeAttribute("animation__pop");
+          }
+        }
+        hideOptionPopup();
       }
 
-      setTimeout(() => {
-        toast.style.opacity = '0';
-        currentQuestionIndex++;
-        loadQuestion(currentQuestionIndex);
-      }, 1600);
-    }
+      // ~34 chars fits the plate at two wrapped lines without spilling.
+      const OPTION_LABEL_MAX = 34;
 
-    function showResults() {
-      document.getElementById('final-score-text').innerText = `${score} / ${questions.length}`;
-      document.getElementById('results-modal').classList.remove('hidden');
-      // Tell the tutorial player (parent frame) the game finished so it can
-      // count AR completion toward the student's progress.
-      try {
-        if (window.parent && window.parent !== window) {
-          window.parent.postMessage(
-            { type: 'ar-complete', score, total: questions.length },
-            '*'
-          );
+      function shortenOption(option) {
+        const clean = String(option == null ? "" : option)
+          .trim()
+          .replace(/\s+/g, " ");
+        if (clean.length <= OPTION_LABEL_MAX) return clean;
+        // Prefer cutting on a word boundary so the label still reads naturally.
+        const cut = clean.slice(0, OPTION_LABEL_MAX);
+        const lastSpace = cut.lastIndexOf(" ");
+        return (
+          (lastSpace > OPTION_LABEL_MAX * 0.6
+            ? cut.slice(0, lastSpace)
+            : cut
+          ).trimEnd() + "..."
+        );
+      }
+
+      function showOptionPopup(index) {
+        const popup = document.getElementById("option-popup");
+        const q = questions[currentQuestionIndex];
+        if (!popup || !q || answered) return;
+        const full = String(
+          q.options[index] == null ? "" : q.options[index],
+        ).trim();
+        // Nothing was hidden, so there is nothing extra to reveal.
+        if (full.length <= OPTION_LABEL_MAX) return;
+        popup.innerText = full;
+        popup.style.opacity = "1";
+      }
+
+      function hideOptionPopup() {
+        const popup = document.getElementById("option-popup");
+        if (popup) popup.style.opacity = "0";
+      }
+
+      function setupOptionHover() {
+        for (let i = 0; i < 4; i++) {
+          const balloon = document.getElementById(`balloon-${i}`);
+          if (!balloon) continue;
+          balloon.addEventListener("mouseenter", () => showOptionPopup(i));
+          balloon.addEventListener("mouseleave", hideOptionPopup);
         }
-      } catch (e) { /* standalone (not embedded) - nothing to report to */ }
-    }
+      }
 
-    function restartGame() {
-      currentQuestionIndex = 0;
-      score = 0;
-      document.getElementById('score-display').innerHTML = `0 <span class="text-xs text-slate-400 font-normal">/ ${questions.length}</span>`;
-      document.getElementById('results-modal').classList.add('hidden');
-      loadQuestion(0);
-    }
+      function handleAnswerSelect(optionIndex) {
+        if (answered) return;
+        answered = true;
+        hideOptionPopup();
 
-    // When embedded in the tutorial player, the parent posts this unit's real
-    // questions in. Swap them and restart cleanly. Ignores empty sets so the
-    // demo fallback above still shows if a unit has no 4-option MCQs yet.
-    window.addEventListener('message', (event) => {
-      const data = event.data;
-      if (!data || data.type !== 'ar-questions') return;
-      if (Array.isArray(data.questions) && data.questions.length > 0) {
-        questions = data.questions;
+        const q = questions[currentQuestionIndex];
+        const selectedOption = q.options[optionIndex];
+        const isCorrect = selectedOption === q.answer;
+
+        const balloonGroup = document.getElementById(`balloon-${optionIndex}`);
+        const toast = document.getElementById("feedback-toast");
+        const toastBody = document.getElementById("toast-body");
+        const toastMsg = document.getElementById("toast-message");
+
+        if (isCorrect) {
+          score++;
+          document.getElementById("score-display").innerHTML =
+            `${score} <span class="text-xs text-slate-400 font-normal">/ ${questions.length}</span>`;
+
+          toastBody.className =
+            "glass-panel px-6 py-3 rounded-2xl flex items-center space-x-3 text-lg font-bold text-emerald-400 border-emerald-500/50";
+          toastMsg.innerText = "Correct! Great Job!";
+          toast.style.opacity = "1";
+
+          if (balloonGroup) {
+            balloonGroup.setAttribute(
+              "animation__pop",
+              "property: scale; to: 0 0 0; dur: 250; easing: easeInBack",
+            );
+          }
+        } else {
+          toastBody.className =
+            "glass-panel px-6 py-3 rounded-2xl flex items-center space-x-3 text-lg font-bold text-rose-400 border-rose-500/50";
+          toastMsg.innerText = `Oops! Correct answer: ${q.answer}`;
+          toast.style.opacity = "1";
+        }
+
+        setTimeout(() => {
+          toast.style.opacity = "0";
+          currentQuestionIndex++;
+          loadQuestion(currentQuestionIndex);
+        }, 1600);
+      }
+
+      function showResults() {
+        document.getElementById("final-score-text").innerText =
+          `${score} / ${questions.length}`;
+        document.getElementById("results-modal").classList.remove("hidden");
+        // Tell the tutorial player (parent frame) the game finished so it can
+        // count AR completion toward the student's progress.
+        try {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage(
+              { type: "ar-complete", score, total: questions.length },
+              "*",
+            );
+          }
+        } catch (e) {
+          /* standalone (not embedded) - nothing to report to */
+        }
+      }
+
+      function restartGame() {
         currentQuestionIndex = 0;
         score = 0;
-        document.getElementById('score-display').innerHTML = `0 <span class="text-xs text-slate-400 font-normal">/ ${questions.length}</span>`;
-        document.getElementById('results-modal').classList.add('hidden');
+        document.getElementById("score-display").innerHTML =
+          `0 <span class="text-xs text-slate-400 font-normal">/ ${questions.length}</span>`;
+        document.getElementById("results-modal").classList.add("hidden");
         loadQuestion(0);
       }
-    });
 
-    function goToDashboard() {
-      try {
-        if (window.parent && window.parent !== window && window.parent.location) {
-          window.parent.location.href = '/dashboard';
-        } else {
-          window.location.href = '/dashboard';
+      // When embedded in the tutorial player, the parent posts this unit's real
+      // questions in. Swap them and restart cleanly. Ignores empty sets so the
+      // demo fallback above still shows if a unit has no 4-option MCQs yet.
+      window.addEventListener("message", (event) => {
+        const data = event.data;
+        if (!data || data.type !== "ar-questions") return;
+        if (Array.isArray(data.questions) && data.questions.length > 0) {
+          questions = data.questions;
+          currentQuestionIndex = 0;
+          score = 0;
+          document.getElementById("score-display").innerHTML =
+            `0 <span class="text-xs text-slate-400 font-normal">/ ${questions.length}</span>`;
+          document.getElementById("results-modal").classList.add("hidden");
+          loadQuestion(0);
         }
-      } catch (e) {
-        window.location.href = '/dashboard';
-      }
-    }
+      });
 
-    document.addEventListener('DOMContentLoaded', () => {
-      createStarfield();
-      for (let i = 0; i < 4; i++) {
-        const balloonGroup = document.getElementById(`balloon-${i}`);
-        if (balloonGroup) {
-          balloonGroup.addEventListener('click', () => handleAnswerSelect(i));
+      function goToDashboard() {
+        try {
+          if (
+            window.parent &&
+            window.parent !== window &&
+            window.parent.location
+          ) {
+            window.parent.location.href = "/dashboard";
+          } else {
+            window.location.href = "/dashboard";
+          }
+        } catch (e) {
+          window.location.href = "/dashboard";
         }
       }
-      setupOptionHover();
-      loadQuestion(0);
-      // Handshake: tell an embedding player the scene is ready to receive this
-      // unit's real questions (avoids a race where the parent posts before the
-      // balloons exist).
-      try {
-        if (window.parent && window.parent !== window) {
-          window.parent.postMessage({ type: 'ar-ready' }, '*');
+
+      document.addEventListener("DOMContentLoaded", () => {
+        createStarfield();
+        for (let i = 0; i < 4; i++) {
+          const balloonGroup = document.getElementById(`balloon-${i}`);
+          if (balloonGroup) {
+            balloonGroup.addEventListener("click", () => handleAnswerSelect(i));
+          }
         }
-      } catch (e) { /* standalone */ }
-    });
-  </script>
-</body>
+        setupOptionHover();
+        loadQuestion(0);
+        // Handshake: tell an embedding player the scene is ready to receive this
+        // unit's real questions (avoids a race where the parent posts before the
+        // balloons exist).
+        try {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage({ type: "ar-ready" }, "*");
+          }
+        } catch (e) {
+          /* standalone */
+        }
+      });
+    </script>
+  </body>
 </html>

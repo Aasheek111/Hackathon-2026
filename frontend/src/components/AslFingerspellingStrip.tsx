@@ -8,10 +8,10 @@ import SignSymbol from "./SignSymbol";
  * a fingerspelling study strip, not full sign-language translation (see
  * aslAlphabet.ts for why). Tap a letter to see its handshape description.
  */
-export const AslFingerspellingStrip: React.FC<{ word: string; highContrast?: boolean }> = ({
-  word,
-  highContrast,
-}) => {
+export const AslFingerspellingStrip: React.FC<{
+  word: string;
+  highContrast?: boolean;
+}> = ({ word, highContrast }) => {
   const [active, setActive] = useState<number | null>(null);
   const letters = word
     .toUpperCase()
@@ -22,43 +22,68 @@ export const AslFingerspellingStrip: React.FC<{ word: string; highContrast?: boo
 
   return (
     <div
-      className={`rounded-2xl p-4 mt-3 border ${
+      className={`w-full rounded-2xl p-4 sm:p-5 mt-4 border ${
         highContrast
-          ? "bg-yellow-950/40 border-yellow-700 text-yellow-100"
-          : "bg-sky-50 border-sky-200 text-slate-700 dark:bg-sky-500/10 dark:border-sky-500/30 dark:text-gray-200"
+          ? "bg-black border-yellow-400 text-yellow-300 shadow-lg"
+          : "bg-sky-50/90 border-sky-300 text-slate-900 shadow-sm dark:bg-slate-900 dark:border-sky-500/40 dark:text-slate-100"
       }`}
     >
-      <div className="flex items-center gap-2 mb-2 text-xs font-bold uppercase tracking-wide">
-        <Hand className={`w-3.5 h-3.5 ${highContrast ? "text-yellow-300" : "text-sky-600 dark:text-sky-300"}`} />
-        <span>Sign language: fingerspell "{word}"</span>
+      <div className="flex items-center gap-2 mb-3 text-xs font-extrabold uppercase tracking-wide border-b border-sky-200/60 pb-2">
+        <Hand
+          className={`w-4 h-4 ${highContrast ? "text-yellow-300" : "text-sky-700 dark:text-sky-400"}`}
+        />
+        <span
+          className={
+            highContrast ? "text-yellow-300" : "text-slate-900 dark:text-white"
+          }
+        >
+          Sign language: fingerspell "{word}"
+        </span>
       </div>
-      <div className="flex flex-wrap gap-1.5">
+
+      <div className="flex flex-wrap gap-3 w-full">
         {letters.map((ch, i) => (
           <button
             key={`${ch}-${i}`}
             type="button"
             onClick={() => setActive((cur) => (cur === i ? null : i))}
-            className={`w-9 h-9 rounded-lg font-bold text-sm border transition-colors ${
+            className={`flex flex-col items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer min-w-[3.75rem] ${
               active === i
                 ? highContrast
-                  ? "bg-yellow-400 text-black border-yellow-300"
-                  : "bg-sky-500 text-white border-sky-500"
+                  ? "bg-yellow-400 text-black border-yellow-300 ring-2 ring-yellow-300"
+                  : "bg-sky-100 border-sky-600 text-sky-950 ring-2 ring-sky-500 shadow-md"
                 : highContrast
-                  ? "bg-black/40 border-yellow-700 hover:border-yellow-400"
-                  : "bg-white border-sky-200 hover:border-sky-400 dark:bg-white/10 dark:border-sky-500/30"
+                  ? "bg-slate-900 border-yellow-600 hover:border-yellow-300"
+                  : "bg-white border-slate-300 hover:border-sky-400 shadow-xs dark:bg-slate-800 dark:border-slate-700"
             }`}
           >
-            {ch}
+            <SignSymbol
+              term={ch}
+              size={50}
+              showMotion={false}
+              className="drop-shadow-xs"
+            />
+            <span className="text-xs font-black mt-1.5 px-2.5 py-0.5 rounded-md bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-2xs">
+              {ch}
+            </span>
           </button>
         ))}
       </div>
+
       {active !== null && (
-        <div className="flex items-start gap-3 mt-2">
-          <div className={`shrink-0 rounded-lg p-1 ${highContrast ? "bg-black/40 border border-yellow-700" : "bg-white dark:bg-white/10"}`}>
-            <SignSymbol term={letters[active]} size={72} />
+        <div className="flex items-start gap-3 mt-3 p-3.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 shadow-xs">
+          <div
+            className={`shrink-0 rounded-lg p-1.5 ${highContrast ? "bg-black border border-yellow-400" : "bg-sky-50 dark:bg-slate-900"}`}
+          >
+            <SignSymbol term={letters[active]} size={68} />
           </div>
-          <p className={`text-xs ${highContrast ? "text-yellow-200" : "text-slate-600 dark:text-gray-300"}`}>
-            <strong>{letters[active]}:</strong> {ASL_ALPHABET[letters[active]]}
+          <p
+            className={`text-xs leading-relaxed ${highContrast ? "text-yellow-200" : "text-slate-800 dark:text-gray-100"}`}
+          >
+            <strong className="text-slate-900 dark:text-white font-extrabold">
+              Letter {letters[active]}:
+            </strong>{" "}
+            {ASL_ALPHABET[letters[active]]}
           </p>
         </div>
       )}

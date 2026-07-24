@@ -15,6 +15,7 @@ import {
   Hand,
 } from "lucide-react";
 import DashboardShell, { NavItem } from "../components/DashboardShell";
+import { CustomPlanSubjectCard } from "../components/CustomPlanSubjectCard";
 import api from "../lib/api";
 import { usePageAudio } from "../contexts/AudioNavigationContext";
 
@@ -60,7 +61,11 @@ export const MyClassroomPage: React.FC = () => {
   usePageAudio("My Classroom", () => {
     if (!classroom) return "You are not enrolled in a classroom yet.";
     const subjectCount = classroom.subjects?.length ?? 0;
-    const unitCount = classroom.subjects?.reduce((n: number, s: any) => n + (s.units?.length ?? 0), 0) ?? 0;
+    const unitCount =
+      classroom.subjects?.reduce(
+        (n: number, s: any) => n + (s.units?.length ?? 0),
+        0,
+      ) ?? 0;
     return `${classroom.name}. ${subjectCount} subjects containing ${unitCount} units. Open a unit to start its lessons.`;
   });
 
@@ -135,6 +140,12 @@ export const MyClassroomPage: React.FC = () => {
             <h2 className="text-xl font-bold text-slate-900 mb-4">
               {subject.name}
             </h2>
+
+            <CustomPlanSubjectCard
+              subjectId={subject.id}
+              subjectName={subject.name}
+            />
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {subject.units.map((unit) => {
                 const ready = unit.indexStatus === "READY";

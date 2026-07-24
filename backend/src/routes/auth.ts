@@ -2,17 +2,59 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import crypto from 'crypto';
+import rateLimit from 'express-rate-limit';
 import prisma from '../lib/prisma';
 import { requireAuth } from '../middleware/auth';
 
 const router = Router();
+
+// ─── Rate limiters ───────────────────────────────────────────────────────────
+
+/** Login: 5 failed attempts per IP per 15 minutes */
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many login attempts. Please try again in 15 minutes.' },
+  skipSuccessfulRequests: true, // only count failed attempts
+});
+
+/** Register: 3 new accounts per IP per hour to deter mass account creation */
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many accounts created from this IP. Please try again in an hour.' },
+});
+
+/** Forgot-password: 3 requests per IP per hour to prevent email spam */
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many password reset requests. Please try again in an hour.' },
+});
+
+/** Reset-password: 5 attempts per IP per 15 minutes */
+const resetPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many reset attempts. Please try again in 15 minutes.' },
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const generateToken = (userId: string, expiresIn: string) => {
   const options: SignOptions = { expiresIn: expiresIn as SignOptions['expiresIn'] };
   return jwt.sign({ userId }, process.env.JWT_SECRET || 'secret', options);
 };
 
-router.post('/register', async (req: Request, res: Response) => {
+router.post('/register', registerLimiter, async (req: Request, res: Response) => {
   try {
     const { name, email, password, intendedRole, disabilityType } = req.body;
 
@@ -67,7 +109,7 @@ router.post('/register', async (req: Request, res: Response) => {
   }
 });
 
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', loginLimiter, async (req: Request, res: Response) => {
   try {
     const { email, password, rememberMe } = req.body;
 
@@ -104,7 +146,7 @@ router.post('/login', async (req: Request, res: Response) => {
     const subscription = await prisma.subscription.findUnique({ where: { userId: user.id } });
     const hasPaid = subscription
       ? subscription.paymentStatus === 'SUCCESS' &&
-        (subscription.expiryDate ? new Date(subscription.expiryDate) > new Date() : true)
+      (subscription.expiryDate ? new Date(subscription.expiryDate) > new Date() : true)
       : false;
 
     res.json({
@@ -125,7 +167,7 @@ router.post('/logout', (req: Request, res: Response) => {
   res.json({ message: 'Logged out successfully' });
 });
 
-router.post('/forgot-password', async (req: Request, res: Response) => {
+router.post('/forgot-password', forgotPasswordLimiter, async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
     const user = await prisma.user.findUnique({ where: { email } });
@@ -149,7 +191,7 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
   }
 });
 
-router.post('/reset-password', async (req: Request, res: Response) => {
+router.post('/reset-password', resetPasswordLimiter, async (req: Request, res: Response) => {
   try {
     const { token, email, newPassword } = req.body;
 
@@ -219,7 +261,7 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
     const subscription = await prisma.subscription.findUnique({ where: { userId } });
     const hasPaid = subscription
       ? subscription.paymentStatus === 'SUCCESS' &&
-        (subscription.expiryDate ? new Date(subscription.expiryDate) > new Date() : true)
+      (subscription.expiryDate ? new Date(subscription.expiryDate) > new Date() : true)
       : false;
 
     res.json({

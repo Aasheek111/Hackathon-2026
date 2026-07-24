@@ -285,15 +285,21 @@ const KnowledgeCheckCard: React.FC<{ unitId: string; lesson: Lesson }> = ({
       <p className="text-xs text-slate-500 dark:text-gray-400 uppercase tracking-wide mb-3">
         Quick check
       </p>
-      <p className="font-medium mb-4 text-slate-800 dark:text-white">{check.question}</p>
+      <p className="font-medium mb-4 text-slate-800 dark:text-white">
+        {check.question}
+      </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
         {check.options.map((opt) => {
           const chosen = selected === opt;
-          let cls = "border-slate-200 hover:border-slate-400 text-slate-700 dark:border-white/10 dark:hover:border-white/30 dark:text-gray-200";
+          let cls =
+            "border-slate-200 hover:border-slate-400 text-slate-700 dark:border-white/10 dark:hover:border-white/30 dark:text-gray-200";
           if (result) {
             if (opt === result.correctAnswer)
-              cls = "border-green-500 bg-green-500/10 text-green-700 dark:text-green-300";
-            else if (chosen) cls = "border-red-500 bg-red-500/10 text-red-700 dark:text-red-300";
+              cls =
+                "border-green-500 bg-green-500/10 text-green-700 dark:text-green-300";
+            else if (chosen)
+              cls =
+                "border-red-500 bg-red-500/10 text-red-700 dark:text-red-300";
           } else if (chosen) {
             cls = "border-primary bg-primary/10 text-slate-800 dark:text-white";
           }
@@ -381,7 +387,9 @@ const FinalAssessmentView: React.FC<{
           {/* This view has no other heading (its own header above is just a
               "Back to lessons" link) and, like the "complete" view below,
               is effectively its own full-page state - so h1, not h2. */}
-          <h1 className="text-xl font-bold text-slate-800 dark:text-white">Final assessment</h1>
+          <h1 className="text-xl font-bold text-slate-800 dark:text-white">
+            Final assessment
+          </h1>
         </div>
         <div className="space-y-6">
           {questions.map((q, qi) => (
@@ -551,7 +559,8 @@ export const CurriculumPlayerPage: React.FC = () => {
     const currentLesson = () => curriculum?.lessons[lessonIndex];
     const readCurrent = () => {
       const l = currentLesson();
-      if (l) speak(`${l.title}. ${l.explanation} ${l.example || ""}`, l.audioUrl);
+      if (l)
+        speak(`${l.title}. ${l.explanation} ${l.example || ""}`, l.audioUrl);
     };
     return [
       {
@@ -576,12 +585,39 @@ export const CurriculumPlayerPage: React.FC = () => {
         run: readCurrent,
       },
       { phrases: ["repeat"], description: "Repeat", run: readCurrent },
-      { phrases: ["stop reading", "stop", "be quiet"], description: "Stop reading", run: () => stopSpeaking() },
-      { phrases: ["text mode", "switch to text"], description: "Switch to Text mode", run: () => changeMode("TEXT") },
-      { phrases: ["audio mode", "switch to audio"], description: "Switch to Audio mode", run: () => changeMode("AUDIO") },
-      { phrases: ["visual mode", "switch to visual"], description: "Switch to Visual mode", run: () => changeMode("VISUAL") },
-      { phrases: ["sign mode", "switch to sign"], description: "Switch to Sign mode", run: () => changeMode("SIGN") },
-      { phrases: ["exit lesson", "leave lesson", "go to classroom"], description: "Back to classroom", run: () => { stopSpeaking(); navigate("/classroom"); } },
+      {
+        phrases: ["stop reading", "stop", "be quiet"],
+        description: "Stop reading",
+        run: () => stopSpeaking(),
+      },
+      {
+        phrases: ["text mode", "switch to text"],
+        description: "Switch to Text mode",
+        run: () => changeMode("TEXT"),
+      },
+      {
+        phrases: ["audio mode", "switch to audio"],
+        description: "Switch to Audio mode",
+        run: () => changeMode("AUDIO"),
+      },
+      {
+        phrases: ["visual mode", "switch to visual"],
+        description: "Switch to Visual mode",
+        run: () => changeMode("VISUAL"),
+      },
+      {
+        phrases: ["sign mode", "switch to sign"],
+        description: "Switch to Sign mode",
+        run: () => changeMode("SIGN"),
+      },
+      {
+        phrases: ["exit lesson", "leave lesson", "go to classroom"],
+        description: "Back to classroom",
+        run: () => {
+          stopSpeaking();
+          navigate("/classroom");
+        },
+      },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [curriculum, lessonIndex, view]);
@@ -604,20 +640,21 @@ export const CurriculumPlayerPage: React.FC = () => {
   // (blind/low-vision students shouldn't have to switch modes to get audio).
   // With "Audiobook mode" on too, finishing a clip auto-advances to the next
   // lesson - hands-free playback across the whole unit.
+  // Hands-free continuous playback - only auto-plays when audiobookMode is explicitly enabled
   useEffect(() => {
     if (!curriculum || view !== "lesson") return;
+    if (!prefs.audiobookMode) return;
     if (mode === "AR" || mode === "STORY") return;
-    if (mode !== "AUDIO" && !prefs.alwaysNarrate) return;
     const activeLesson = curriculum.lessons[lessonIndex];
     if (!activeLesson) return;
     const isLastLesson = lessonIndex >= curriculum.lessons.length - 1;
-    const onEnded = prefs.audiobookMode && !isLastLesson ? () => goTo(lessonIndex + 1) : undefined;
+    const onEnded = !isLastLesson ? () => goTo(lessonIndex + 1) : undefined;
     speak(
       `${activeLesson.title}. ${activeLesson.explanation} ${activeLesson.example || ""}`,
       activeLesson.audioUrl,
       onEnded,
     );
-  }, [curriculum, lessonIndex, view, mode, prefs.alwaysNarrate, prefs.audiobookMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [curriculum, lessonIndex, view, mode, prefs.audiobookMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
@@ -661,7 +698,9 @@ export const CurriculumPlayerPage: React.FC = () => {
           <h1 className="text-2xl font-display font-bold mb-2 text-slate-800 dark:text-white">
             {isPreview ? "End of preview" : "Coursework complete!"}
           </h1>
-          <p className="text-slate-500 dark:text-gray-400 mb-2">{curriculum.title}</p>
+          <p className="text-slate-500 dark:text-gray-400 mb-2">
+            {curriculum.title}
+          </p>
           {isPreview && (
             <p className="text-sm text-slate-500 dark:text-gray-400 mb-4">
               This is what a student sees after finishing every lesson -
@@ -738,8 +777,17 @@ export const CurriculumPlayerPage: React.FC = () => {
   // reducedMotion drops the page-turn slide animation.
   const hc = prefs.highContrast;
   const cardMotionProps = prefs.reducedMotion
-    ? { initial: false as const, animate: { opacity: 1, x: 0 }, exit: { opacity: 1, x: 0 }, transition: { duration: 0 } }
-    : { initial: { opacity: 0, x: 20 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: -20 } };
+    ? {
+        initial: false as const,
+        animate: { opacity: 1, x: 0 },
+        exit: { opacity: 1, x: 0 },
+        transition: { duration: 0 },
+      }
+    : {
+        initial: { opacity: 0, x: 20 },
+        animate: { opacity: 1, x: 0 },
+        exit: { opacity: 0, x: -20 },
+      };
 
   return (
     <div className="min-h-screen bg-[#FAF9F5] dark:bg-dark pb-20">
@@ -793,7 +841,11 @@ export const CurriculumPlayerPage: React.FC = () => {
                     : "bg-slate-100 text-slate-500 border-slate-200 hover:text-slate-700 dark:bg-dark-card dark:text-gray-500 dark:border-white/10 dark:hover:text-gray-300"
                 }`}
               >
-                {voiceListening ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
+                {voiceListening ? (
+                  <Mic className="w-3.5 h-3.5" />
+                ) : (
+                  <MicOff className="w-3.5 h-3.5" />
+                )}
                 {voiceListening ? "Listening" : "Voice"}
               </button>
             )}
@@ -815,7 +867,10 @@ export const CurriculumPlayerPage: React.FC = () => {
         </h1>
 
         {voiceError && (
-          <p role="alert" className="text-xs text-rose-600 dark:text-rose-300 mb-3">
+          <p
+            role="alert"
+            className="text-xs text-rose-600 dark:text-rose-300 mb-3"
+          >
             {voiceError}
           </p>
         )}
@@ -891,7 +946,9 @@ export const CurriculumPlayerPage: React.FC = () => {
                     : "bg-white border border-slate-200/80 shadow-xs dark:bg-white/[0.09] dark:backdrop-blur-2xl dark:border-white/[0.14] dark:shadow-none"
                 }`}
               >
-                <h2 className={`text-2xl font-display font-bold mb-4 ${hc ? "text-yellow-300" : "text-slate-800 dark:text-white"}`}>
+                <h2
+                  className={`text-2xl font-display font-bold mb-4 ${hc ? "text-yellow-300" : "text-slate-800 dark:text-white"}`}
+                >
                   {lesson.title}
                 </h2>
 
@@ -900,8 +957,8 @@ export const CurriculumPlayerPage: React.FC = () => {
                     "supporting" pictures despite the mode switcher promising
                     a text-only / audio-only / caption-only presentation. Each
                     mode should show exactly what it says it shows. */}
-                {mode === "VISUAL" && (
-                  lesson.imageUrl ? (
+                {mode === "VISUAL" &&
+                  (lesson.imageUrl ? (
                     <img
                       src={resolveMediaUrl(lesson.imageUrl)}
                       alt={lesson.title}
@@ -912,13 +969,14 @@ export const CurriculumPlayerPage: React.FC = () => {
                       <ImageIcon className="w-5 h-5 mr-2" /> No picture for this
                       lesson yet
                     </div>
-                  )
-                )}
+                  ))}
 
                 <div ref={lessonContentRef}>
                   <p
                     className={`leading-relaxed mb-4 ${
-                      isSimplified || mode === "VISUAL" || mode === "SIGN" ? "text-xl" : "text-lg"
+                      isSimplified || mode === "VISUAL" || mode === "SIGN"
+                        ? "text-xl"
+                        : "text-lg"
                     } ${hc ? "text-yellow-200" : "text-slate-700 dark:text-gray-200"}`}
                   >
                     {lesson.explanation}
@@ -932,7 +990,13 @@ export const CurriculumPlayerPage: React.FC = () => {
                           : "bg-slate-50 border border-slate-100 dark:bg-dark/50 dark:border-transparent text-slate-500 dark:text-gray-400"
                       }`}
                     >
-                      <span className={hc ? "text-yellow-300 font-medium" : "text-primary font-medium"}>
+                      <span
+                        className={
+                          hc
+                            ? "text-yellow-300 font-medium"
+                            : "text-primary font-medium"
+                        }
+                      >
                         Example:{" "}
                       </span>
                       {lesson.example}
@@ -947,10 +1011,14 @@ export const CurriculumPlayerPage: React.FC = () => {
                   {mode === "SIGN" && (
                     <div className="space-y-3">
                       {pickKeyWord(lesson.title) && (
-                        <AslFingerspellingStrip word={pickKeyWord(lesson.title) as string} highContrast={hc} />
+                        <AslFingerspellingStrip
+                          word={pickKeyWord(lesson.title) as string}
+                          highContrast={hc}
+                        />
                       )}
                       {pickKeyWord(lesson.explanation) &&
-                        pickKeyWord(lesson.explanation) !== pickKeyWord(lesson.title) && (
+                        pickKeyWord(lesson.explanation) !==
+                          pickKeyWord(lesson.title) && (
                           <AslFingerspellingStrip
                             word={pickKeyWord(lesson.explanation) as string}
                             highContrast={hc}
@@ -1001,7 +1069,9 @@ export const CurriculumPlayerPage: React.FC = () => {
                 <p className="text-xs text-slate-500 dark:text-gray-400 uppercase tracking-wide mb-3">
                   Quick check (student view only)
                 </p>
-                <p className="font-medium text-slate-800 dark:text-white">{lesson.knowledgeCheck.question}</p>
+                <p className="font-medium text-slate-800 dark:text-white">
+                  {lesson.knowledgeCheck.question}
+                </p>
               </div>
             )}
 
