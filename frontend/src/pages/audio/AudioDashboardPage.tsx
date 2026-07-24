@@ -73,24 +73,6 @@ const OPTIONS = [
   { key: "6", label: "AR game", detail: "The 3D balloon game, using this unit's own questions.", path: "/ar-game", icon: Gamepad2 },
 ] as const;
 
-/**
- * Both the digit and the word for each option.
- *
- * The digit is not redundant: speech recognition normalises spoken numbers,
- * so saying "one" comes back as the transcript "1", and a command list with
- * only "one" in it silently matches nothing. Word-boundary matching (see
- * phraseMatches in useVoiceCommands) keeps "1" from firing on "11" or "21".
- * "won" and "to"/"too" are common mishearings of "one" and "two".
- */
-const SPOKEN_NUMBERS: Record<string, string[]> = {
-  "1": ["1", "one", "won", "number one", "first"],
-  "2": ["2", "two", "to", "too", "number two", "second"],
-  "3": ["3", "three", "number three", "third"],
-  "4": ["4", "four", "for", "number four", "fourth"],
-  "5": ["5", "five", "number five", "fifth"],
-  "6": ["6", "six", "number six", "sixth"],
-};
-
 export const AudioDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -100,6 +82,7 @@ export const AudioDashboardPage: React.FC = () => {
     dismissed: audioDismissed,
     setEnabled,
     listening,
+    registerNumberedTargets,
   } = useAudioNavigation();
 
   const [history, setHistory] = useState<Attempt[]>([]);
@@ -187,22 +170,19 @@ export const AudioDashboardPage: React.FC = () => {
     return parts.join(" ");
   });
 
-  // Number keys work with no microphone at all - the reliable path.
+  // This page curates its own menu rather than letting the provider
+  // auto-detect one, so the numbers match the six options below exactly.
+  // The provider owns the key/voice handling for them - see
+  // registerNumberedTargets - so there is only one place numbers are wired.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.altKey || e.ctrlKey || e.metaKey) return;
-      const target = e.target as HTMLElement | null;
-      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
-      const option = OPTIONS.find((o) => o.key === e.key);
-      if (option) {
-        e.preventDefault();
-        announce(`Opening ${option.label}`);
-        navigate(option.path);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [navigate, announce]);
+    registerNumberedTargets(
+      OPTIONS.map((o) => ({
+        label: o.label,
+        run: () => navigate(o.path),
+      })),
+    );
+    return () => registerNumberedTargets(null);
+  }, [registerNumberedTargets, navigate]);
 
   const askAssistant = async (raw: string) => {
     const q = raw.trim();
@@ -226,8 +206,10 @@ export const AudioDashboardPage: React.FC = () => {
 
   const pageCommands: VoiceCommand[] = useMemo(
     () => [
+      // Word forms only - the provider already registers the digits for the
+      // numbered targets above, and registering them twice would double-fire.
       ...OPTIONS.map((o) => ({
-        phrases: [...SPOKEN_NUMBERS[o.key], o.label.toLowerCase()],
+        phrases: [o.label.toLowerCase()],
         description: `${o.key} — ${o.label}`,
         run: () => {
           announce(`Opening ${o.label}`);
