@@ -8,6 +8,9 @@ interface User {
   role: 'ADMIN' | 'TEACHER' | 'STUDENT';
   teacherStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' | null;
   demoResult?: any;
+  freeTrialUsed?: boolean;
+  hasPaid?: boolean;
+  subscription?: any;
 }
 
 interface AuthContextType {

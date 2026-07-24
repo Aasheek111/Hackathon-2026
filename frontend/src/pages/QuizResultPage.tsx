@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Trophy, ArrowRight, Sparkles, BookOpen, Volume2, Image as ImageIcon, AlertTriangle } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Trophy, ArrowRight, Sparkles, BookOpen, Volume2, Image as ImageIcon, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 interface AssessmentAttempt {
   textEngagement: number;
@@ -13,6 +14,12 @@ interface AssessmentAttempt {
 export const QuizResultPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, refreshUser } = useAuth();
+
+  useEffect(() => {
+    refreshUser();
+  }, []);
+
   const quizScore = location.state?.score ?? 0;
   const totalQuestions = location.state?.total ?? 0;
   const attempt: AssessmentAttempt | null = location.state?.attempt ?? null;
@@ -51,16 +58,16 @@ export const QuizResultPage: React.FC = () => {
           >
             <Trophy className="w-10 h-10" />
           </motion.div>
-          <h1 className="text-3xl sm:text-5xl font-bold text-slate-900 mb-2">Assessment Complete!</h1>
-          <div className="inline-flex items-center px-4 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-sm mb-3">
-            Quiz Score: {quizScore} / {totalQuestions} Correct ({totalQuestions > 0 ? Math.round((quizScore / totalQuestions) * 100) : 0}%)
+          <h1 className="text-3xl sm:text-5xl font-bold text-slate-900 mb-2">Free Trial Completed!</h1>
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-900 font-bold text-sm mb-3">
+            <span>✨ 1 of 1 Free Adaptive Session Used</span>
           </div>
           <p className="text-base text-slate-600 max-w-xl mx-auto">
-            We've analyzed your engagement patterns across your session to tailor your learning profile.
+            Quiz Score: <strong className="text-slate-900 font-bold">{quizScore} / {totalQuestions} Correct</strong> ({totalQuestions > 0 ? Math.round((quizScore / totalQuestions) * 100) : 0}%).
           </p>
           {!attempt && (
             <div className="mt-3 inline-flex items-center gap-2 text-amber-800 text-xs bg-amber-50 border border-amber-200 px-4 py-2 rounded-full font-medium">
-              <AlertTriangle className="w-4 h-4 text-amber-600" /> Saved locally to your device profile.
+              <AlertTriangle className="w-4 h-4 text-amber-600" /> Saved to your device profile.
             </div>
           )}
         </div>
@@ -101,7 +108,7 @@ export const QuizResultPage: React.FC = () => {
             </div>
           </motion.div>
 
-          {/* Recommendation */}
+          {/* Recommendation & Payment Prompt */}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -111,7 +118,7 @@ export const QuizResultPage: React.FC = () => {
             <div>
               <div className="flex items-center space-x-2 text-emerald-700 font-bold text-xs uppercase tracking-wider mb-4">
                 <Sparkles className="w-4 h-4" />
-                <span>Recommended Approach</span>
+                <span>Recommended Learning Profile</span>
               </div>
               
               <div className="flex items-center space-x-4 mb-4">
@@ -122,22 +129,40 @@ export const QuizResultPage: React.FC = () => {
               </div>
               
               <p className="text-slate-600 text-sm leading-relaxed mb-6">
-                Based on your real-time attention signals, {recommended.desc.toLowerCase()} 
-                We have tailored your dashboard to prioritize this modality while continuing to adapt when needed.
+                Based on your attention signals, {recommended.desc.toLowerCase()}
               </p>
+
+              {!user?.hasPaid && (
+                <div className="bg-emerald-50/70 p-4 rounded-2xl border border-emerald-200/80 mb-6 text-xs text-emerald-900 space-y-1.5">
+                  <div className="flex items-center font-bold text-emerald-800 gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>eSewa Subscription Required for Dashboard</span>
+                  </div>
+                  <p className="text-slate-600 leading-relaxed">
+                    Your single free trial is now complete. Subscribe using eSewa to unlock your full student dashboard, personalized RAG lessons, and AR games!
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="space-y-3">
-              <button
-                onClick={() => navigate('/recommendation')}
-                className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 px-6 rounded-2xl shadow-md border-b-4 border-emerald-700 active:translate-y-0.5 active:border-b-2 transition-all flex items-center justify-center gap-2 text-sm"
-              >
-                <span>See Recommended Classrooms</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-              <Link to="/dashboard" className="text-center text-xs font-bold text-slate-500 hover:text-slate-800 block">
-                Go to Dashboard
-              </Link>
+              {!user?.hasPaid ? (
+                <button
+                  onClick={() => navigate('/subscription')}
+                  className="w-full bg-[#60BB46] hover:bg-[#52a33c] text-white font-bold py-3.5 px-6 rounded-2xl shadow-md border-b-4 border-[#438a30] active:translate-y-0.5 active:border-b-2 transition-all flex items-center justify-center gap-2 text-sm cursor-pointer"
+                >
+                  <span>Subscribe with eSewa to Unlock Dashboard</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => navigate('/dashboard')}
+                  className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 px-6 rounded-2xl shadow-md border-b-4 border-emerald-700 active:translate-y-0.5 active:border-b-2 transition-all flex items-center justify-center gap-2 text-sm cursor-pointer"
+                >
+                  <span>Go to Full Dashboard</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </motion.div>
         </div>
