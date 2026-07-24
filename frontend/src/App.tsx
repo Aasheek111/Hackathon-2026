@@ -22,6 +22,7 @@ import TutorialRouter from './pages/TutorialRouter';
 import RawDocViewerPage from './pages/RawDocViewerPage';
 import YoutubeQuizPage from './pages/YoutubeQuizPage';
 import ProgressPage from './pages/ProgressPage';
+import AccessibilitySettingsPage from './pages/AccessibilitySettingsPage';
 import LoadingSpinner from './components/ui/LoadingSpinner';
 
 const ProtectedRoute = ({
@@ -99,6 +100,7 @@ const App: React.FC = () => {
           <Route path="/classroom/units/:unitId/document" element={<ProtectedRoute allowRoles={['STUDENT', 'TEACHER']} requirePaidStudent><RawDocViewerPage /></ProtectedRoute>} />
           <Route path="/classroom/units/:unitId/youtube-quiz" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><YoutubeQuizPage /></ProtectedRoute>} />
           <Route path="/progress" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><ProgressPage /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><AccessibilitySettingsPage /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AnimatePresence>
