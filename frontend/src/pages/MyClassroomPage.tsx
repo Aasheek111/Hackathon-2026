@@ -11,6 +11,7 @@ import {
   ArrowRight,
   FileText,
   Video,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import DashboardShell, { NavItem } from "../components/DashboardShell";
 import api from "../lib/api";
@@ -58,6 +59,7 @@ export const MyClassroomPage: React.FC = () => {
     { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
     { icon: BookOpen, label: "My Classroom", path: "/classroom", active: true },
     { icon: TrendingUp, label: "My Progress", path: "/progress" },
+    { icon: SettingsIcon, label: "Settings", path: "/settings" },
   ];
 
   if (loading) {

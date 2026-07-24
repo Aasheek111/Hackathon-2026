@@ -13,6 +13,7 @@ import {
   Eye,
   RefreshCw,
   ArrowRight,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import {
   LineChart,
@@ -117,6 +118,7 @@ export const ProgressPage: React.FC = () => {
     { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
     { icon: BookOpen, label: "My Classroom", path: "/classroom" },
     { icon: TrendingUp, label: "My Progress", path: "/progress", active: true },
+    { icon: SettingsIcon, label: "Settings", path: "/settings" },
   ];
 
   if (loading) {

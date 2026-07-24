@@ -38,6 +38,25 @@ enum LearningMode {
   STORY
 }
 
+// Set once at registration (student only), used only to pick sensible
+// DEFAULTS for the accessibility panel below - never to gate features or
+// change what content a student is offered. A student can always override
+// every individual setting regardless of this value (see AccessibilityPrefs'
+// own doc comment on why user-set beats inferred).
+enum DisabilityType {
+  NONE
+  AUTISM
+  BLINDNESS
+  DEAFNESS
+}
+
+enum FontSize {
+  SMALL
+  MEDIUM
+  LARGE
+  XLARGE
+}
+
 enum SubscriptionPlan {
   MONTH_1
   MONTH_3
@@ -105,12 +124,15 @@ model User {
   rememberMe     Boolean        @default(false)
   resetToken     String?
   resetTokenExp  DateTime?
+  // student-only, set at registration - see DisabilityType's own doc comment
+  disabilityType DisabilityType?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
   demoResult      DemoResult?
   subscription    Subscription?
   quizSessions    QuizSession[]
+  accessibilityPrefs AccessibilityPrefs?
 
   // teacher side
   classroomTaught Classroom?              @relation("TeacherClassroom")
@@ -135,6 +157,26 @@ model User {
   generationJobs  TutorialGenerationJob[]
   notifications   Notification[]
   youtubeQuizzes  YoutubeQuiz[]
+}
+
+// One row per student, created lazily on first read/write (see the route).
+// Design rule (remaining_17hours_plan.md P0): user-set preferences always
+// override inferred ones - disabilityType only ever seeds sensible DEFAULTS
+// the first time this row is created, never re-applied after, so a student
+// who changes their mind stays changed.
+model AccessibilityPrefs {
+  id             String   @id @default(cuid())
+  studentId      String   @unique
+  student        User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  fontSize       FontSize @default(MEDIUM)
+  highContrast   Boolean  @default(false)
+  alwaysNarrate  Boolean  @default(false) // auto-play narration on every lesson, any mode
+  reducedMotion  Boolean  @default(false)
+  signLanguage   Boolean  @default(false) // fingerspelling strip under storybook pages
+  audiobookMode  Boolean  @default(false) // continuous cross-lesson playback, see TODO in tutorials
+
+  updatedAt      DateTime @updatedAt
 }
 
 model DemoResult {

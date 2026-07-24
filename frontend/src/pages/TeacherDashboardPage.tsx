@@ -22,6 +22,7 @@ import {
   Eye,
   RefreshCw,
   Image as ImageIcon,
+  ArrowRight,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import DashboardShell, { NavItem } from "../components/DashboardShell";
@@ -334,34 +335,58 @@ const TeacherTabButtons: React.FC<{
 );
 
 const OverviewTab: React.FC<{ classroom: Classroom }> = ({ classroom }) => (
-  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-    {[
-      {
-        label: "Students Enrolled",
-        value: classroom.enrolments.length,
-        color: "bg-emerald-50 text-emerald-800",
-      },
-      {
-        label: "Pending Requests",
-        value: classroom.joinRequests.length,
-        color: "bg-amber-50 text-amber-800",
-      },
-      {
-        label: "Total Subjects",
-        value: classroom.subjects.length,
-        color: "bg-sky-50 text-sky-800",
-      },
-    ].map((s, i) => (
-      <div
-        key={i}
-        className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs"
-      >
-        <div className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">
-          {s.label}
+  <div className="space-y-6">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {[
+        {
+          label: "Students Enrolled",
+          value: classroom.enrolments.length,
+          color: "bg-emerald-50 text-emerald-800",
+        },
+        {
+          label: "Pending Requests",
+          value: classroom.joinRequests.length,
+          color: "bg-amber-50 text-amber-800",
+        },
+        {
+          label: "Total Subjects",
+          value: classroom.subjects.length,
+          color: "bg-sky-50 text-sky-800",
+        },
+      ].map((s, i) => (
+        <div
+          key={i}
+          className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs"
+        >
+          <div className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">
+            {s.label}
+          </div>
+          <div className="text-3xl font-bold text-slate-900">{s.value}</div>
         </div>
-        <div className="text-3xl font-bold text-slate-900">{s.value}</div>
+      ))}
+    </div>
+
+    {/* Student performance lives on its own page (per-unit heatmap, class
+        analytics) - this banner is the discoverability fix: a teacher
+        landing on Overview should see it immediately, not have to notice
+        "Insights" at the bottom of the sidebar. */}
+    <Link
+      to="/teacher/insights"
+      className="group flex items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs hover:border-emerald-300 hover:shadow-md transition-all"
+    >
+      <div className="flex items-center gap-4">
+        <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-200 shrink-0">
+          <BarChart3 className="w-6 h-6" />
+        </div>
+        <div>
+          <p className="font-bold text-slate-900">Student performance & analytics</p>
+          <p className="text-sm text-slate-500 mt-0.5">
+            See every student's scores, focus, and preferred learning mode, plus a per-lesson heatmap for each unit.
+          </p>
+        </div>
       </div>
-    ))}
+      <ArrowRight className="w-5 h-5 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all shrink-0" />
+    </Link>
   </div>
 );
 
