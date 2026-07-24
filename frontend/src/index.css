@@ -88,3 +88,170 @@
 .animate-pulse-glow {
   animation: pulse-glow 2s infinite;
 }
+
+/* Accessibility Global Rules - Lightweight 60fps High Contrast */
+html.high-contrast body {
+  background-color: #F5F4EF !important;
+  color: #000000 !important;
+}
+
+html.high-contrast p,
+html.high-contrast h1,
+html.high-contrast h2,
+html.high-contrast h3,
+html.high-contrast h4,
+html.high-contrast span,
+html.high-contrast label,
+html.high-contrast div {
+  color: #050505 !important;
+}
+
+html.high-contrast .bg-white {
+  background-color: #FFFFFF !important;
+  border-color: #000000 !important;
+}
+
+html.high-contrast button,
+html.high-contrast input,
+html.high-contrast select,
+html.high-contrast textarea,
+html.high-contrast .border,
+html.high-contrast [class*="border-"] {
+  border-color: #0f172a !important;
+}
+
+/* Complete Strict Reduced Motion Rule */
+html.reduced-motion *,
+html.reduced-motion *::before,
+html.reduced-motion *::after {
+  animation: none !important;
+  animation-delay: 0s !important;
+  animation-duration: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition: none !important;
+  transition-delay: 0s !important;
+  transition-duration: 0s !important;
+  scroll-behavior: auto !important;
+}
+
+html.reduced-motion .animate-bounce,
+html.reduced-motion .animate-pulse,
+html.reduced-motion .animate-spin,
+html.reduced-motion .animate-ping,
+html.reduced-motion .animate-float,
+html.reduced-motion .animate-pulse-glow {
+  animation: none !important;
+}
+
+html.reduced-motion button:hover,
+html.reduced-motion a:hover,
+html.reduced-motion div:hover {
+  transform: none !important;
+}
+
+/* Accessibility Disability Theme Overrides */
+
+/* 1. Dyslexia Friendly Theme (Warm Cream / High Readability Navy) */
+[data-theme="DYSLEXIA"] body,
+[data-theme="DYSLEXIA"] .bg-\[\#FAF9F5\] {
+  background-color: #FEF9C3 !important;
+  color: #0F172A !important;
+}
+[data-theme="DYSLEXIA"] .bg-white {
+  background-color: #FFFDF0 !important;
+  border-color: #CA8A04 !important;
+}
+[data-theme="DYSLEXIA"] p,
+[data-theme="DYSLEXIA"] span,
+[data-theme="DYSLEXIA"] h1,
+[data-theme="DYSLEXIA"] h2,
+[data-theme="DYSLEXIA"] h3,
+[data-theme="DYSLEXIA"] h4 {
+  letter-spacing: 0.03em !important;
+  word-spacing: 0.05em !important;
+  color: #1E293B !important;
+}
+
+/* 2. ADHD Focus Theme (Muted Dark Slate Blue / Low Distraction) */
+[data-theme="ADHD"] body,
+[data-theme="ADHD"] .bg-\[\#FAF9F5\] {
+  background-color: #0F172A !important;
+  color: #F8FAFC !important;
+}
+[data-theme="ADHD"] .bg-white {
+  background-color: #1E293B !important;
+  border-color: #334155 !important;
+  color: #F8FAFC !important;
+}
+[data-theme="ADHD"] p,
+[data-theme="ADHD"] span,
+[data-theme="ADHD"] h1,
+[data-theme="ADHD"] h2,
+[data-theme="ADHD"] h3,
+[data-theme="ADHD"] h4,
+[data-theme="ADHD"] label {
+  color: #F8FAFC !important;
+}
+[data-theme="ADHD"] .text-slate-900,
+[data-theme="ADHD"] .text-slate-800,
+[data-theme="ADHD"] .text-slate-700 {
+  color: #F1F5F9 !important;
+}
+[data-theme="ADHD"] .text-slate-500,
+[data-theme="ADHD"] .text-slate-600 {
+  color: #94A3B8 !important;
+}
+
+/* 3. Sensory / Autism Friendly Theme (Calming Sage & Mint) */
+[data-theme="SENSORY"] body,
+[data-theme="SENSORY"] .bg-\[\#FAF9F5\] {
+  background-color: #F0FDF4 !important;
+  color: #14532D !important;
+}
+[data-theme="SENSORY"] .bg-white {
+  background-color: #DCFCE7 !important;
+  border-color: #86EFAC !important;
+  color: #14532D !important;
+}
+[data-theme="SENSORY"] p,
+[data-theme="SENSORY"] span,
+[data-theme="SENSORY"] h1,
+[data-theme="SENSORY"] h2,
+[data-theme="SENSORY"] h3,
+[data-theme="SENSORY"] h4,
+[data-theme="SENSORY"] label {
+  color: #14532D !important;
+}
+[data-theme="SENSORY"] .text-slate-900,
+[data-theme="SENSORY"] .text-slate-800,
+[data-theme="SENSORY"] .text-slate-700 {
+  color: #14532D !important;
+}
+
+/* 4. High Contrast Dark Theme (Low Vision Yellow-on-Black) */
+[data-theme="DARK_CONTRAST"] body,
+[data-theme="DARK_CONTRAST"] .bg-\[\#FAF9F5\] {
+  background-color: #09090B !important;
+  color: #FACC15 !important;
+}
+[data-theme="DARK_CONTRAST"] .bg-white {
+  background-color: #18181B !important;
+  border-color: #27272A !important;
+  color: #FACC15 !important;
+}
+[data-theme="DARK_CONTRAST"] p,
+[data-theme="DARK_CONTRAST"] span,
+[data-theme="DARK_CONTRAST"] h1,
+[data-theme="DARK_CONTRAST"] h2,
+[data-theme="DARK_CONTRAST"] h3,
+[data-theme="DARK_CONTRAST"] h4,
+[data-theme="DARK_CONTRAST"] label {
+  color: #FACC15 !important;
+}
+[data-theme="DARK_CONTRAST"] .text-slate-900,
+[data-theme="DARK_CONTRAST"] .text-slate-800,
+[data-theme="DARK_CONTRAST"] .text-slate-700,
+[data-theme="DARK_CONTRAST"] .text-slate-600,
+[data-theme="DARK_CONTRAST"] .text-slate-500 {
+  color: #FDE047 !important;
+}

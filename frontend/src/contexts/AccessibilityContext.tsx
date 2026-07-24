@@ -3,6 +3,7 @@ import api from '../lib/api';
 import { useAuth, type DisabilityType } from './AuthContext';
 
 export type FontSize = 'SMALL' | 'MEDIUM' | 'LARGE' | 'XLARGE';
+export type AppTheme = 'DEFAULT' | 'DYSLEXIA' | 'ADHD' | 'SENSORY' | 'DARK_CONTRAST';
 
 export interface AccessibilityPrefs {
   fontSize: FontSize;
@@ -11,6 +12,7 @@ export interface AccessibilityPrefs {
   reducedMotion: boolean;
   signLanguage: boolean;
   audiobookMode: boolean;
+  appTheme: AppTheme;
 }
 
 /** What PATCH /me/accessibility accepts - the prefs plus the profile itself. */
@@ -25,43 +27,66 @@ const DEFAULT_PREFS: AccessibilityPrefs = {
   reducedMotion: false,
   signLanguage: false,
   audiobookMode: false,
+  appTheme: 'DEFAULT',
 };
 
 // Applied to <html>'s own font-size, which is what Tailwind's text-* classes
 // scale from (they're all rem, and rem is always relative to the ROOT
-// element, never the nearest ancestor - setting this on a wrapper div, which
-// is what an earlier version of this file did, has NO effect on rem-sized
-// text and is why the setting looked broken outside two hand-patched pages).
-// Root-level IS the right amount of "global" here specifically because rem
-// scaling is purely additive - every page gets proportionally bigger text
-// and spacing with no risk of the color/contrast breakage that kept the
-// light/dark theme toggle deliberately page-scoped.
+// element, never the nearest ancestor).
+
 export const FONT_SCALE_PX: Record<FontSize, string> = {
-  SMALL: '15px',
+  SMALL: '14px',
   MEDIUM: '16px',
-  LARGE: '19px',
-  XLARGE: '23px',
+  LARGE: '18px',
+  XLARGE: '21px',
+};
+
+const LOCAL_STORAGE_KEY = 'pragya_accessibility_prefs';
+
+const loadLocalPrefs = (): AccessibilityPrefs => {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (raw) {
+      return { ...DEFAULT_PREFS, ...JSON.parse(raw) };
+    }
+  } catch {
+    /* fallback to defaults */
+  }
+  return DEFAULT_PREFS;
 };
 
 interface AccessibilityContextType {
   prefs: AccessibilityPrefs;
   loading: boolean;
   updatePrefs: (patch: AccessibilityPatch) => Promise<void>;
+  resetPrefs: () => void;
 }
 
 const AccessibilityContext = createContext<AccessibilityContextType | undefined>(undefined);
 
 export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, token, refreshUser } = useAuth();
-  const [prefs, setPrefs] = useState<AccessibilityPrefs>(DEFAULT_PREFS);
+  const [prefs, setPrefs] = useState<AccessibilityPrefs>(loadLocalPrefs);
   const [loading, setLoading] = useState(false);
 
-  // Only students have AccessibilityPrefs rows (see backend/src/routes/accessibility.ts) -
-  // teachers/admins just get the defaults, applied harmlessly since nothing
-  // reads them for those roles.
+  // Apply DOM side-effects globally whenever prefs change
+  useEffect(() => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(prefs));
+    } catch {
+      /* ignore storage errors */
+    }
+
+    const root = document.documentElement;
+    root.classList.toggle('high-contrast', prefs.highContrast);
+    root.classList.toggle('reduced-motion', prefs.reducedMotion);
+    root.style.fontSize = FONT_SCALE_PX[prefs.fontSize] || '16px';
+    root.setAttribute('data-theme', prefs.appTheme || 'DEFAULT');
+  }, [prefs]);
+
+  // Load student preferences from backend on mount or user login
   useEffect(() => {
     if (!token || user?.role !== 'STUDENT') {
-      setPrefs(DEFAULT_PREFS);
       return;
     }
     let cancelled = false;
@@ -70,17 +95,19 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
       .get('/me/accessibility')
       .then(({ data }) => {
         if (cancelled) return;
-        setPrefs({
-          fontSize: data.fontSize,
-          highContrast: data.highContrast,
-          alwaysNarrate: data.alwaysNarrate,
-          reducedMotion: data.reducedMotion,
-          signLanguage: data.signLanguage,
-          audiobookMode: data.audiobookMode,
-        });
+        setPrefs((prev) => ({
+          ...prev,
+          fontSize: data.fontSize || prev.fontSize,
+          highContrast: data.highContrast ?? prev.highContrast,
+          alwaysNarrate: data.alwaysNarrate ?? prev.alwaysNarrate,
+          reducedMotion: data.reducedMotion ?? prev.reducedMotion,
+          signLanguage: data.signLanguage ?? prev.signLanguage,
+          audiobookMode: data.audiobookMode ?? prev.audiobookMode,
+          appTheme: data.appTheme || prev.appTheme || 'DEFAULT',
+        }));
       })
       .catch(() => {
-        // Best-effort - stay on client-side defaults rather than blocking the page.
+        // Fallback to client-side storage
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -103,35 +130,43 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
   const updatePrefs = useCallback(
     async (patch: AccessibilityPatch) => {
       const { disabilityType, ...prefPatch } = patch;
-      // Optimistic - user-set beats inferred, applies instantly. disabilityType
-      // is a User field, not a pref, so it's kept out of this merge.
-      setPrefs((prev) => ({ ...prev, ...prefPatch }));
-      try {
-        const { data } = await api.patch('/me/accessibility', patch);
-        // Adopt the server's row rather than only the optimistic merge:
-        // changing disabilityType re-seeds that profile's defaults server-side
-        // (see backend/src/routes/accessibility.ts), so the response can
-        // legitimately contain toggles we never sent.
-        setPrefs({
-          fontSize: data.fontSize,
-          highContrast: data.highContrast,
-          alwaysNarrate: data.alwaysNarrate,
-          reducedMotion: data.reducedMotion,
-          signLanguage: data.signLanguage,
-          audiobookMode: data.audiobookMode,
-        });
-        // Pull the new disabilityType into AuthContext so routing (homePathFor)
-        // and any profile display follow immediately, without a reload.
-        if (disabilityType !== undefined) await refreshUser();
-      } catch {
-        // Best-effort sync; the local change still stands for this session.
+      
+      setPrefs((prev) => {
+        const next = { ...prev, ...prefPatch };
+        try {
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+
+      if (token && user?.role === 'STUDENT') {
+        try {
+          const { data } = await api.patch('/me/accessibility', patch);
+          setPrefs((prev) => ({
+            ...prev,
+            fontSize: data.fontSize || prev.fontSize,
+            highContrast: data.highContrast ?? prev.highContrast,
+            alwaysNarrate: data.alwaysNarrate ?? prev.alwaysNarrate,
+            reducedMotion: data.reducedMotion ?? prev.reducedMotion,
+            signLanguage: data.signLanguage ?? prev.signLanguage,
+            audiobookMode: data.audiobookMode ?? prev.audiobookMode,
+            appTheme: prefPatch.appTheme || prev.appTheme || 'DEFAULT',
+          }));
+          if (disabilityType !== undefined) await refreshUser();
+        } catch {
+          // Local fallback holds
+        }
       }
     },
-    [refreshUser]
+    [token, user?.role, refreshUser]
   );
 
+  const resetPrefs = useCallback(() => {
+    updatePrefs(DEFAULT_PREFS);
+  }, [updatePrefs]);
+
   return (
-    <AccessibilityContext.Provider value={{ prefs, loading, updatePrefs }}>
+    <AccessibilityContext.Provider value={{ prefs, loading, updatePrefs, resetPrefs }}>
       {children}
     </AccessibilityContext.Provider>
   );

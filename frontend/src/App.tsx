@@ -32,6 +32,7 @@ import SignQuizPage from './pages/visual/SignQuizPage';
 import SignPracticePage from './pages/practice/SignPracticePage';
 import LoadingSpinner from './components/ui/LoadingSpinner';
 import AudioControlBar from './components/AudioControlBar';
+import FloatingAccessibilityToolkit from './components/FloatingAccessibilityToolkit';
 import { homePathFor } from './lib/homePath';
 
 const ProtectedRoute = ({
@@ -91,6 +92,8 @@ const App: React.FC = () => {
       <AudioControlBar />
 
       {showNavbar && <Navbar />}
+
+      <FloatingAccessibilityToolkit />
 
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>
