@@ -13,7 +13,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import DashboardShell, { NavItem } from "../../components/DashboardShell";
-import HandshapeDiagram from "../../components/HandshapeDiagram";
+import SignSymbol from "../../components/SignSymbol";
 import { handshapeFor } from "../../data/handshapes";
 import { SIGNS, Sign } from "../../data/signLanguage";
 
@@ -171,7 +171,7 @@ export const SignQuizPage: React.FC = () => {
                 real visual recognition test rather than a reading test. */}
             {handshapeFor(question.sign.term) && (
               <div className="shrink-0 rounded-2xl bg-emerald-50 border border-emerald-200 p-2">
-                <HandshapeDiagram term={question.sign.term} size={110} />
+                <SignSymbol term={question.sign.term} size={110} />
               </div>
             )}
             <div>

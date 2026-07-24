@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import DashboardShell, { NavItem } from "../../components/DashboardShell";
 import AiAssistantPanel from "../../components/AiAssistantPanel";
-import HandshapeDiagram from "../../components/HandshapeDiagram";
+import SignSymbol from "../../components/SignSymbol";
 import { handshapeFor } from "../../data/handshapes";
 import {
   SIGNS,
@@ -48,7 +48,7 @@ const SignCard: React.FC<{
         with movement (see handshapes.ts). Those keep the hand glyph. */}
     {handshapeFor(sign.term) ? (
       <div className="shrink-0 rounded-xl bg-emerald-50 border border-emerald-200 p-1">
-        <HandshapeDiagram term={sign.term} size={64} showMotion={false} />
+        <SignSymbol term={sign.term} size={64} showMotion={false} />
       </div>
     ) : (
       <div className="w-12 h-12 shrink-0 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center">

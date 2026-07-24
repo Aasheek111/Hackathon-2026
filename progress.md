@@ -1,8 +1,47 @@
 # Progress & Direction
 
-_Last updated: 24 July 2026 (revision 2 - same day)_
+_Last updated: 24 July 2026 (revision 3 - same day)_
 
 An honest status check against the hackathon problem statement.
+
+---
+
+## Revision 3 — the blind dashboard was designed wrong
+
+Worth recording plainly, because it was the biggest design error in this
+project and it survived two revisions.
+
+The "blind dashboard" was a page of large, high-contrast yellow buttons —
+"Read screen", "Stop", "Voice control". **A blind learner cannot press a
+button they cannot find.** The page assumed sight in order to turn on the
+features that replace sight. It also only existed on *one route*, so the
+moment a learner opened an actual lesson, all of it was gone.
+
+The confusion underneath it: **blind and low vision are not the same users.**
+Big yellow high-contrast buttons are a genuinely good *low-vision* design.
+They are not an accessibility strategy for someone with no usable sight.
+
+What replaced it:
+
+- **`AudioNavigationContext` at the app root.** Every route announces itself,
+  voice commands work on every page, and for a learner whose profile is
+  BLINDNESS the microphone starts on its own instead of waiting to be found.
+- **`AudioControlBar` rendered first in the DOM.** One Tab press from
+  anywhere in the app lands on "Read this screen". That single ordering
+  decision is what makes the app operable without sight.
+- **Keyboard shortcuts that need no microphone**: `Alt+R` read screen,
+  `Alt+S` stop, `Alt+V` voice. The dashboard also takes plain number keys.
+- **A numbered menu.** Saying "one" beats saying "open lessons" — short
+  utterances survive noise and accents far better — and the same number works
+  as a keypress when there's no mic at all.
+- The high-contrast visual design was **kept**, because low-vision learners
+  land here too. It just isn't the accessibility story any more.
+
+Still true, and stated in the code: **this is not a screen reader.** Most
+blind users run NVDA, JAWS or VoiceOver, which are better at this than we
+could ever be. Our real obligation is the semantic HTML and ARIA that lets
+those tools work. This layer helps a learner with no assistive tech on a
+shared school machine, and adds voice *control*, which screen readers don't do.
 
 ---
 
@@ -141,7 +180,17 @@ picker), touch-target sizing, or anything requiring a rendered DOM.
    and for what a source-read audit can and can't catch.
 2. **Voice control is Chrome/Edge only** (Web Speech API). Keyboard paths
    exist everywhere as the fallback, including inside the curriculum player.
-3. **Sign language is ASL only.** Nepali Sign Language is listed in the
+3. **Sign symbols are generated schematics, not photos or video.** All 36
+   handshapes (A–Z, 1–10) are committed as SVG in
+   `frontend/public/signs/asl/`, produced by
+   `scripts/generate-sign-assets.mjs`. They are **original work**, generated
+   rather than downloaded, because essentially every ASL chart online is
+   copyrighted and committing one to a public repo would be infringement —
+   a legal problem far worse than a plainer picture. They convey handshape;
+   they cannot convey movement (J, Z, 10), wrist orientation, or facial
+   grammar, which are real parts of signing. The UI says so and captions the
+   motion in words.
+4. **Sign language is ASL only.** Nepali Sign Language is listed in the
    language picker and **deliberately left empty**. It is a distinct
    language with its own Devanagari-based manual alphabet, not a translation
    of ASL - fabricating its handshapes would risk teaching a deaf Nepali
@@ -149,14 +198,14 @@ picker), touch-target sizing, or anything requiring a rendered DOM.
    needs a verified source (Nepal National Federation of the Deaf, or the
    published NSL dictionary) reviewed by Deaf NSL signers. This is blocked
    on a human source, not on engineering time.
-4. **Server TTS needs a Groq console action** - see §2. Also blocked on a
+5. **Server TTS needs a Groq console action** - see §2. Also blocked on a
    human (an org admin), not on code.
-5. **The standalone audio quiz uses its own 8-question bank**, not the
+6. **The standalone audio quiz uses its own 8-question bank**, not the
    teacher's real assessments - unchanged from before. The real curriculum
    is now voice-navigable (§1), but the *quiz itself* inside the player
    still uses the existing on-screen knowledge-check flow, not a voice
    Q&A loop. That would be the next increment if this keeps going.
-6. **High contrast** is still only applied in the lesson player and
+7. **High contrast** is still only applied in the lesson player and
    storybook, not app-wide (font size, by contrast, is now global - see §1).
 
 ---

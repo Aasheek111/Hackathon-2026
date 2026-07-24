@@ -22,6 +22,7 @@ import { useAccessibility } from "../../contexts/AccessibilityContext";
 import { SIGNS } from "../../data/signLanguage";
 import { loadFavourites } from "../../data/signLanguage";
 import api from "../../lib/api";
+import { usePageAudio } from "../../contexts/AudioNavigationContext";
 
 /**
  * Visual, caption-first dashboard for deaf and hard-of-hearing learners.
@@ -55,6 +56,12 @@ export const VisualDashboardPage: React.FC = () => {
       .catch(() => setProgress(null))
       .finally(() => setLoading(false));
   }, []);
+
+  usePageAudio("Visual Dashboard", () =>
+    `Your visual dashboard. Everything here works without sound. ` +
+    (progress ? `${progress.xp} experience points, a ${progress.streakDays} day streak, ${progress.badges?.length ?? 0} badges. ` : "") +
+    `Open sign language to learn the alphabet, or the practice quiz to test yourself.`
+  );
 
   const navItems: NavItem[] = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard/visual", active: true },
