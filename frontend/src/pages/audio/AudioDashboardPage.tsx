@@ -5,7 +5,6 @@ import {
   ClipboardList,
   TrendingUp,
   Settings as SettingsIcon,
-  Hand,
   Sparkles,
   Loader2,
   Volume2,
@@ -64,13 +63,24 @@ interface Enrolment {
   classroom: { id: string; name: string };
 }
 
+/**
+ * Deliberately no "Sign practice" here.
+ *
+ * Sign language is entirely visual - handshape diagrams and written
+ * descriptions of finger positions. There is nothing in it a blind learner
+ * can perceive, so putting it in this menu was offering a dead end.
+ *
+ * It is NOT blocked: /practice/signs stays reachable by URL and by the global
+ * "sign practice" voice command, because a blind learner may well want it
+ * deliberately (a deaf sibling, a class project). Not offered, not forbidden -
+ * the same line this app takes everywhere else.
+ */
 const OPTIONS = [
   { key: "1", label: "Lessons", detail: "Your classroom units, with every lesson read aloud.", path: "/classroom", icon: BookOpen },
   { key: "2", label: "Quiz", detail: "A voice quiz. Questions and options are read aloud.", path: "/dashboard/audio/quiz", icon: ClipboardList },
   { key: "3", label: "My progress", detail: "Your full report card, subject by subject.", path: "/progress", icon: TrendingUp },
-  { key: "4", label: "Sign practice", detail: "Learn the sign language alphabet.", path: "/practice/signs", icon: Hand },
-  { key: "5", label: "Settings", detail: "Change your profile, text size and narration.", path: "/settings", icon: SettingsIcon },
-  { key: "6", label: "AR game", detail: "The 3D balloon game, using this unit's own questions.", path: "/ar-game", icon: Gamepad2 },
+  { key: "4", label: "Settings", detail: "Change your profile, text size and narration.", path: "/settings", icon: SettingsIcon },
+  { key: "5", label: "AR game", detail: "The 3D balloon game, using this unit's own questions.", path: "/ar-game", icon: Gamepad2 },
 ] as const;
 
 export const AudioDashboardPage: React.FC = () => {
