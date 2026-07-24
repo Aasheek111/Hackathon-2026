@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   LayoutDashboard, Play, BookOpen, Gamepad2,
@@ -31,12 +31,23 @@ interface Enrolment {
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [showPaymentSuccess, setShowPaymentSuccess] = useState(searchParams.get('payment') === 'success');
 
   const [history, setHistory] = useState<Attempt[]>([]);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [enrolment, setEnrolment] = useState<Enrolment | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+
+  useEffect(() => {
+    if (showPaymentSuccess) {
+      // Remove the query param from URL cleanly
+      setSearchParams({}, { replace: true });
+      const timer = setTimeout(() => setShowPaymentSuccess(false), 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [showPaymentSuccess, setSearchParams]);
 
   useEffect(() => {
     const load = () => {
@@ -84,6 +95,18 @@ export const DashboardPage: React.FC = () => {
   return (
     <DashboardShell navItems={navItems}>
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-6xl mx-auto space-y-8">
+
+        {showPaymentSuccess && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-2xl text-sm font-medium flex items-center justify-between"
+          >
+            <span>🎉 <strong>eSewa Payment Successful!</strong> Your subscription is now active. Enjoy your full learning dashboard!</span>
+            <button onClick={() => setShowPaymentSuccess(false)} className="text-emerald-600 hover:text-emerald-800 font-bold text-lg leading-none cursor-pointer ml-4">×</button>
+          </motion.div>
+        )}
 
         {loadError && (
           <div className="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-2xl text-sm font-medium">
