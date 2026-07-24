@@ -234,6 +234,99 @@ router.get('/:id/documents', async (req: Request, res: Response) => {
   }
 });
 
+/** Teacher-owner OR an enrolled student may view a unit's raw content. */
+async function unitViewAccess(userId: string, unitId: string) {
+  const unit = await prisma.unit.findUnique({
+    where: { id: unitId },
+    include: { subject: { include: { classroom: true } } }
+  });
+  if (!unit) return { unit: null, allowed: false };
+  if (unit.subject.classroom.teacherId === userId) return { unit, allowed: true };
+  const enrolled = await prisma.enrolment.findUnique({
+    where: { classroomId_studentId: { classroomId: unit.subject.classroomId, studentId: userId } }
+  });
+  return { unit, allowed: !!enrolled };
+}
+
+/** The newest successfully-indexed document for a unit (the one worth reading). */
+async function latestReadyDoc(unitId: string) {
+  return prisma.syllabusDocument.findFirst({
+    where: { unitId, status: 'READY' },
+    orderBy: { uploadedAt: 'desc' }
+  });
+}
+
+/**
+ * Streams the original uploaded PDF so a student can read the teacher's raw
+ * material (the "raw docs" door). Auth is enforced here (enrolled student or
+ * teacher-owner), so the frontend fetches it as a blob with its JWT rather
+ * than putting a token in an <iframe src>.
+ */
+router.get('/:id/document/file', async (req: Request, res: Response) => {
+  try {
+    const { unit, allowed } = await unitViewAccess(req.user!.id, req.params['id'] as string);
+    if (!unit) return res.status(404).json({ error: 'Unit not found' });
+    if (!allowed) return res.status(403).json({ error: 'Not allowed to view this unit' });
+
+    const doc = await latestReadyDoc(unit.id);
+    if (!doc || !doc.storagePath || !fs.existsSync(doc.storagePath)) {
+      return res.status(404).json({ error: 'No readable document for this unit' });
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(doc.filename)}"`);
+    fs.createReadStream(doc.storagePath).on('error', () => {
+      if (!res.headersSent) res.status(500).json({ error: 'Failed to read document' });
+    }).pipe(res);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to stream document' });
+  }
+});
+
+/** This student's resume pointer (last page read) for the unit's raw document. */
+router.get('/:id/raw-progress', async (req: Request, res: Response) => {
+  try {
+    const { unit, allowed } = await unitViewAccess(req.user!.id, req.params['id'] as string);
+    if (!unit) return res.status(404).json({ error: 'Unit not found' });
+    if (!allowed) return res.status(403).json({ error: 'Not allowed to view this unit' });
+
+    const doc = await latestReadyDoc(unit.id);
+    if (!doc) return res.json({ document: null, lastPage: 1 });
+
+    const progress = await prisma.rawDocProgress.findUnique({
+      where: { studentId_documentId: { studentId: req.user!.id, documentId: doc.id } }
+    });
+    res.json({
+      document: { id: doc.id, filename: doc.filename, pageCount: doc.pageCount },
+      lastPage: progress?.lastPage ?? 1
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch raw progress' });
+  }
+});
+
+/** Save the student's current page so Back-then-return resumes there. */
+router.patch('/:id/raw-progress', async (req: Request, res: Response) => {
+  try {
+    const { unit, allowed } = await unitViewAccess(req.user!.id, req.params['id'] as string);
+    if (!unit) return res.status(404).json({ error: 'Unit not found' });
+    if (!allowed) return res.status(403).json({ error: 'Not allowed to view this unit' });
+
+    const lastPage = Math.max(1, Math.round(Number(req.body?.lastPage) || 1));
+    const doc = await latestReadyDoc(unit.id);
+    if (!doc) return res.status(404).json({ error: 'No readable document for this unit' });
+
+    const progress = await prisma.rawDocProgress.upsert({
+      where: { studentId_documentId: { studentId: req.user!.id, documentId: doc.id } },
+      create: { studentId: req.user!.id, documentId: doc.id, lastPage },
+      update: { lastPage }
+    });
+    res.json({ progress });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to save raw progress' });
+  }
+});
+
 const IN_FLIGHT_STAGES = [
   'QUEUED', 'EXTRACTING', 'PLANNING', 'GENERATING_TEXT', 'GENERATING_VISUALS', 'GENERATING_AUDIO', 'GENERATING_QUESTIONS', 'FINALIZING'
 ];
