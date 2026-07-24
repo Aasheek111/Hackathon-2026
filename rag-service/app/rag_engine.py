@@ -15,6 +15,7 @@ import hashlib
 import json
 import os
 import re
+import struct
 import time
 from pathlib import Path
 from urllib.parse import quote
@@ -22,6 +23,7 @@ from urllib.parse import quote
 import requests
 from dotenv import load_dotenv
 from google import genai
+from google.genai import types as genai_types
 from langchain_community.embeddings import FakeEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
@@ -41,6 +43,7 @@ load_dotenv(override=True)
 BASE_DIR = Path(__file__).resolve().parent.parent
 PDF_DIR = BASE_DIR / "uploads" / "pdfs"
 IMAGE_DIR = BASE_DIR / "uploads" / "images"
+AUDIO_DIR = BASE_DIR / "uploads" / "audio"
 VECTOR_DIR = BASE_DIR / "vector_store"
 STATIC_DIR = BASE_DIR / "static"
 
@@ -100,7 +103,7 @@ VALID_MODES = tuple(MODE_GUIDANCE)
 
 def ensure_directories() -> None:
     """Called on startup so a fresh clone works without any manual mkdir."""
-    for directory in (PDF_DIR, IMAGE_DIR, VECTOR_DIR, STATIC_DIR):
+    for directory in (PDF_DIR, IMAGE_DIR, AUDIO_DIR, VECTOR_DIR, STATIC_DIR):
         directory.mkdir(parents=True, exist_ok=True)
 
 
@@ -155,6 +158,103 @@ def get_chat_model() -> ChatGoogleGenerativeAI:
     # retires specific model snapshots for new API keys (as gemini-2.5-flash
     # already has), and the alias stays pointed at whatever is current.
     return ChatGoogleGenerativeAI(model="gemini-flash-latest", temperature=0.3)
+
+
+# --- Groq (primary text generation) ------------------------------------------
+#
+# Verified live (real key, curl against the actual API) before wiring this
+# in: llama-3.3-70b-versatile + response_format={"type": "json_object"}
+# (OpenAI-compatible, confirmed working). Groq's free tier is dramatically
+# more generous than Gemini's for text generation - 1,000 requests/day and
+# 30/minute, versus Gemini's observed 20/day - which is the actual bottleneck
+# this pipeline has hit repeatedly (every "FAILED - 429 RESOURCE_EXHAUSTED"
+# this session was the Gemini *text* model's daily quota, never Groq, images,
+# or embeddings). Groq becomes the primary text engine everywhere; Gemini
+# stays as a fallback if Groq isn't configured or a call fails, and remains
+# the only option for embeddings and image generation (Groq offers neither).
+
+GROQ_CHAT_MODEL = "llama-3.3-70b-versatile"
+GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+# Observed live: a transient Docker-network hiccup (ConnectionRefusedError
+# reaching api.groq.com) made a single call silently fall through to Gemini,
+# which then hit its already-exhausted daily quota and failed the whole job -
+# even though the very next attempt to Groq, seconds later, succeeded. A
+# couple of retries turns that into a few seconds' delay instead of an entire
+# job failing over a blip that had nothing to do with either provider's quota.
+GROQ_REQUEST_ATTEMPTS = 3
+GROQ_RETRY_DELAY_SECONDS = 2
+
+
+def groq_key_present() -> bool:
+    return os.getenv("GROQ_API_KEY", "").strip().strip('"') not in PLACEHOLDER_KEYS
+
+
+def any_llm_configured() -> bool:
+    """Gate for the offline-extraction fallbacks - True if there is ANY
+    usable text-generation key, Groq or Gemini.
+    """
+    return groq_key_present() or api_key_present()
+
+
+def _invoke_groq_json(system_prompt: str, user_prompt: str) -> str | None:
+    if not groq_key_present():
+        return None
+    for attempt in range(GROQ_REQUEST_ATTEMPTS):
+        try:
+            response = requests.post(
+                GROQ_CHAT_URL,
+                headers={"Authorization": f"Bearer {os.getenv('GROQ_API_KEY')}", "Content-Type": "application/json"},
+                json={
+                    "model": GROQ_CHAT_MODEL,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    "response_format": {"type": "json_object"},
+                    "temperature": 0.3,
+                },
+                timeout=60,
+            )
+            # 429 is Groq's per-minute rate limit, not a real failure - it
+            # clears within seconds, so it's worth the same retry as a
+            # network blip. Any other error status (bad request, auth,
+            # safety block) needs a code/account fix, not a retry.
+            if response.status_code == 429 and attempt < GROQ_REQUEST_ATTEMPTS - 1:
+                time.sleep(GROQ_RETRY_DELAY_SECONDS)
+                continue
+            response.raise_for_status()
+            return response.json()["choices"][0]["message"]["content"]
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+            # transient network blip (observed live: ConnectionRefusedError
+            # reaching api.groq.com that succeeded again seconds later) -
+            # worth retrying rather than immediately burning Gemini's much
+            # tighter quota as a fallback
+            if attempt < GROQ_REQUEST_ATTEMPTS - 1:
+                time.sleep(GROQ_RETRY_DELAY_SECONDS)
+                continue
+            return None
+        except Exception:
+            return None
+    return None
+
+
+def invoke_json(system_prompt: str, user_prompt: str) -> str:
+    """The one place every JSON-generation call in this module goes through:
+    Groq first, Gemini second. Raises only if neither is configured or both
+    fail - callers already wrap this the same way they wrapped the old
+    direct get_chat_model() calls.
+    """
+    groq_result = _invoke_groq_json(system_prompt, user_prompt)
+    if groq_result is not None:
+        return groq_result
+
+    if not api_key_present():
+        raise RuntimeError("Neither GROQ_API_KEY nor GOOGLE_API_KEY is configured.")
+
+    model = get_chat_model().bind(response_mime_type="application/json")
+    reply = model.invoke([("system", system_prompt), ("human", user_prompt)])
+    return reply.content
 
 
 # --- ingestion ---------------------------------------------------------------
@@ -367,8 +467,23 @@ def offline_tutorial(unit_id: int, chunks: list[str], learning_mode: str) -> dic
     }
 
 
+def grade_prefix(grade_level: str | None) -> str:
+    """A one-line instruction pinning the target education level, prepended to
+    every generation system prompt. Admin-set (see backend AppConfig) so the
+    whole platform can be retargeted (Nursery -> Grade 5, etc.) without code
+    changes. Empty when no level is configured, leaving prompts unchanged.
+    """
+    grade = (grade_level or "").strip()
+    if not grade:
+        return ""
+    return (
+        f"TARGET LEARNERS: {grade}-level students. Use vocabulary, sentence length, examples, "
+        f"and question difficulty appropriate for {grade}. Never exceed that level.\n\n"
+    )
+
+
 def generate_tutorial(
-    unit_id: int, student_diagnosis: str | None, learning_mode: str = "TEXT"
+    unit_id: int, student_diagnosis: str | None, learning_mode: str = "TEXT", grade_level: str | None = None
 ) -> dict:
     """Retrieve the relevant chunks and turn them into an adapted tutorial."""
     mode = (learning_mode or "TEXT").upper()
@@ -379,7 +494,7 @@ def generate_tutorial(
     chunks = retrieve(unit_id, query)
 
     # no key: fall back rather than fail. A dead demo helps nobody.
-    if not api_key_present():
+    if not any_llm_configured():
         return offline_tutorial(unit_id, chunks, mode)
 
     context = "\n\n---\n\n".join(chunks) if chunks else "(no textbook content found)"
@@ -390,10 +505,9 @@ def generate_tutorial(
         "Return only the JSON object, with no commentary."
     )
 
-    model = get_chat_model().bind(response_mime_type="application/json")
-    reply = model.invoke([("system", SYSTEM_PROMPT), ("human", user_prompt)])
+    raw = invoke_json(grade_prefix(grade_level) + SYSTEM_PROMPT, user_prompt)
 
-    result = _normalise(_coerce_json(reply.content))
+    result = _normalise(_coerce_json(raw))
     # useful for the teacher and for debugging retrieval quality
     result["source_chunks"] = len(chunks)
     result["learning_mode"] = mode
@@ -440,25 +554,41 @@ def _pollinations_token_present() -> bool:
     return os.getenv("POLLINATIONS_API_KEY", "").strip().strip('"') not in PLACEHOLDER_KEYS
 
 
+# Anonymous pollinations throttles hard when a whole curriculum's worth of
+# images is requested in a burst (observed live: 1 of 21 succeeded, the rest
+# came back non-200/timeout). It recovers within seconds, so a few backoff
+# retries turn "most lessons have no picture" into "every lesson does, a bit
+# slower". A POLLINATIONS_API_KEY raises the underlying limit; these retries
+# are the free-tier safety net either way.
+POLLINATIONS_ATTEMPTS = 5
+POLLINATIONS_BACKOFF_SECONDS = 3
+
+
 def _generate_via_pollinations(styled_prompt: str) -> tuple[bytes, str] | None:
     """Free fallback (pollinations.ai) - used whenever Gemini's image models
     are unavailable, so a picture still generates without requiring a paid
     Gemini tier. Works anonymously with no key; if POLLINATIONS_API_KEY is
     set, it's sent for pollinations' higher-priority/rate-limited tier.
     """
-    try:
-        url = (
-            f"https://image.pollinations.ai/prompt/{quote(styled_prompt, safe='')}"
-            "?width=768&height=768&nologo=true"
-        )
-        if _pollinations_token_present():
-            url += f"&token={quote(os.getenv('POLLINATIONS_API_KEY', ''))}"
-        response = requests.get(url, timeout=30)
-        content_type = response.headers.get("content-type", "")
-        if response.status_code == 200 and content_type.startswith("image/"):
-            return response.content, content_type.split(";")[0].strip()
-    except Exception:
-        pass
+    url = (
+        f"https://image.pollinations.ai/prompt/{quote(styled_prompt, safe='')}"
+        "?width=768&height=768&nologo=true"
+    )
+    if _pollinations_token_present():
+        url += f"&token={quote(os.getenv('POLLINATIONS_API_KEY', ''))}"
+
+    for attempt in range(POLLINATIONS_ATTEMPTS):
+        try:
+            response = requests.get(url, timeout=45)
+            content_type = response.headers.get("content-type", "")
+            if response.status_code == 200 and content_type.startswith("image/"):
+                return response.content, content_type.split(";")[0].strip()
+            # 429/5xx under burst load - back off and retry rather than
+            # giving this lesson no picture at all
+        except Exception:
+            pass  # timeout / connection blip - same treatment
+        if attempt < POLLINATIONS_ATTEMPTS - 1:
+            time.sleep(POLLINATIONS_BACKOFF_SECONDS * (attempt + 1))
     return None
 
 
@@ -496,3 +626,393 @@ def generate_visual_image(prompt: str, unit_id: int) -> str | None:
         return None
 
     return f"/static/images/{filename}"
+
+
+# --- full-document curriculum generation --------------------------------------
+#
+# generate_tutorial() above deliberately only sees the top-K similarity-matched
+# chunks (fine for "answer this student's specific gap"). A curriculum needs
+# the OPPOSITE: every chunk, in order, actually represented in the lesson
+# plan - the exact gap TODO.md Phase 2 exists to close.
+
+CURRICULUM_PLAN_PROMPT = (
+    "You are a curriculum designer. Below is a full textbook document, broken into "
+    "numbered chunks. Design a complete lesson plan that covers EVERY educationally "
+    "meaningful part of this document - do not skip sections, do not stop after the "
+    "introduction, and do not artificially limit yourself to a small fixed number of "
+    "lessons. The number of lessons must reflect how much distinct content is "
+    "actually in the document: a short document might need only 2-3 lessons, a long "
+    "one might need 15 or more.\n\n"
+    "Group the chunks into an ordered list of lessons. Each lesson must be a "
+    "self-contained, teachable concept and must reference the exact chunk range "
+    "(start and end chunk numbers, inclusive) it is grounded in. Chunk ranges must "
+    "not overlap, must stay in ascending order, and together should cover as much of "
+    "the document as is educationally meaningful (it is fine to skip a chunk that is "
+    "clearly a table of contents, references list, or similar non-content section).\n\n"
+    "Return JSON: {\"title\": <overall subject/topic title>, "
+    "\"lessons\": [{\"title\": <short lesson heading>, \"chunk_start\": <int>, "
+    "\"chunk_end\": <int>}]}. Return only the JSON object, no commentary."
+)
+
+LESSON_SYSTEM_PROMPT = (
+    "You are a special education tutor writing ONE lesson of a larger curriculum, "
+    "grounded only in the textbook excerpt provided - do not introduce facts that "
+    "are not in the excerpt.\n"
+    "Generate JSON with keys: explanation, example, needs_visual, visual_suggestion, "
+    "knowledge_check.\n"
+    "'explanation': 2-4 plain-language sentences teaching the concept.\n"
+    "'example': one concrete example grounded in the excerpt (empty string if none fits).\n"
+    "'needs_visual': boolean - true only when a picture would genuinely help understand "
+    "THIS specific lesson. Do not default to true for every lesson - most lessons about "
+    "abstract or purely verbal content do not need one.\n"
+    "'visual_suggestion': if needs_visual is true, describe one concrete, simple diagram "
+    "or illustration; empty string otherwise.\n"
+    "'knowledge_check': {\"question\", \"options\" (2-4 strings), \"correct\"} - a single "
+    "check-for-understanding question. Before finalizing, verify 'correct' is exactly one "
+    "of the 'options' values."
+)
+
+FINAL_ASSESSMENT_SYSTEM_PROMPT = (
+    "You write a final assessment for a completed learning curriculum, covering its "
+    "lessons. Write up to 10 multiple-choice questions - fewer if the curriculum is "
+    "short, never pad with repetitive questions testing the same fact. Each question "
+    "needs exactly 4 options and a 'correct' value that is exactly one of them, "
+    "grounded in a different lesson where possible so the assessment covers the whole "
+    "curriculum rather than one section repeatedly.\n"
+    "Return JSON: {\"questions\": [{\"question\", \"options\", \"correct\"}]}. Only the JSON."
+)
+
+
+def all_chunks(unit_id: int) -> list[dict]:
+    """Every chunk this unit's PDF was split into, in original document order,
+    each tagged with its position.
+
+    `retrieve()` intentionally only returns the top-k similarity matches for a
+    single student query - wrong input for a curriculum planner, which needs
+    to see the whole document to guarantee full coverage.
+    """
+    import pickle
+
+    store_file = index_path(unit_id) / "index.pkl"
+    if not store_file.exists():
+        return []
+    try:
+        docstore, _ = pickle.loads(store_file.read_bytes())
+        documents = list(getattr(docstore, "_dict", {}).values())
+    except Exception:
+        return []
+    ordered = sorted(documents, key=lambda d: d.metadata.get("chunk", 0))
+    return [
+        {"position": d.metadata.get("chunk", i), "text": d.page_content}
+        for i, d in enumerate(ordered)
+    ]
+
+
+def plan_curriculum(unit_id: int, grade_level: str | None = None) -> dict:
+    """One LLM call over the WHOLE document, producing an ordered lesson plan
+    whose lesson count is derived from actual content (TODO.md Phase 2 - never
+    a hardcoded number).
+    """
+    chunks = all_chunks(unit_id)
+    if not chunks:
+        raise ValueError("No content found for this unit")
+
+    if not any_llm_configured():
+        # Offline fallback: one lesson per chunk, so the document is still
+        # fully represented even without a model to plan groupings.
+        return {
+            "title": "Curriculum",
+            "lessons": [
+                {"title": f"Part {c['position'] + 1}", "chunk_start": c["position"], "chunk_end": c["position"]}
+                for c in chunks
+            ],
+            "total_chunks": len(chunks),
+        }
+
+    numbered = "\n\n".join(f"[chunk {c['position']}] {c['text']}" for c in chunks)
+    plan = _coerce_json(invoke_json(grade_prefix(grade_level) + CURRICULUM_PLAN_PROMPT, numbered))
+
+    lessons = []
+    for item in plan.get("lessons") or []:
+        try:
+            start = int(item["chunk_start"])
+            end = int(item["chunk_end"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        lessons.append({"title": str(item.get("title", "")) or f"Chunks {start}-{end}", "chunk_start": start, "chunk_end": end})
+
+    if not lessons:
+        # The model returned nothing usable - fall back to one lesson per
+        # chunk rather than silently producing an empty curriculum.
+        lessons = [
+            {"title": f"Part {c['position'] + 1}", "chunk_start": c["position"], "chunk_end": c["position"]}
+            for c in chunks
+        ]
+    else:
+        lessons = _fill_coverage_gaps(lessons, chunks)
+
+    return {"title": str(plan.get("title") or "Curriculum"), "lessons": lessons, "total_chunks": len(chunks)}
+
+
+# How many consecutive uncovered chunks to bundle into one "gap" lesson - keeps
+# a big missed tail from exploding into dozens of tiny one-chunk lessons.
+COVERAGE_GAP_LESSON_SIZE = 4
+
+
+def _fill_coverage_gaps(lessons: list[dict], chunks: list[dict]) -> list[dict]:
+    """Guarantee the WHOLE document is represented (TODO.md Phase 2 / user
+    ask: "cover all, not a portion of the PDF").
+
+    The planner LLM sometimes stops early - e.g. it plans lessons for chunks
+    0-12 of a 40-chunk document and silently drops the rest, or leaves an
+    interior gap. This scans for chunk positions no lesson covers and appends
+    grouped "continued" lessons for them. Pure bookkeeping over chunk ranges,
+    no extra LLM call here (each appended lesson's text is still generated
+    later, grounded in its own chunks, exactly like a planned one).
+    """
+    positions = sorted(c["position"] for c in chunks)
+    covered: set[int] = set()
+    for lesson in lessons:
+        for p in range(lesson["chunk_start"], lesson["chunk_end"] + 1):
+            covered.add(p)
+
+    missing = [p for p in positions if p not in covered]
+    if not missing:
+        return lessons
+
+    # Group consecutive missing positions into a few lessons rather than one
+    # per chunk.
+    extra: list[dict] = []
+    run_start = missing[0]
+    prev = missing[0]
+    part = len(lessons) + 1
+
+    def flush(start: int, end: int, part_no: int) -> None:
+        # Split a long run into COVERAGE_GAP_LESSON_SIZE-chunk lessons.
+        s = start
+        n = part_no
+        while s <= end:
+            e = min(s + COVERAGE_GAP_LESSON_SIZE - 1, end)
+            extra.append({"title": f"Part {n} (continued)", "chunk_start": s, "chunk_end": e})
+            s = e + 1
+            n += 1
+
+    for p in missing[1:]:
+        if p == prev + 1:
+            prev = p
+            continue
+        flush(run_start, prev, part)
+        part += 1
+        run_start = p
+        prev = p
+    flush(run_start, prev, part)
+
+    # Keep the reading order sensible: sort all lessons by where they start.
+    return sorted(lessons + extra, key=lambda l: l["chunk_start"])
+
+
+def generate_lesson_content(
+    unit_id: int, lesson_title: str, chunk_start: int, chunk_end: int, grade_level: str | None = None
+) -> dict:
+    """Content for ONE lesson, grounded only in its own chunk range - keeps
+    each generation call small and traceable instead of re-processing the
+    whole document per lesson.
+    """
+    chunks = all_chunks(unit_id)
+    scoped = [c["text"] for c in chunks if chunk_start <= c["position"] <= chunk_end]
+    context = "\n\n".join(scoped) or "(no content found for this range)"
+
+    if not any_llm_configured():
+        sentences = [s for s in re.split(r"(?<=[.!?])\s+", context.strip()) if s]
+        return {
+            "explanation": " ".join(sentences[:3]) or context[:300],
+            "example": sentences[3] if len(sentences) > 3 else "",
+            "needs_visual": False,
+            "visual_suggestion": "",
+            "knowledge_check": None,
+        }
+
+    user_prompt = f"Lesson title: {lesson_title}\n\nTextbook excerpt:\n{context}\n\nReturn only the JSON object."
+    data = _coerce_json(invoke_json(grade_prefix(grade_level) + LESSON_SYSTEM_PROMPT, user_prompt))
+
+    knowledge_check = None
+    kc = data.get("knowledge_check")
+    if isinstance(kc, dict):
+        options = [str(o) for o in (kc.get("options") or [])]
+        correct = str(kc.get("correct", options[0] if options else ""))
+        if options and correct in options:
+            knowledge_check = {"question": str(kc.get("question", "")), "options": options, "correct": correct}
+
+    return {
+        "explanation": str(data.get("explanation", "")),
+        "example": str(data.get("example", "")),
+        "needs_visual": bool(data.get("needs_visual")),
+        "visual_suggestion": str(data.get("visual_suggestion", "")),
+        "knowledge_check": knowledge_check,
+    }
+
+
+def generate_final_assessment(lesson_titles: list[str], grade_level: str | None = None) -> list[dict]:
+    """Up to 10 MCQs covering the whole curriculum. Returns [] rather than
+    raising when there's no API key - a curriculum without a final assessment
+    still has real value; the frontend just won't show that step.
+    """
+    if not any_llm_configured() or not lesson_titles:
+        return []
+
+    context = "\n".join(f"- {title}" for title in lesson_titles)
+    data = _coerce_json(
+        invoke_json(
+            grade_prefix(grade_level) + FINAL_ASSESSMENT_SYSTEM_PROMPT,
+            f"Curriculum lessons:\n{context}\n\nReturn only the JSON object.",
+        )
+    )
+
+    questions = []
+    for item in (data.get("questions") or [])[:10]:
+        options = [str(o) for o in (item.get("options") or [])]
+        correct = str(item.get("correct", options[0] if options else ""))
+        if options and correct in options:
+            questions.append({"question": str(item.get("question", "")), "options": options, "correct": correct})
+    return questions
+
+
+# --- text-to-speech -----------------------------------------------------------
+#
+# Verified live during implementation (Docker exec against the real API):
+# gemini-2.5-flash-preview-tts + the "Achernar" prebuilt voice both work and
+# return real audio. The originally-requested model name
+# ("gemini-3.1-flash-tts-preview") is not a real model as of this session's
+# knowledge - this is the confirmed-working substitute, not an assumption.
+# The API returns raw PCM (audio/L16, 24kHz, mono, 16-bit) rather than a
+# browser-playable container, so _wrap_pcm_as_wav() adds a WAV header before
+# saving.
+#
+# Groq also offers TTS (canopylabs/orpheus-v1-english, verified live via curl
+# with a real key) and is tried FIRST - it already returns a proper WAV, no
+# post-processing needed. As of this session, that model returns
+# `model_terms_required` until the org admin accepts its terms in the Groq
+# console (https://console.groq.com/playground?model=canopylabs%2Forpheus-v1-english)
+# - this is not a code bug, and the function degrades to Gemini automatically
+# in the meantime.
+
+GEMINI_TTS_MODEL = "gemini-2.5-flash-preview-tts"
+DEFAULT_TTS_VOICE = "Achernar"
+TTS_SAMPLE_RATE = 24000
+
+GROQ_TTS_MODEL = "canopylabs/orpheus-v1-english"
+GROQ_TTS_VOICE = "troy"
+GROQ_TTS_URL = "https://api.groq.com/openai/v1/audio/speech"
+
+
+def _wrap_pcm_as_wav(pcm_data: bytes, sample_rate: int = TTS_SAMPLE_RATE, channels: int = 1, bits_per_sample: int = 16) -> bytes:
+    byte_rate = sample_rate * channels * bits_per_sample // 8
+    block_align = channels * bits_per_sample // 8
+    header = struct.pack(
+        "<4sI4s4sIHHIIHH4sI",
+        b"RIFF", 36 + len(pcm_data), b"WAVE",
+        b"fmt ", 16, 1, channels, sample_rate, byte_rate, block_align, bits_per_sample,
+        b"data", len(pcm_data),
+    )
+    return header + pcm_data
+
+
+def _generate_speech_via_groq(text: str) -> bytes | None:
+    if not groq_key_present():
+        return None
+    for attempt in range(GROQ_REQUEST_ATTEMPTS):
+        try:
+            response = requests.post(
+                GROQ_TTS_URL,
+                headers={"Authorization": f"Bearer {os.getenv('GROQ_API_KEY')}"},
+                json={"model": GROQ_TTS_MODEL, "input": text, "voice": GROQ_TTS_VOICE, "response_format": "wav"},
+                timeout=30,
+            )
+            if response.status_code == 200 and response.headers.get("content-type", "").startswith("audio/"):
+                return response.content
+            # A real API error (e.g. the model_terms_required block noted
+            # above) - retrying won't change the response, fall through now.
+            return None
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+            if attempt < GROQ_REQUEST_ATTEMPTS - 1:
+                time.sleep(GROQ_RETRY_DELAY_SECONDS)
+                continue
+            return None
+        except Exception:
+            return None
+    return None
+
+
+def _generate_speech_via_gemini(text: str, voice: str) -> bytes | None:
+    if not api_key_present():
+        return None
+    try:
+        client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
+        response = client.models.generate_content(
+            model=GEMINI_TTS_MODEL,
+            contents=[text],
+            config=genai_types.GenerateContentConfig(
+                response_modalities=["AUDIO"],
+                speech_config=genai_types.SpeechConfig(
+                    voice_config=genai_types.VoiceConfig(
+                        prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(voice_name=voice)
+                    )
+                ),
+            ),
+        )
+    except Exception:
+        return None
+
+    for candidate in response.candidates or []:
+        for part in candidate.content.parts or []:
+            inline_data = getattr(part, "inline_data", None)
+            if inline_data is not None and inline_data.data:
+                return _wrap_pcm_as_wav(inline_data.data)
+    return None
+
+
+def generate_speech(text: str, voice: str = DEFAULT_TTS_VOICE, allow_gemini_fallback: bool = True) -> str | None:
+    """Groq TTS first (already returns a playable WAV), Gemini TTS second.
+    Content-hash cached (PLAN §20: never regenerate the same text+voice
+    pair) - unlike generate_visual_image's hash, this one does NOT mix in
+    time.time(), because identical narration for the same lesson should
+    always resolve to the same cached file rather than a fresh clip.
+
+    `allow_gemini_fallback=False` is for BULK pre-generation on the worker
+    (every lesson of a curriculum at once): Gemini's free TTS quota is tiny
+    (~a handful/day, observed: 5 of 21 lessons before it ran out), so bulk
+    use should only touch the free Groq path and leave the rest to the
+    player's browser-speech fallback rather than burning that scarce quota
+    and starving the on-demand "Listen" button. On-demand single clips keep
+    the default (Gemini fine for the one lesson a student actually asked to
+    hear). Groq TTS is free and high-limit once its terms are accepted, at
+    which point bulk pre-gen covers every lesson.
+
+    Never raises - a missing key, quota, terms-not-accepted, or an
+    unsupported voice all just mean "no audio today"; the caller (frontend)
+    falls back to the browser's own speechSynthesis, same contract as the
+    rest of this app's AI features.
+    """
+    text = (text or "").strip()
+    if not text:
+        return None
+
+    digest = hashlib.sha1(f"{text}:{voice}".encode()).hexdigest()[:16]
+    filename = f"speech_{digest}.wav"
+    AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+    target = AUDIO_DIR / filename
+    if target.exists():
+        return f"/static/audio/{filename}"
+
+    audio_bytes = _generate_speech_via_groq(text)
+    if not audio_bytes and allow_gemini_fallback:
+        audio_bytes = _generate_speech_via_gemini(text, voice)
+    if not audio_bytes:
+        return None
+
+    try:
+        target.write_bytes(audio_bytes)
+    except OSError:
+        return None
+
+    return f"/static/audio/{filename}"

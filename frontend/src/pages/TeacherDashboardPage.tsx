@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { motion } from "framer-motion";
+import { Link } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
   Users,
   BookOpen,
   ClipboardCheck,
   Settings,
+  BarChart3,
   Clock,
   Check,
   X,
@@ -14,6 +16,12 @@ import {
   FileText,
   Loader2,
   AlertCircle,
+  Bell,
+  Video,
+  Sparkles,
+  Eye,
+  RefreshCw,
+  Image as ImageIcon,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import DashboardShell, { NavItem } from "../components/DashboardShell";
@@ -105,7 +113,7 @@ export const TeacherDashboardPage: React.FC = () => {
   const [classroom, setClassroom] = useState<Classroom | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<
-    "overview" | "content" | "requests" | "roster" | "criteria"
+    "overview" | "content" | "requests" | "roster" | "criteria" | "youtube"
   >("overview");
 
   const [newClassroom, setNewClassroom] = useState({
@@ -167,6 +175,18 @@ export const TeacherDashboardPage: React.FC = () => {
       path: "",
       active: activeTab === "criteria",
       onClick: () => setActiveTab("criteria"),
+    },
+    {
+      icon: Video,
+      label: "YouTube Quiz",
+      path: "",
+      active: activeTab === "youtube",
+      onClick: () => setActiveTab("youtube"),
+    },
+    {
+      icon: BarChart3,
+      label: "Insights",
+      path: "/teacher/insights",
     },
   ];
 
@@ -262,6 +282,7 @@ export const TeacherDashboardPage: React.FC = () => {
               {classroom.description || "No description provided."}
             </p>
           </div>
+          <NotificationBell />
         </div>
 
         <TeacherTabButtons
@@ -281,6 +302,7 @@ export const TeacherDashboardPage: React.FC = () => {
         {activeTab === "criteria" && (
           <CriteriaTab classroom={classroom} onChanged={load} />
         )}
+        {activeTab === "youtube" && <YoutubeQuizTab />}
       </motion.div>
     </DashboardShell>
   );
@@ -298,6 +320,7 @@ const TeacherTabButtons: React.FC<{
       ["requests", `Requests${pendingCount ? ` (${pendingCount})` : ""}`],
       ["roster", "Roster"],
       ["criteria", "Criteria"],
+      ["youtube", "YouTube Quiz"],
     ].map(([id, label]) => (
       <button
         key={id}
@@ -342,6 +365,96 @@ const OverviewTab: React.FC<{ classroom: Classroom }> = ({ classroom }) => (
   </div>
 );
 
+interface NotificationItem {
+  id: string;
+  type: "GENERATION_COMPLETE" | "GENERATION_FAILED";
+  title: string;
+  body: string;
+  read: boolean;
+  createdAt: string;
+}
+
+/**
+ * In-app notifications - written automatically when a background
+ * curriculum-generation job finishes or fails. Polled rather than pushed
+ * since there's no websocket/SSE infra in this app.
+ */
+const NotificationBell: React.FC = () => {
+  const [open, setOpen] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const load = useCallback(async () => {
+    try {
+      const { data } = await api.get("/notifications");
+      setNotifications(data.notifications);
+      setUnreadCount(data.unreadCount);
+    } catch {
+      /* silent - the bell just won't update this tick */
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 15000);
+    return () => clearInterval(interval);
+  }, [load]);
+
+  const markRead = async (id: string) => {
+    await api.patch(`/notifications/${id}/read`).catch(() => {});
+    load();
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="relative w-11 h-11 rounded-2xl border border-slate-200 bg-white flex items-center justify-center hover:border-emerald-500 transition-colors shadow-xs"
+        aria-label="Notifications"
+      >
+        <Bell className="w-5 h-5 text-slate-600" />
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 bg-emerald-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
+        )}
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto bg-white rounded-2xl border border-slate-200/80 shadow-md z-40"
+          >
+            {notifications.length === 0 ? (
+              <p className="text-sm text-slate-500 p-4">No notifications yet.</p>
+            ) : (
+              notifications.map((n) => (
+                <button
+                  key={n.id}
+                  onClick={() => markRead(n.id)}
+                  className={`w-full text-left px-4 py-3 border-b border-slate-100 hover:bg-[#FAF9F5] ${!n.read ? "bg-emerald-50/50" : ""}`}
+                >
+                  <p
+                    className={`text-sm font-bold ${n.type === "GENERATION_FAILED" ? "text-rose-700" : "text-emerald-700"}`}
+                  >
+                    {n.title}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                    {n.body}
+                  </p>
+                </button>
+              ))
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 const RAG_SERVICE_URL =
   import.meta.env.VITE_RAG_SERVICE_URL || "http://localhost:8100";
 
@@ -377,7 +490,7 @@ const UnitPreviewBadge: React.FC<{ unitId: string; ready: boolean }> = ({
   if (preview.status === "PROCESSING") {
     return (
       <span className="flex items-center gap-1 text-xs text-gray-500">
-        <Loader2 className="w-3 h-3 animate-spin" /> preparing visuals&hellip;
+        <Loader2 className="w-3 h-3 animate-spin" /> on queue - preparing preview&hellip;
       </span>
     );
   }
@@ -391,6 +504,192 @@ const UnitPreviewBadge: React.FC<{ unitId: string; ready: boolean }> = ({
     );
   }
   return null;
+};
+
+const GENERATION_STAGE_LABELS: Record<string, string> = {
+  QUEUED: "Queued for generation…",
+  EXTRACTING: "Reading the document…",
+  PLANNING: "Organizing topics into lessons…",
+  GENERATING_TEXT: "Writing lessons…",
+  GENERATING_VISUALS: "Creating pictures…",
+  GENERATING_AUDIO: "Recording narration…",
+  GENERATING_QUESTIONS: "Preparing questions…",
+  FINALIZING: "Finishing up…",
+};
+
+interface GenerationJob {
+  stage: string;
+  progressPercent: number;
+  errorMessage: string | null;
+}
+
+/**
+ * Real progress for the full-curriculum background job - distinct from
+ * UnitPreviewBadge above, which tracks the lighter, older per-unit preview.
+ * Polls only while a job is actually in flight; stops itself once COMPLETED
+ * (the READY status badge already covers that) or FAILED (shown here with
+ * the real error message).
+ */
+const GenerationProgressBadge: React.FC<{ unitId: string; ready: boolean }> = ({
+  unitId,
+  ready,
+}) => {
+  const [job, setJob] = useState<GenerationJob | null>(null);
+  const [checked, setChecked] = useState(false);
+  const [triggering, setTriggering] = useState(false);
+  const [visualsMessage, setVisualsMessage] = useState("");
+  const [pollKey, setPollKey] = useState(0);
+
+  useEffect(() => {
+    if (!ready) return;
+    let cancelled = false;
+    let interval: ReturnType<typeof setInterval> | null = null;
+
+    const poll = async () => {
+      try {
+        const { data } = await api.get(`/units/${unitId}/generation-job`);
+        if (cancelled) return;
+        setJob(data.job);
+        setChecked(true);
+        if (
+          !data.job ||
+          data.job.stage === "COMPLETED" ||
+          data.job.stage === "FAILED"
+        ) {
+          if (interval) clearInterval(interval);
+        }
+      } catch {
+        /* silent - badge just won't update this tick */
+      }
+    };
+
+    poll();
+    interval = setInterval(poll, 4000);
+    return () => {
+      cancelled = true;
+      if (interval) clearInterval(interval);
+    };
+    // pollKey deliberately unused in the body - bumping it just restarts this
+    // effect (and therefore the interval) after a manual trigger/retry, since
+    // the previous run may have already stopped polling on COMPLETED/FAILED.
+  }, [unitId, ready, pollKey]);
+
+  const triggerGeneration = async () => {
+    setTriggering(true);
+    try {
+      await api.post(`/units/${unitId}/generate-curriculum`);
+      setJob({ stage: "QUEUED", progressPercent: 0, errorMessage: null });
+      setPollKey((k) => k + 1);
+    } catch {
+      /* the next poll will reflect whatever actually happened */
+    } finally {
+      setTriggering(false);
+    }
+  };
+
+  const regenerateVisuals = async () => {
+    setVisualsMessage("Queuing new pictures…");
+    try {
+      const { data } = await api.post(`/units/${unitId}/regenerate-visuals`);
+      setVisualsMessage(
+        `Regenerating pictures for ${data.lessonCount} lesson${data.lessonCount === 1 ? "" : "s"}…`,
+      );
+    } catch (err: any) {
+      setVisualsMessage(
+        err.response?.data?.error || "Could not start regeneration",
+      );
+    } finally {
+      setTimeout(() => setVisualsMessage(""), 8000);
+    }
+  };
+
+  if (!ready || !checked) return null;
+
+  if (!job) {
+    // Indexed before this pipeline existed (or a job was never queued) -
+    // the source PDF is already indexed, so this can generate from it
+    // directly without re-uploading.
+    return (
+      <button
+        onClick={triggerGeneration}
+        disabled={triggering}
+        className="text-xs font-bold text-emerald-700 hover:text-emerald-900 flex items-center gap-1 disabled:opacity-60"
+      >
+        {triggering ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        ) : (
+          <Sparkles className="w-3.5 h-3.5" />
+        )}
+        Generate full lesson plan
+      </button>
+    );
+  }
+
+  if (job.stage === "COMPLETED") {
+    return (
+      <div className="flex items-center gap-4 flex-wrap">
+        <Link
+          to={`/classroom/units/${unitId}/tutorial`}
+          className="text-xs font-bold text-emerald-700 hover:text-emerald-900 flex items-center gap-1"
+        >
+          <Eye className="w-3.5 h-3.5" /> Preview lessons
+        </Link>
+        <button
+          onClick={triggerGeneration}
+          disabled={triggering}
+          title="Regenerate the entire lesson plan from scratch"
+          className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1 disabled:opacity-60"
+        >
+          <RefreshCw
+            className={`w-3.5 h-3.5 ${triggering ? "animate-spin" : ""}`}
+          />{" "}
+          Regenerate all
+        </button>
+        <button
+          onClick={regenerateVisuals}
+          disabled={!!visualsMessage}
+          title="Regenerate just the pictures - fast, doesn't use the text-generation quota"
+          className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1 disabled:opacity-60"
+        >
+          <ImageIcon className="w-3.5 h-3.5" /> Regenerate visuals
+        </button>
+        {visualsMessage && (
+          <span className="text-xs text-slate-500">{visualsMessage}</span>
+        )}
+      </div>
+    );
+  }
+
+  if (job.stage === "FAILED") {
+    return (
+      <div className="flex items-center gap-3">
+        <span className="text-xs font-medium text-rose-700">
+          Generation failed: {job.errorMessage}
+        </span>
+        <button
+          onClick={triggerGeneration}
+          disabled={triggering}
+          className="text-xs font-bold text-emerald-700 hover:text-emerald-900 disabled:opacity-60"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 text-xs font-medium text-slate-500 w-full sm:w-56">
+      <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden min-w-[4rem]">
+        <div
+          className="h-full bg-emerald-500 transition-all duration-500"
+          style={{ width: `${Math.max(job.progressPercent, 4)}%` }}
+        />
+      </div>
+      <span className="whitespace-nowrap">
+        {GENERATION_STAGE_LABELS[job.stage] || job.stage}
+      </span>
+    </div>
+  );
 };
 
 const ContentTab: React.FC<{
@@ -510,50 +809,56 @@ const ContentTab: React.FC<{
             {subject.units.map((unit) => (
               <div
                 key={unit.id}
-                className="bg-[#FAF9F5] border border-slate-200/70 rounded-2xl p-4 flex items-center justify-between gap-4 flex-wrap"
+                className="bg-[#FAF9F5] border border-slate-200/70 rounded-2xl p-4 flex flex-col gap-2"
               >
-                <div className="flex items-center gap-3">
-                  <FileText className="w-4 h-4 text-slate-400" />
-                  <span className="font-bold text-slate-800 text-sm">
-                    {unit.title}
-                  </span>
-                  {statusBadge(unit.indexStatus)}
-                  <span className="text-xs text-gray-500">
-                    {unit._count?.documents || 0} document(s)
-                  </span>
-                  <UnitPreviewBadge
-                    unitId={unit.id}
-                    ready={unit.indexStatus === "READY"}
-                  />
-                </div>
-                {uploadingUnit === unit.id ? (
-                  <div className="flex items-center gap-2 text-xs font-bold px-3 py-2 rounded-xl border border-slate-200 bg-white">
-                    <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />{" "}
-                    Processing…
-                    <button
-                      type="button"
-                      onClick={() => cancelUpload(unit.id)}
-                      className="text-rose-600 hover:underline font-bold ml-1"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <label className="cursor-pointer text-xs font-bold px-4 py-2 rounded-xl border border-slate-200 bg-white hover:border-emerald-500 text-slate-700 flex items-center gap-2 transition-all">
-                    <Upload className="w-4 h-4 text-emerald-600" />
-                    Upload PDF
-                    <input
-                      type="file"
-                      accept="application/pdf"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) uploadDocument(unit.id, file);
-                        e.target.value = "";
-                      }}
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-3">
+                    <FileText className="w-4 h-4 text-slate-400" />
+                    <span className="font-bold text-slate-800 text-sm">
+                      {unit.title}
+                    </span>
+                    {statusBadge(unit.indexStatus)}
+                    <span className="text-xs text-gray-500">
+                      {unit._count?.documents || 0} document(s)
+                    </span>
+                    <UnitPreviewBadge
+                      unitId={unit.id}
+                      ready={unit.indexStatus === "READY"}
                     />
-                  </label>
-                )}
+                  </div>
+                  {uploadingUnit === unit.id ? (
+                    <div className="flex items-center gap-2 text-xs font-bold px-3 py-2 rounded-xl border border-slate-200 bg-white">
+                      <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />{" "}
+                      Processing…
+                      <button
+                        type="button"
+                        onClick={() => cancelUpload(unit.id)}
+                        className="text-rose-600 hover:underline font-bold ml-1"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="cursor-pointer text-xs font-bold px-4 py-2 rounded-xl border border-slate-200 bg-white hover:border-emerald-500 text-slate-700 flex items-center gap-2 transition-all">
+                      <Upload className="w-4 h-4 text-emerald-600" />
+                      Upload PDF
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) uploadDocument(unit.id, file);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+                <GenerationProgressBadge
+                  unitId={unit.id}
+                  ready={unit.indexStatus === "READY"}
+                />
               </div>
             ))}
           </div>
@@ -586,6 +891,183 @@ const ContentTab: React.FC<{
           PDFs!
         </p>
       )}
+    </div>
+  );
+};
+
+interface YoutubeQuizQuestion {
+  id: string;
+  order: number;
+  question: string;
+  options: string[];
+  correct: string;
+}
+interface YoutubeQuiz {
+  id: string;
+  sourceUrl: string;
+  status:
+    | "QUEUED"
+    | "FETCHING_TRANSCRIPT"
+    | "GENERATING_QUESTIONS"
+    | "READY"
+    | "FAILED";
+  errorMessage: string | null;
+  title: string | null;
+  questions: YoutubeQuizQuestion[];
+  createdAt: string;
+}
+
+const YOUTUBE_QUIZ_STATUS_LABEL: Record<YoutubeQuiz["status"], string> = {
+  QUEUED: "Queued",
+  FETCHING_TRANSCRIPT: "Fetching transcript…",
+  GENERATING_QUESTIONS: "Generating questions…",
+  READY: "Ready",
+  FAILED: "Failed",
+};
+
+/**
+ * Paste a YouTube URL -> background job fetches the transcript and
+ * generates a quiz from it. Polls rather than blocking, same pattern as
+ * generation-job status elsewhere.
+ */
+const YoutubeQuizTab: React.FC = () => {
+  const [url, setUrl] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [quizzes, setQuizzes] = useState<YoutubeQuiz[]>([]);
+
+  const load = useCallback(async () => {
+    const { data } = await api.get("/youtube-quiz");
+    setQuizzes(data.quizzes);
+  }, []);
+
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 8000);
+    return () => clearInterval(interval);
+  }, [load]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!url.trim()) return;
+    setError("");
+    setSubmitting(true);
+    try {
+      await api.post("/youtube-quiz", { url: url.trim() });
+      setUrl("");
+      await load();
+    } catch (err: any) {
+      setError(err.response?.data?.error || "Could not start quiz generation");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {error && (
+        <div className="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-2xl text-sm font-medium flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" /> {error}
+        </div>
+      )}
+
+      <form
+        onSubmit={submit}
+        className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row gap-3 sm:items-end"
+      >
+        <div className="flex-1">
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            YouTube Video URL
+          </label>
+          <input
+            type="text"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://www.youtube.com/watch?v=..."
+            className="w-full bg-[#FAF9F5] border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-800 focus:outline-none focus:border-emerald-500 text-sm"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={submitting}
+          className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-5 py-2.5 rounded-2xl shadow-sm border-b-2 border-emerald-700 active:translate-y-0.5 transition-all text-xs flex items-center gap-1.5 disabled:opacity-60"
+        >
+          <Sparkles className="w-4 h-4" />{" "}
+          {submitting ? "Generating…" : "Generate Quiz"}
+        </button>
+      </form>
+
+      <div className="space-y-3">
+        {quizzes.map((quiz) => (
+          <div
+            key={quiz.id}
+            className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs"
+          >
+            <div className="flex items-center justify-between gap-4 flex-wrap mb-2">
+              <div className="flex items-center gap-3">
+                <Video className="w-4 h-4 text-rose-500" />
+                <span className="font-bold text-slate-800 text-sm">
+                  {quiz.title || quiz.sourceUrl}
+                </span>
+              </div>
+              <span
+                className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 ${
+                  quiz.status === "READY"
+                    ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                    : quiz.status === "FAILED"
+                      ? "bg-rose-50 text-rose-800 border-rose-200"
+                      : "bg-amber-50 text-amber-800 border-amber-200"
+                }`}
+              >
+                {(quiz.status === "QUEUED" ||
+                  quiz.status === "FETCHING_TRANSCRIPT" ||
+                  quiz.status === "GENERATING_QUESTIONS") && (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                )}
+                {YOUTUBE_QUIZ_STATUS_LABEL[quiz.status]}
+              </span>
+            </div>
+
+            {quiz.status === "FAILED" && quiz.errorMessage && (
+              <p className="text-xs text-rose-700 mt-2">{quiz.errorMessage}</p>
+            )}
+
+            {quiz.status === "READY" && (
+              <div className="space-y-3 mt-3">
+                {quiz.questions.map((q, i) => (
+                  <div
+                    key={q.id}
+                    className="bg-[#FAF9F5] rounded-2xl p-4 text-sm"
+                  >
+                    <p className="font-bold text-slate-800 mb-2">
+                      {i + 1}. {q.question}
+                    </p>
+                    <ul className="text-slate-600 space-y-1">
+                      {q.options.map((opt) => (
+                        <li
+                          key={opt}
+                          className={
+                            opt === q.correct ? "text-emerald-700 font-bold" : ""
+                          }
+                        >
+                          {opt === q.correct ? "✓ " : "• "}
+                          {opt}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+
+        {quizzes.length === 0 && (
+          <p className="text-center text-slate-400 text-xs py-8">
+            No YouTube quizzes yet — paste a URL above to generate one.
+          </p>
+        )}
+      </div>
     </div>
   );
 };

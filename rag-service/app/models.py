@@ -23,6 +23,10 @@ class TutorialRequest(BaseModel):
         default="TEXT",
         description="Shapes the output: AUDIO puts the teaching in the narration, VISUAL leads with the diagram.",
     )
+    grade_level: str | None = Field(
+        default=None,
+        description="Admin-set target education level (e.g. 'Nursery', 'Grade 3') - steers vocabulary and examples.",
+    )
 
 
 class QuizItem(BaseModel):
@@ -64,6 +68,38 @@ class ImageUploadResponse(BaseModel):
 class GenerateVisualRequest(BaseModel):
     unit_id: int = Field(..., ge=1, description="Used only to namespace the generated filename")
     prompt: str = Field(..., min_length=1, description="Description of the picture to generate")
+
+
+class GenerateCurriculumRequest(BaseModel):
+    job_id: str = Field(..., min_length=1, description="The TutorialGenerationJob id to report progress against")
+    unit_id: int = Field(..., ge=1, description="Which unit's indexed document to build a curriculum from")
+    grade_level: str | None = Field(
+        default=None,
+        description="Admin-set target education level (e.g. 'Nursery', 'Grade 3') - steers vocabulary and examples.",
+    )
+
+
+class GenerateYoutubeQuizRequest(BaseModel):
+    quiz_id: str = Field(..., min_length=1, description="The YoutubeQuiz id to report progress against")
+    video_id: str = Field(..., min_length=1, description="The extracted YouTube video id")
+
+
+class ExtractYoutubeIdRequest(BaseModel):
+    url: str = Field(..., min_length=1, description="A youtube.com/watch, youtube.com/shorts, or youtu.be URL")
+
+
+class ExtractYoutubeIdResponse(BaseModel):
+    video_id: str
+
+
+class GenerateSpeechRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=5000, description="Text to synthesize into speech")
+    voice: str = Field(default="Achernar", description="A Gemini TTS prebuilt voice name")
+
+
+class GenerateSpeechResponse(BaseModel):
+    status: str
+    audio_url: str
 
 
 class HealthResponse(BaseModel):

@@ -15,9 +15,11 @@ import DashboardPage from './pages/DashboardPage';
 import AdminPage from './pages/AdminPage';
 import ArGamePage from './pages/ArGamePage';
 import TeacherDashboardPage from './pages/TeacherDashboardPage';
+import TeacherInsightsPage from './pages/TeacherInsightsPage';
 import RecommendationPage from './pages/RecommendationPage';
 import MyClassroomPage from './pages/MyClassroomPage';
-import TutorialPage from './pages/TutorialPage';
+import TutorialRouter from './pages/TutorialRouter';
+import RawDocViewerPage from './pages/RawDocViewerPage';
 import ProgressPage from './pages/ProgressPage';
 import LoadingSpinner from './components/ui/LoadingSpinner';
 
@@ -85,11 +87,15 @@ const App: React.FC = () => {
 
           {/* Teacher */}
           <Route path="/teacher" element={<ProtectedRoute allowRoles={['TEACHER']}><TeacherDashboardPage /></ProtectedRoute>} />
+          <Route path="/teacher/insights" element={<ProtectedRoute allowRoles={['TEACHER']}><TeacherInsightsPage /></ProtectedRoute>} />
 
-          {/* Student: classroom system */}
+          {/* Student: classroom system. requirePaidStudent gates students on
+              the free-trial/subscription flow; teachers (allowed on the
+              tutorial/document routes for preview) bypass that check. */}
           <Route path="/recommendation" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><RecommendationPage /></ProtectedRoute>} />
           <Route path="/classroom" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><MyClassroomPage /></ProtectedRoute>} />
-          <Route path="/classroom/units/:unitId/tutorial" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><TutorialPage /></ProtectedRoute>} />
+          <Route path="/classroom/units/:unitId/tutorial" element={<ProtectedRoute allowRoles={['STUDENT', 'TEACHER']} requirePaidStudent><TutorialRouter /></ProtectedRoute>} />
+          <Route path="/classroom/units/:unitId/document" element={<ProtectedRoute allowRoles={['STUDENT', 'TEACHER']} requirePaidStudent><RawDocViewerPage /></ProtectedRoute>} />
           <Route path="/progress" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><ProgressPage /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -1,0 +1,6 @@
+# Selenium's own driver manager (Selenium Manager, built in since 4.6) auto-
+# downloads a chromedriver matching the locally installed Chrome - no
+# separate webdriver-manager package needed.
+selenium>=4.20,<5.0
+pytest>=8.0,<10.0
+requests>=2.31,<3.0
