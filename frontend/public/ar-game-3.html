@@ -149,7 +149,7 @@
     <div class="gl sbox"><div class="slbl">Question</div><div class="sval" id="qn">1 <span class="ssub">/ 10</span></div></div>
   </div>
 
-  <div id="hint">🎯 Tap/click asteroid to shoot — or hold finger/hand over it 2.5s to fire!</div>
+  <div id="hint">🎯 Tap/click asteroid to shoot — or hold finger/hand over it 1.5s to fire!</div>
 
   <div id="qwrap">
     <div id="qcard" class="gl">
@@ -194,7 +194,8 @@ const QS=[
   {q:'Earth–Moon distance?',opts:['184,000 km','284,000 km','384,000 km','484,000 km'],ans:'384,000 km'},
 ];
 const COLORS=['#38bdf8','#a78bfa','#f87171','#fbbf24'];
-const DWELL_MS = 2500; // 2.5 seconds to auto-fire
+const DWELL_MS = 1500; // 1.5 seconds to auto-fire
+const DWELL_GRACE_MS = 250; // brief grace period so a single noisy frame doesn't reset the ring
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let curQ=0,score=0,answered=false;
@@ -203,13 +204,16 @@ let stars=[], asteroids=[], shots=[], sparks=[];
 let prevFrame=null;         // previous video frame pixel data
 let ptrX=0, ptrY=0;        // aim position (raw / mouse)
 let camPtrX=0, camPtrY=0;  // smoothed camera pointer (EMA)
-const CAM_SMOOTH=0.18;      // 0=no movement, 1=instant — tweak for feel
+const CAM_SMOOTH=0.15;      // 0=no movement, 1=instant — lower = smoother
 let camHasSignal=false;     // whether camera has ever detected motion
+let camHistory=[];          // short buffer of recent raw readings for spike rejection
+const CAM_HISTORY_LEN=4;
 let rocketX=0;
 // Dwell state
 let dwellAstIdx=-1;         // which asteroid is being dwelled on
 let dwellStart=0;           // when dwell started (ms)
 let dwellProgress=0;        // 0..1
+let dwellLostAt=0;          // when we last lost the target (for grace period)
 
 // ── Canvas ────────────────────────────────────────────────────────────────────
 const GC=document.getElementById('gc');
@@ -310,6 +314,7 @@ const PIPV=document.getElementById('pip-vid');
 const PIPC=document.getElementById('pip-cv');
 const pCtx=PIPC.getContext('2d');
 const TW=200, TH=150;
+const TOTAL_PX=TW*TH;
 
 // Set canvas sizes once (not every frame — resetting size clears the canvas unnecessarily)
 TC.width=TW; TC.height=TH;
@@ -341,7 +346,7 @@ function processMotion(){
           Math.abs(cd[i+1]-pd[i+1]),
           Math.abs(cd[i+2]-pd[i+2])
         );
-        if(diff>35){ // raised threshold: ignores lighting noise
+        if(diff>40){ // raised threshold: ignores camera sensor / lighting noise
           motionX+=x; motionY+=y; motionCount++;
         }
       }
@@ -349,21 +354,35 @@ function processMotion(){
   }
   prevFrame=cur;
 
-  if(motionCount>200){
+  // If a huge chunk of the frame "moved" at once, that's almost always the
+  // camera's auto-exposure/white-balance re-adjusting (a lighting flicker),
+  // not a real hand — treat it as no-signal instead of snapping the aim.
+  const isLightingFlicker = motionCount > TOTAL_PX*0.45;
+
+  if(motionCount>200 && !isLightingFlicker){
     const rawX=motionX/motionCount;
     const rawY=motionY/motionCount;
+    const targetX=rawX/TW*GC.width;
+    const targetY=rawY/TH*GC.height;
+
+    // Reject single-frame spikes with a short median filter before they
+    // ever reach the smoother — this is what was causing the jumpy aim.
+    camHistory.push({x:targetX,y:targetY});
+    if(camHistory.length>CAM_HISTORY_LEN) camHistory.shift();
+    const xs=camHistory.map(p=>p.x).sort((a,b)=>a-b);
+    const ys=camHistory.map(p=>p.y).sort((a,b)=>a-b);
+    const medX=xs[Math.floor(xs.length/2)];
+    const medY=ys[Math.floor(ys.length/2)];
 
     // ── EMA smoothing — eliminates the jitter ─────────────────────────────
     if(!camHasSignal){
       // First detection: jump instantly so there's no slow drift-in
-      camPtrX=rawX/TW*GC.width;
-      camPtrY=rawY/TH*GC.height;
+      camPtrX=medX;
+      camPtrY=medY;
       camHasSignal=true;
     } else {
-      const targetX=rawX/TW*GC.width;
-      const targetY=rawY/TH*GC.height;
-      camPtrX+=(targetX-camPtrX)*CAM_SMOOTH;
-      camPtrY+=(targetY-camPtrY)*CAM_SMOOTH;
+      camPtrX+=(medX-camPtrX)*CAM_SMOOTH;
+      camPtrY+=(medY-camPtrY)*CAM_SMOOTH;
     }
     ptrX=camPtrX; ptrY=camPtrY;
 
@@ -377,7 +396,9 @@ function processMotion(){
     // Check dwell on asteroid
     updateDwell();
   } else {
-    // No significant motion — keep dwell alive (allows stationary hold)
+    // No significant motion (or a lighting flicker) — keep dwell alive so a
+    // steady, stationary hand still fires, and don't let a flicker frame
+    // teleport the aim anywhere.
     updateDwell();
     // Show hint in PiP only when not dwelling
     if(dwellAstIdx<0){
@@ -392,17 +413,30 @@ function processMotion(){
 
 function updateDwell(){
   if(answered)return;
-  // Find which asteroid ptr is over
+  // Find which asteroid ptr is over. Use a wider "keep" radius for the
+  // asteroid we're already dwelling on than for newly acquiring one — this
+  // hysteresis stops the progress ring from flickering on/off when the
+  // tracked point jitters right at the edge of the asteroid.
   let hitIdx=-1;
   for(let i=0;i<asteroids.length;i++){
     const a=asteroids[i]; if(!a.alive||a.boom)continue;
     const ay=a.baseY+Math.sin(Date.now()*0.001+a.phase)*10;
-    if(Math.hypot(ptrX-a.x,ptrY-ay)<=a.r*1.5){hitIdx=i;break;}
+    const radius = (dwellAstIdx===i) ? a.r*1.9 : a.r*1.5;
+    if(Math.hypot(ptrX-a.x,ptrY-ay)<=radius){hitIdx=i;break;}
   }
 
   if(hitIdx<0){
-    dwellAstIdx=-1; dwellStart=0; dwellProgress=0; return;
+    if(dwellAstIdx>=0){
+      // Give it a brief grace period before dropping the dwell — a single
+      // noisy frame shouldn't reset the whole countdown.
+      if(!dwellLostAt) dwellLostAt=Date.now();
+      if(Date.now()-dwellLostAt>DWELL_GRACE_MS){
+        dwellAstIdx=-1; dwellStart=0; dwellProgress=0; dwellLostAt=0;
+      }
+    }
+    return;
   }
+  dwellLostAt=0;
 
   if(hitIdx!==dwellAstIdx){
     // Switched to new asteroid - reset timer
@@ -427,17 +461,17 @@ async function toggleCam(){
       camStream=await navigator.mediaDevices.getUserMedia({video:{width:320,height:240,facingMode:'user'}});
       TV.srcObject=camStream; PIPV.srcObject=camStream; bg.srcObject=camStream;
       bg.style.display='block'; pip.style.display='block';
-      camActive=true; prevFrame=null;
+      camActive=true; prevFrame=null; camHistory=[];
       btn.textContent='📷 Disable Hand Cam'; btn.classList.add('on');
       requestAnimationFrame(processMotion);
     } catch(e){ alert('Camera permission required for hand tracking!'); }
   } else {
     cancelAnimationFrame(frameId);
     camStream.getTracks().forEach(t=>t.stop());
-    camStream=null; camActive=false; prevFrame=null;
+    camStream=null; camActive=false; prevFrame=null; camHistory=[]; camHasSignal=false;
     pip.style.display='none'; bg.style.display='none';
     btn.textContent='📷 Enable Hand Cam'; btn.classList.remove('on');
-    dwellAstIdx=-1; dwellStart=0; dwellProgress=0;
+    dwellAstIdx=-1; dwellStart=0; dwellProgress=0; dwellLostAt=0;
   }
 }
 
@@ -615,7 +649,7 @@ function loop(t){
 
 // ── Quiz logic ─────────────────────────────────────────────────────────────────
 function loadQ(){
-  answered=false;dwellAstIdx=-1;dwellStart=0;dwellProgress=0;
+  answered=false;dwellAstIdx=-1;dwellStart=0;dwellProgress=0;dwellLostAt=0;
   const q=QS[curQ];
   document.getElementById('qtext').textContent=q.q;
   document.getElementById('qn').innerHTML=`${curQ+1} <span class="ssub">/ 10</span>`;
@@ -624,7 +658,7 @@ function loadQ(){
 }
 function selectAnswer(idx){
   if(answered)return;answered=true;
-  dwellAstIdx=-1;dwellStart=0;dwellProgress=0;
+  dwellAstIdx=-1;dwellStart=0;dwellProgress=0;dwellLostAt=0;
   const q=QS[curQ];const correct=q.opts[idx]===q.ans;const ast=asteroids[idx];
   fire(ast,correct);
   setTimeout(()=>{spawnSparks(ast.x,ast.baseY,correct?'#34d399':'#f87171');ast.boom=true;},360);
