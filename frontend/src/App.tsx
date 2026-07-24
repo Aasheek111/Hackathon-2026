@@ -30,6 +30,7 @@ import VisualDashboardPage from './pages/visual/VisualDashboardPage';
 import SignLanguagePage from './pages/visual/SignLanguagePage';
 import SignQuizPage from './pages/visual/SignQuizPage';
 import SignPracticePage from './pages/practice/SignPracticePage';
+import CustomPlanPlayerPage from './pages/CustomPlanPlayerPage';
 import LoadingSpinner from './components/ui/LoadingSpinner';
 import AudioControlBar from './components/AudioControlBar';
 import FloatingAccessibilityToolkit from './components/FloatingAccessibilityToolkit';
@@ -122,6 +123,7 @@ const App: React.FC = () => {
           <Route path="/classroom/units/:unitId/tutorial" element={<ProtectedRoute allowRoles={['STUDENT', 'TEACHER']} requirePaidStudent><TutorialRouter /></ProtectedRoute>} />
           <Route path="/classroom/units/:unitId/document" element={<ProtectedRoute allowRoles={['STUDENT', 'TEACHER']} requirePaidStudent><RawDocViewerPage /></ProtectedRoute>} />
           <Route path="/classroom/units/:unitId/youtube-quiz" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><YoutubeQuizPage /></ProtectedRoute>} />
+          <Route path="/classroom/subjects/:subjectId/custom-plan" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><CustomPlanPlayerPage /></ProtectedRoute>} />
           <Route path="/progress" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><ProgressPage /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute allowRoles={['STUDENT']} requirePaidStudent><AccessibilitySettingsPage /></ProtectedRoute>} />
 

@@ -170,6 +170,7 @@ model User {
   youtubeQuizzes  YoutubeQuiz[]
 
   signFavourites  SignFavourite[]
+  customizedPlans CustomizedPlan[]
 }
 
 // One row per student, created lazily on first read/write (see the route).
@@ -380,6 +381,7 @@ model Subject {
   classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
   name        String
   units       Unit[]
+  customizedPlans CustomizedPlan[]
   createdAt   DateTime  @default(now())
 }
 
@@ -786,4 +788,50 @@ model YoutubeQuizQuestion {
   correct  String
 
   @@unique([quizId, order])
+}
+
+// ---------------------------------------------------------------------------
+// Student Segregation & Personalized Learning Plan Pipeline
+// ---------------------------------------------------------------------------
+
+enum CustomPlanStatus {
+  QUEUED
+  GENERATING
+  READY
+  FAILED
+}
+
+model CustomizedPlan {
+  id                 String                 @id @default(cuid())
+  subjectId          String
+  subject            Subject                @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  studentId          String
+  student            User                   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  title              String
+  status             CustomPlanStatus       @default(QUEUED)
+  compositionSummary Json
+  errorMessage       String?
+  modules            CustomizedPlanModule[]
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  @@unique([subjectId, studentId])
+  @@index([studentId])
+}
+
+model CustomizedPlanModule {
+  id                String         @id @default(cuid())
+  planId            String
+  plan              CustomizedPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  order             Int
+  title             String
+  description       String
+  contentType       String         // e.g. "VISUAL_STORY", "GAME_CHALLENGE", "AUDIO_EXPLANATION", "MIXED_LESSON"
+  content           Json           // { title, explanation, example, imageUrl, audioUrl, questions: [...] }
+  targetUnitId      String?        // underlying unit ID to sync progress to
+  targetLessonOrder Int?
+  completed         Boolean        @default(false)
+  completedAt       DateTime?
+
+  @@unique([planId, order])
 }
