@@ -497,10 +497,10 @@ router.post('/:id/curriculum/final-assessment', requireRole('STUDENT'), async (r
 
 /**
  * Regenerates every lesson's picture from its own text - fast and doesn't
- * touch Gemini's text-generation quota at all, unlike a full regenerate:
- * image generation goes through generate_visual_image() (Gemini image model,
- * falling back to pollinations.ai), a completely separate call from the
- * lesson-planning/writing pipeline that actually hits the daily text quota.
+ * touch the text-generation quota at all, unlike a full regenerate: images
+ * go through generate_visual_image(), which is an Unsplash photo search
+ * (hotlinked, sub-second) rather than any part of the lesson-planning/writing
+ * pipeline that actually hits the daily text quota.
  * Fire-and-forget, same pattern as the rest of this pipeline's background work.
  */
 router.post('/:id/regenerate-visuals', requireApprovedTeacher, async (req: Request, res: Response) => {
